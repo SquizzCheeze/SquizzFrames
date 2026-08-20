@@ -195,6 +195,11 @@ Tagging is what publishes — pushes to `main` never reach CurseForge.
 
 Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` ticked. Builds and uploads nothing, leaving the zip as an artifact. Requires the `CF_API_TOKEN` repo secret; `GITHUB_TOKEN` is automatic. `.pkgmeta` controls what's excluded from the zip and feeds `CHANGELOG.txt` in as the release notes (whole file, not just the newest section).
 
+**Three failure modes that a green checkmark won't show you** — all learned the hard way on Squizzumables (its `CLAUDE.md` "Releasing" section is the original writeup; this toolchain is shared, so check there before debugging packaging here):
+- **The tag must be annotated (`-a`).** `git describe` ignores lightweight tags, so the packager falls back to the commit hash and ships an *alpha* build named after it instead of a version.
+- **`actions/upload-artifact` skips hidden paths by default** and the packager builds into `.release/`, so the dry-run artifact needs `include-hidden-files: true`. Without it the upload finds nothing while the packaging step stays green.
+- **`release.sh` skips a missing token silently and still exits 0.** The tell is the credential line it prints near the top: `CurseForge ID: 1649203 [token set]` — that suffix is `${cf_token:+ [token set]}`, so **no suffix means the token is empty**. A green run that makes a GitHub release but nothing on CurseForge is this. A misnamed secret is not an error in Actions; it interpolates to an empty string, which is why the workflow has a dry-run-only step printing both secrets' lengths.
+
 ### Common Commands
 | Command | Action |
 |---------|--------|
