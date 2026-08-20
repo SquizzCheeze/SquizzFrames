@@ -1,0 +1,65 @@
+name: Package and release
+
+# Publishing is deliberately tied to TAGS, not to pushes: work on main as often
+# as you like, and nothing reaches CurseForge until you tag a version.
+#
+#   git tag -a v1.7 -m "V1.7"
+#   git push origin v1.7
+#
+# That builds the zip, uploads it to CurseForge (project 1649203, read from
+# ## X-Curse-Project-ID in the TOC) and attaches it to a GitHub release.
+#
+# Run it from the Actions tab instead to do a dry run: it builds the zip,
+# uploads nothing anywhere, and leaves the file as a downloadable artifact so
+# you can check what would have shipped.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build only -- upload nothing, keep the zip as an artifact"
+        type: boolean
+        default: true
+
+permissions:
+  # Needed for the packager to create the GitHub release and attach the zip.
+  contents: write
+
+jobs:
+  package:
+    name: Build and upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          # Full history, NOT the default shallow clone: the packager works out
+          # the version from the tag and the changelog from the commits since
+          # the previous one. A shallow clone silently produces a wrong version.
+          fetch-depth: 0
+
+      - name: Package
+        uses: BigWigsMods/packager@v2
+        with:
+          # -d skips every upload. Empty on a tag push, so a real release
+          # uploads normally.
+          args: ${{ github.event.inputs.dry_run == 'true' && '-d' || '' }}
+          # pandoc only matters for WoWInterface changelog conversion, and we
+          # don't publish there.
+          pandoc: false
+        env:
+          # Add this under Settings -> Secrets and variables -> Actions.
+          # Token comes from https://authors.curseforge.com/#/settings/api-tokens
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          # Provided by Actions automatically -- no secret to create.
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keep the zip from a dry run
+        if: github.event.inputs.dry_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SquizzFrames-dry-run
+          path: .release/*.zip
+          if-no-files-found: error

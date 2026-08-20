@@ -1,0 +1,34 @@
+# Packaging metadata for BigWigsMods/packager, used by the release workflow in
+# .github/workflows/release.yml.
+#
+# The addon folder must be named SquizzFrames when installed -- this is what
+# names the folder inside the zip.
+package-as: SquizzFrames
+
+# Upload the hand-written changelog as the release notes rather than a list of
+# commit messages.
+#
+# Note this sends the WHOLE file -- every version, newest first -- not just the
+# section for the version being released. That is how manual-changelog works;
+# the alternative is auto-generated commit messages, which are much less useful
+# to players.
+manual-changelog:
+  filename: CHANGELOG.txt
+  markup-type: text
+
+# Development-only files, kept out of the zip so they never ship to users.
+# LICENSE and CHANGELOG.txt are deliberately NOT here: the MIT licence has to
+# travel with the code, and the changelog is worth having offline.
+ignore:
+  - .github
+  - .vscode
+  - .claude
+  - .gitignore
+  - .gitattributes
+  - .pkgmeta
+  - CLAUDE.md
+  - README.md
+
+# All libraries are vendored in Libs/, so there is nothing to check out and no
+# separate no-libraries package to build.
+enable-nolib-creation: no

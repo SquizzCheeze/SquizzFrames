@@ -186,6 +186,15 @@ There is **no automated test suite**. Development is done by:
 3. Using `/sf` to open options panel
 4. Checking chat for debug prints (prefixed `|cff33cc99[SquizzFrames]|r`)
 
+### Releasing
+Tagging is what publishes — pushes to `main` never reach CurseForge.
+
+1. Close the top `CHANGELOG.txt` section (date the heading) and bump `## Version:` in `SquizzFrames.toc`. **Both are manual** — the TOC keeps a literal version rather than `@project-version@` so the live dev folder doesn't show a placeholder in the in-game addon list.
+2. `git tag -a v1.7 -m "V1.7"` && `git push origin v1.7`
+3. `.github/workflows/release.yml` (BigWigsMods/packager) builds the zip, uploads it to CurseForge (project ID read from `## X-Curse-Project-ID` in the TOC) and attaches it to a GitHub release.
+
+Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` ticked. Builds and uploads nothing, leaving the zip as an artifact. Requires the `CF_API_TOKEN` repo secret; `GITHUB_TOKEN` is automatic. `.pkgmeta` controls what's excluded from the zip and feeds `CHANGELOG.txt` in as the release notes (whole file, not just the newest section).
+
 ### Common Commands
 | Command | Action |
 |---------|--------|
