@@ -1,0 +1,569 @@
+SquizzFrames - Changelog
+========================
+
+
+V1.7 (in progress)
+------------------
+
+Bug fixes:
+
+- Fixed an "AddOn tried to call a protected function" error when dragging the
+  frames to a new position while in combat. The frames can't be moved mid-fight
+  - the game blocks it - so dragging now says so and waits instead of erroring.
+
+  The error text blamed whichever other addon happened to be loaded (ElvUI in
+  one report), which made it look like their problem. It wasn't.
+
+Improvements:
+
+- Sort By Role in a raid now sorts within each group, instead of rearranging
+  the whole raid.
+
+  Turning it on used to replace the group layout entirely - everyone was
+  re-shuffled into tank, healer and damage blocks, and which group someone was
+  actually in stopped being visible anywhere. Groups now stay groups, and roles
+  are ordered inside each one.
+
+  Two smaller things come with it: a group that isn't full no longer pushes the
+  next group's members into its column, and Center growth now centres each
+  group on its own size rather than assuming five members.
+
+
+V1.6 (2026-08-19)
+-----------------
+
+Bug fixes:
+
+- Fixed the "Attempt to access forbidden object" errors properly. V1.5's
+  attempt at this reduced them but did not stop them.
+
+  The game forbids addons from touching an aura icon once it has decided that
+  player's buffs are private, and there is no reliable way to ask in advance
+  whether a particular icon can be touched - it will say yes and then refuse
+  anyway. The refusal can also be triggered by an entirely different addon's
+  code running alongside ours, which is outside our control entirely.
+
+  So restyling no longer tries to predict it. It simply tolerates being
+  refused, and reapplies itself afterwards for any icon it was turned away
+  from.
+
+
+V1.5 (2026-08-19)
+-----------------
+
+Bug fixes:
+
+- Reduced a flood of "Attempt to access forbidden object" errors coming from
+  the aura indicators. One report had over five thousand in a single session.
+
+  Only partly effective - see V1.6, which fixes it properly.
+
+- Fixed a party member's frame never coming back if they leave and rejoin the
+  group during combat, leaving a gap where their frame should be.
+
+  Most visible with the NPC companions in Delves, who leave and instantly
+  rejoin whenever you die, but it could happen to anyone. The game won't let
+  frames be reassigned mid-fight, so the frame was left pointing at a player
+  who was no longer there, and nothing put it right once the fight ended -
+  only a /reload. Leaving combat now rebuilds the group properly.
+
+Improvements:
+
+- Healer HoTs, External Cooldowns and Defensive Cooldowns now hide themselves
+  for a player the game won't let the addon filter buffs on, instead of showing
+  that player's whole buff list.
+
+  This is the cross-faction problem from V1.4, taken as far as it can go. There
+  is no way to filter those buffs - the game switches spell filtering off
+  entirely for a player you can't assist - so the choice is between showing
+  everything and showing nothing. Showing everything turned out to be worse
+  than noise: an icon in the External Cooldowns row means "this player has an
+  external cooldown on them", and while filtering is off that isn't true.
+
+  If you'd rather see the unfiltered list than nothing at all, each of the
+  three indicators has a new "Show Unfiltered Auras" option to turn the hiding
+  off.
+
+- The addon now recognises several more situations where the game blocks buff
+  filtering, and stops trusting its spell list in them: while you're in a
+  vehicle (including the moment you're climbing in or out), during and after
+  cutscenes, and for players who are dead, offline, phased or in a different
+  instance.
+
+  The cutscene case is the notable one - a cutscene quietly makes everyone
+  unfilterable, including you, and it stayed that way afterwards. Patch 12.1
+  plays one on your first login, which is why buffs could look wrong from the
+  moment you logged in.
+
+
+V1.4 (2026-08-16)
+-----------------
+
+New:
+
+- Nicknames. Party and raid frames can now show a nickname in place of a
+  character name, which is mostly aimed at long cross-realm names that never
+  fit in the name text.
+
+  There are two independent kinds. A private list is yours alone - you set a
+  nickname for anyone you like and nobody else is involved. A shared nickname
+  is one you set for yourself, which is sent to other people in your group who
+  also run SquizzFrames, so they see you under the name you picked. You can
+  turn the shared half off entirely and keep using the private list, and you
+  can block any individual whose shared nickname you'd rather not see.
+
+  Your own private entries always win over anything received from someone
+  else, so a nickname you set is never overridden.
+
+  Everything is set up on the new Nicknames page in the options panel (/sf).
+  You don't have to type anyone's name out: target them and it's filled in for
+  you, or pick them from a list of your current group. There are also
+  /sf nick commands if you prefer typing - type it on its own for the list.
+
+  Nicknames are stored per account rather than per profile, so they don't
+  disappear when you switch profiles, and nicknames you set for other people
+  only need entering once no matter which character you're on.
+
+  The nickname you pick for yourself is per character by default, so alts can
+  each have their own. If you'd rather use the same one everywhere, tick "Use
+  this nickname on all my characters" - your per-character nicknames are kept,
+  not overwritten, so you can switch back at any time.
+
+Bug fixes:
+
+- Changing options during combat no longer produces an "AddOn tried to call a
+  protected function" error, and no longer leaves the frames at the wrong
+  position until the next reload.
+
+  Moving the frames back to their saved position is something the game only
+  allows out of combat. Most paths that do this already waited for combat to
+  end, but the ones reached from the options panel and from dragging did not,
+  so adjusting a setting mid-fight failed outright. Those now wait for combat
+  to end and then apply, like everything else.
+
+- Fixed a crash in raids when Name Text's "Show Group Number" was enabled.
+
+  Once a fight started and the game began hiding player details from addons,
+  reading a player's raid group threw an error that stopped the name from
+  updating at all. The group number is now left off when the game won't tell
+  us, rather than taking the name down with it. The same fault was also
+  present in the raid container's auto-sizing, where it could break the frame
+  layout instead.
+
+- "Hide Realm Name" no longer stops working partway through a fight.
+
+  Once a fight starts, the game can hide a player's name from addons. The
+  addon handled that by passing the name straight through to be drawn, which
+  is safe, but meant the realm suffix came along with it and the setting was
+  quietly ignored for the rest of the encounter. It now strips the realm using
+  a method that works on hidden names too.
+
+- Healer HoTs, External Cooldowns and Defensive Cooldowns show much less of a
+  cross-faction group member's buff list in the open world.
+
+  The game only lets an addon filter buffs by spell for a player you're able to
+  assist, and cross-faction group members are not assistable outside an
+  instance - which is why this looked fine in dungeons and broke the moment you
+  stepped outside. The addon already had a fallback for that case, but only
+  re-checked on vehicle transitions, so leaving a dungeon left it switched off.
+  It now re-checks on zone and instance changes, roster changes and PvP flag
+  changes as well.
+
+  Not a complete fix, and it can't be one. That fallback can only filter on
+  duration, so their long buffs (food, flasks, intellect, weapon enchants) are
+  hidden while short ones still get through - most noticeable in combat, where
+  nearly every buff is short. Inside a dungeon or raid the same player filters
+  normally.
+
+  This also fixes the reverse case: permanent tracked buffs (Beacon of Light
+  and Beacon of Faith, for instance) that had gone missing after a session
+  started in the wrong state now reappear as soon as you zone.
+
+
+V1.3 (2026-08-14)
+-----------------
+
+Improvements:
+
+- Custom "Colour" indicators gained an Expiring Color option: below a threshold
+  you pick (< 3s, < 5s or < 10s remaining), the health bar switches to a second
+  colour. It tracks the health fill exactly like the normal colour does, and
+  works in combat.
+
+  This was previously believed impossible. Remaining time is hidden from addons
+  on 12.1, so nothing can compare it against a threshold - which is why the
+  duration text options had to be rebuilt around the game's own formatter in
+  V1.2. The colour now rides that same formatter, so the game makes the
+  comparison and the addon never sees the number.
+
+  Only Colour indicators anchored to the health bar can offer it. Ones that
+  track auras by name, or that colour the unit button's border, use the older
+  scanning path, which has no way to read remaining time safely.
+
+- The Create Custom Indicator dropdown now offers Icon, Bar and Colour only.
+  The other ten types were carried over from the addon's original design and
+  have never been confirmed to work - some of them likely never did. Offering a
+  type that quietly does nothing is worse than not offering it, so they're
+  hidden until each has been checked.
+
+  Nothing you already made is affected: an existing indicator of one of those
+  types keeps working exactly as before. Types will be added back as they're
+  verified.
+
+- Every font dropdown now offers the full font list, not just four entries.
+  That covers the Name/Health/Power/Status text indicators, all the Stack and
+  Duration font blocks on the aura indicators, and the new pet name text. Any
+  font registered by another addon you have installed shows up too.
+
+  Your current selection is unaffected. The three names the old list used are
+  kept at the bottom, marked "(legacy)" - one of them is the shipped default,
+  and dropping it would have made every existing profile look like its font
+  setting had been lost.
+
+- Pet Frames gained "Match Owner Width" and "Match Owner Height" options. With
+  one on, each pet frame takes that dimension from its owner instead of its own
+  slider, and follows along as you change the party frame size. The two are
+  independent, so you can match the width and still set the height by hand.
+  Whichever slider is being matched hides rather than sitting there doing
+  nothing.
+
+  Attached mode only - a floating pet group sits away from the party frames,
+  so there's no owner beside it for the size to match.
+
+- Pet Frames gained a full Name Text section: show/hide, font, size, outline,
+  shadow, colour, anchor point and X/Y offset. Party and Raid keep their own
+  settings, as with every other pet setting, so a small raid pet frame can use
+  a smaller font or hide the name entirely.
+
+  Long names truncate at the frame edge rather than spilling out, and the text
+  justifies toward whichever edge you anchor it to.
+
+- Shield Overlay and Heal Absorb gained a Glow Color setting, tinting the
+  overshield and over-absorb glow strips independently of the bar's own
+  colour. Defaults to white, which is the artwork untouched, so nothing
+  changes until you pick a colour.
+
+  The alpha slider works alongside the glow's existing behaviour rather than
+  replacing it: on Shield Overlay the glow still only appears while you're
+  actually overshielded, and the slider sets how strong it is when it does.
+
+- Dispel Icons gained a "Use Spell Icons" checkbox. Off by default, so nothing
+  changes unless you want it: the dispel-type symbol stays the default, since
+  it's what stays readable at 16px. Ticked, each icon shows the actual debuff's
+  own artwork instead.
+
+  The per-type dedupe still applies either way, so with this on you see the
+  icon of whichever debuff of that type the game ranks first, not one icon per
+  debuff. The type filter, size, position, orientation and frame level all
+  work the same in both modes.
+
+Bug fixes:
+
+- Custom "Colour" indicators anchored to the health bar now honour the Frame
+  Border and power bar the way the Dispels overlay does, in the Designer
+  preview as well as on live frames. They tinted straight over both, which was
+  most visible alongside a Dispels overlay on the same bar - the two disagreed
+  about where the frame ended.
+
+  Colour indicators anchored to the unit button (the border mode) are
+  unchanged: that border draws outside the button and has nothing to inset
+  against.
+
+- Fixed keyboard and mouse-wheel click-casting bindings never working for the
+  unit menu or for target. A plain "Y" bound to the menu did nothing, with or
+  without a modifier, while spells and macros on the same keys worked fine.
+
+  The game blocks those two actions unless the click that triggered them is a
+  recognised click-cast binding. Keyboard bindings work by firing a simulated
+  click whose button name the addon invents, so that check could never pass and
+  the action was dropped every time. They now take the same route the mouse
+  bindings already used for modified clicks, which bypasses the check entirely.
+
+  Target was broken in exactly the same way and is fixed by the same change.
+
+- Fixed opposite-faction group members being permanently faded as "out of
+  range", however close they stood. Cross-faction groups are the only case
+  affected, and only outdoors - the same players read correctly inside
+  instances, which is what gave the cause away.
+
+  Range checks lean on friendly spell and item range, and the game doesn't
+  treat an opposite-faction player as a valid friendly target in the open
+  world even while you're grouped, so every check answered "no" regardless of
+  distance. There was already a fallback for this out of combat, but it only
+  triggered when the check gave no answer at all, not when it answered "no" -
+  and there was no fallback in combat, where that workaround isn't available.
+
+  Cross-faction members now use the game's own group range check instead, in
+  and out of combat. Same-faction members are unaffected and keep using your
+  actual healing range.
+
+- Fixed Healer HoTs, External Cooldowns and Defensive Cooldowns showing buffs
+  they don't track while you're in a vehicle - or piloting an NPC with its own
+  spell bar, which the game treats the same way. Scenario and encounter buffs
+  would flood all three indicators at once.
+
+  These indicators filter by spell ID, but the game only honours that filter
+  while it considers you able to assist the unit being watched, and it decides
+  that fresh for every aura. There's a 60-second duration cap as a backstop for
+  when it doesn't - but the addon only decided whether to apply that cap once,
+  when the indicator was first built. Enter a vehicle after that point and both
+  filters stopped applying at the same moment, leaving nothing at all to narrow
+  the list.
+
+  It now re-checks whenever you enter or leave a vehicle, and re-points the
+  indicators at the right unit at the same time. Buffs you track are unaffected.
+
+- Fixed the Role Icon always showing DPS when you're solo, whatever you're
+  actually specced as. The icon read your GROUP's role assignment, which
+  simply doesn't exist outside a group - so a Holy Paladin questing alone,
+  and the Designer preview alongside, both wore a damage icon.
+
+  It now falls back to the role your current specialization implies whenever
+  no group role is assigned, and updates the moment you change spec. Other
+  party members are unchanged: their spec isn't readable without inspecting
+  them, so an unassigned role still shows as DPS for them.
+
+
+V1.2 (2026-08-13)
+-----------------
+
+Improvements:
+
+- Dispel icons are now their own indicator, "Dispel Icons", with their own
+  Enabled, Size, Position, Orientation and Frame Level - plus Show Cooldown
+  Swipe and Show Icon Border toggles, both off by default so the dispel symbol
+  reads cleanly on its own.
+
+  Orientation picks Horizontal or Vertical, and Growth then offers that axis's
+  two directions - Left to Right / Right to Left, or Up to Down / Down to Up.
+  Switching axis re-points Growth automatically.
+
+  "Dispels" is now purely the health bar overlay. Its Show Dispel Icons
+  checkbox and its Size/Position are gone: those only ever existed to place the
+  single dispel symbol, and the overlay always covers the health bar anyway.
+  Your existing settings move across automatically - if you had dispel icons
+  on, the new indicator arrives enabled, in the same place and at the same size.
+
+  Dispel Icons also has its own Dispel Types filter, separate from the
+  overlay's. The two are independent, so you can colour the health bar for
+  every dispel type while only showing a symbol for the ones you actually
+  react to.
+
+- Dispel icons no longer stack on top of each other when a target has more than
+  one dispellable debuff, and are deduplicated by type: three Magic debuffs
+  show one Magic icon, Magic + Curse shows two. They keep the dispel-type
+  symbol, and draw above the overlay and the rest of the frame content.
+
+- Removed the Private Auras (Boss) indicator. Those debuffs are drawn by the
+  game's own aura system on 12.1, so a separate indicator no longer does
+  anything for them - it exists purely as a leftover from 12.0.7. It is
+  removed from existing profiles automatically; boss private auras keep
+  showing exactly as before.
+
+- Click-casting now works on unit frames that aren't SquizzFrames'. That covers
+  Blizzard's boss frames, player, pet, target, focus and both
+  target-of-targets; EllesmereUI's party, raid, friendly boss and extra frames;
+  and EllesmereUI's own player, target, focus, pet, target-of-target and boss
+  frames. This is what lets you click-cast on dungeon and raid bosses, which
+  have no SquizzFrames frame of their own.
+
+  On by default, and harmless as a default: the stock bindings are Left =
+  target and Right = menu, which is exactly what those frames already did. It
+  only changes anything once you bind something yourself. There's an "Other
+  addons' frames" checkbox on the Click Casting page to turn it off.
+
+  Three notes. If you also have EllesmereUI's own click-casting switched on
+  (it ships off), both addons will be writing to the same frames and whichever
+  applied last wins - pick one. Arena enemy frames are not included, since
+  unlike boss frames they're built on demand when an arena loads. And unticking
+  the checkbox stops future updates but cannot retroactively strip bindings
+  already applied; that takes a /reload.
+
+- Out-of-range fading now works in combat. It previously switched itself off
+  the moment a fight started and left every frame at full brightness, because
+  the range checks it relied on (item range and interact distance) are
+  unavailable in combat and were making every party member read as out of
+  range.
+
+  It now uses your class's own healing/buff spell range in combat, which is
+  both available there and more accurate - it tracks your real reach,
+  including talents and shorter ranges like Evoker's. Warriors, Hunters, Death
+  Knights and Demon Hunters have no such spell, so they fall back to the
+  standard ~40 yard group range instead. Dead party members use that same
+  fallback, since a healing-range check on a corpse answers nothing useful.
+
+- Range fading now reacts the moment someone moves out of range, instead of on
+  the next half-second refresh. The periodic refresh is still there to cover
+  the shorter class-specific ranges, which don't have an event of their own.
+
+- Duration numbers on aura icons no longer carry a unit letter - "2" instead of
+  "2m". Note this makes minutes and seconds read the same; on icons this small,
+  the low end is what matters.
+
+- The Designer preview now draws the duration text AND the stack count on
+  Debuffs, CC, Healer HoTs and both Cooldown indicators, so you can see where
+  they sit while positioning things. Both follow the same font, colour, anchor
+  and offset settings the real icons use, and update as you drag the sliders.
+
+- Healer HoTs gained the "< 5s Remaining" and "< 3s Remaining" duration
+  options. It only offered Always and Never before, on the mistaken belief
+  that thresholds were impossible for it.
+
+Bug fixes:
+
+- Fixed a custom "Icon" indicator drawing the wrong texture on live frames and
+  printing its icon ID as the stack count (e.g. "135968" on Blessing of
+  Freedom). The preview was unaffected, which was the clue: the two took
+  different code paths, and the live one was handing a single-icon frame the
+  argument list meant for a multi-icon grid, shifting every value by one.
+  Both now decide the same way.
+
+- The Stack Font and Duration Font size sliders go down to 1 instead of
+  stopping at 5. On a 16-20px aura icon even size 5 is large.
+
+- Fixed permanent buffs never appearing on Healer HoTs or the Cooldown
+  indicators - Beacon of Light and Beacon of Faith most visibly, but it applied
+  to any tracked buff with no duration.
+
+  These indicators carry a 60-second duration cap to keep out food, flasks and
+  other long buffs, needed because the game sometimes discards our tracked-spell
+  list. That cap also rejects permanent auras outright, whatever the limit is
+  set to. It's now applied only where the spell list is genuinely being ignored,
+  so on frames where filtering works you get exactly your tracked spells,
+  permanent ones included.
+
+- Fixed the Stack Font and Duration Font settings doing nothing on Healer HoTs.
+  It was missing the font defaults the other aura indicators ship, so the
+  settings had nowhere to write.
+
+- Fixed the Designer preview ignoring font settings for Healer HoTs, Debuffs,
+  CC and the Cooldown indicators when no live frames existed yet - designing
+  solo, or with the party frames hidden. The preview's mock duration and stack
+  text read the same style table the real icons use, but that table was only
+  ever built alongside a live aura container, so with none present the preview
+  fell back to built-in defaults and edits appeared to do nothing.
+
+- Fixed those font settings having no effect at all on custom Icon indicators,
+  which is why the text stayed large no matter where the slider sat. The stack
+  count was using a fixed built-in font, and the duration wasn't our text at
+  all - it's the cooldown swipe's own countdown numbers, which use Blizzard's
+  font and scale themselves to the icon. Both follow your settings now.
+
+  The countdown's position is still Blizzard's to decide, so the Anchor and
+  X/Y Offset in the Duration Font block don't move it - size, outline and
+  colour do apply.
+
+- Healer HoTs gained full Stack Font and Duration Font blocks, each under its
+  own header, with font, outline, size, shadow, anchor, X/Y offset and colour -
+  plus a Show Stacks toggle. This replaces the old duration-offset-only
+  control, which the font block is a superset of; a duration offset saved
+  under the old control is ignored in favour of the new one.
+
+- Fixed a deleted custom indicator staying visible in the preview. It affected
+  the colour and bar custom types specifically: those keep a live aura tracker
+  across rebuilds (deliberately, so it isn't torn down and recreated every
+  roster change), and nothing was cleaning them up when the indicator was
+  removed from the list rather than merely disabled.
+
+- Fixed a large memory leak in the aura indicators. Every aura indicator was
+  building live aura trackers for frames that had no unit yet - and because
+  those fell back to "player", each one ended up watching your own auras. On a
+  raid-capable layout that was around 36 stray trackers per aura indicator,
+  every one of them permanent for the rest of the session.
+
+  Nothing visibly broke, which is why it went unnoticed; it just quietly cost
+  memory and work every aura update.
+
+- Fixed the layout preview building real aura trackers for every one of its
+  fake party/raid slots, for indicators that preview hides anyway.
+
+- Leader Icon gained a Frame Level setting. It never had one, so it couldn't be
+  layered against Role Icon despite sitting in the same corner. On an existing
+  profile the dropdown starts blank until you pick a value.
+
+- Fixed the Frame Level slider doing nothing on Health Text and Power Text, so
+  they couldn't be layered against Name Text. Text is a drawing, not a frame,
+  and has no frame level of its own - Name Text was already given a real one
+  behind the scenes, and now these two are too.
+
+- Fixed the "Show Stacks" checkbox doing nothing on Debuffs, CC and both
+  Cooldown indicators - stack counts were permanently on regardless.
+
+- Fixed the Stack Font and Duration Font settings doing nothing on Debuffs, CC,
+  Healer HoTs and both Cooldown indicators. Typeface, size, outline, anchor,
+  X/Y offset and colour are all applied now - previously the duration and stack
+  text ignored every one of those sliders and used fixed built-in values.
+
+- Fixed the "Show Duration" thresholds doing nothing. "< 5s Remaining" and
+  "< 3s Remaining" left the duration text on permanently; it now appears only
+  once the remaining time drops below the threshold.
+
+  These options were also labelled backwards ("> 5s Remaining") and now read
+  the way they behave.
+
+  Note "On Hover" still behaves as "Always" - detecting the hover needs a
+  script handler on the aura icons, which the game no longer permits.
+
+- Fixed profiles not auto-switching when you change specialization. The APIs
+  used to read your current spec were moved by Blizzard in a recent patch, and
+  the addon's fallback treated the missing ones as "no spec detected" rather
+  than reporting an error - so auto-switching quietly did nothing, and the
+  spec list on the Profiles page showed "No specializations found for this
+  class" instead of letting you set the mapping up.
+
+  Spec-specific click-casting spells were missing from the spell picker for
+  the same reason, and are back.
+
+- Fixed the Dispels overlay painting over the Frame Border. Its top, left and
+  right edges now stop at the inside of the border, and follow the border's
+  size setting as you change it. (The bottom edge already stopped short of the
+  power bar.)
+
+- Shield Overlay and Heal Absorb now stop at the same edges. Both spanned the
+  whole health bar, so they painted over the Frame Border on three sides and
+  over the power bar along the bottom. They follow the border's size setting
+  as you change it, and reclaim the space when the border is off or the power
+  bar is hidden.
+
+
+V1.1 (2026-08-13)
+-----------------
+
+Bug fixes:
+
+- Fixed aura indicators showing the wrong player's auras when the frames were
+  re-sorted. Most visible with "Sort by Role" enabled, where dispel overlays
+  would appear on the wrong party member, but Healer HoTs, Debuffs, CC and both
+  Cooldown indicators were affected in the same way.
+
+  Cause: these indicators are bound to their unit once, when they are created,
+  while the group header reassigns units between frames every time the group is
+  re-sorted. The frames stay put, the players move between them, and the aura
+  indicators were left pointing at whoever used to be there. They are now
+  re-pointed whenever the sort changes.
+
+- Fixed the frames not re-syncing when a player's name resolved late (zoning in,
+  or cross-realm party members loading in as "Unknown" first). This also
+  re-sorts the group header, which had the same effect as above. It matters most
+  with "Sort by Role", since that mode sorts by name within each role.
+
+Note: during combat the frames deliberately stay one sort behind, because unit
+frames cannot be safely rewired mid-fight. They re-sync as soon as you leave
+combat.
+
+
+V1.0
+----
+
+Initial release.
+
+- Party frames for party1-4 plus the player, with configurable size, spacing,
+  growth direction and orientation.
+- Cell-style indicator system: name/health/power/status text, role, leader and
+  raid target icons, aggro highlighting, shield bar, Healer HoTs, external and
+  defensive cooldowns, debuffs, CC, dispels, missing buffs and private auras,
+  plus user-created custom indicators.
+- Click-casting with per-button, per-modifier bindings for spells, macros,
+  items, target/focus/assist and the unit menu.
+- Options panel via /sf, with a live preview designer and AceDB profile support.
+- Optional integration with BliZzi_Interrupts.

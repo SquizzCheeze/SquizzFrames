@@ -1,0 +1,25 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+../FrameXML/UI.xsd">
+    <Include file="PartyFrames/UnitButton.xml"/>
+    <Script file="PartyFrames/UnitButton.lua"/>
+    <Script file="PartyFrames/PartyFrames.lua"/>
+    <Include file="PetFrames/PetButton.xml"/>
+    <Script file="PetFrames/PetButton.lua"/>
+    <Script file="PetFrames/PetFrames.lua"/>
+    <Script file="ClickCasting/ClickCasting.lua"/>
+    <Script file="ClickCasting/ClickCastingPanel.lua"/>
+    <Script file="Indicators/Indicators.lua"/>
+    <Script file="Indicators/IndicatorDefaults.lua"/>
+    <Script file="Indicators/AuraEngine.lua"/>
+    <Script file="Indicators/AuraEngineIndicators.lua"/>
+    <Script file="Indicators/BuiltIn_Update.lua"/>
+    <Script file="Indicators/Custom_Dispatch.lua"/>
+    <Script file="Indicators/IndicatorWidgets.lua"/>
+    <Script file="Indicators/IndicatorsPanel.lua"/>
+    <!-- After IndicatorsPanel: consumes its CreateMockUnitButton factory. -->
+    <Script file="Indicators/GroupPreview.lua"/>
+    <!-- After Indicators: refreshes names through nameText's _sfNameUpdater. -->
+    <Script file="Nicknames/Nicknames.lua"/>
+    <!-- After Nicknames + Options/Widgets: the panel is a shell over both. -->
+    <Script file="Nicknames/NicknamesPanel.lua"/>
+</Ui>

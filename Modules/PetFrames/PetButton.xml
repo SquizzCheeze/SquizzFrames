@@ -1,0 +1,75 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+../FrameXML/UI.xsd">
+
+    <!-- SquizzFrames Pet Button Template. Deliberately smaller/simpler than
+         SquizzFramesUnitButtonTemplate (UnitButton.xml): health bar, power
+         bar, and name text only, no indicator/debuff frame, no raid icon or
+         status text. Click-casting (2026-08-05) needs
+         SecureHandlerMouseUpDownTemplate for ClickCasting.lua's
+         SetBindingClicks _onmousedown snippet, without it the keyboard/
+         wheel binding refresh-on-mousedown never fires, though mouse-button
+         binds still work via plain typeN attributes either way. -->
+    <Button name="SquizzFramesPetButtonTemplate"
+            inherits="BackdropTemplate,SecureUnitButtonTemplate,SecureHandlerEnterLeaveTemplate,SecureHandlerShowHideTemplate,SecureHandlerMouseUpDownTemplate"
+            virtual="true" movable="true" enableMouse="true">
+        <Size x="60" y="24"/>
+
+        <Attributes>
+            <Attribute name="toggleForVehicle" type="boolean" value="true"/>
+        </Attributes>
+
+        <Layers>
+            <Layer level="ARTWORK" textureSubLevel="2">
+                <!-- Name text -->
+                <FontString name="$parentName" parentKey="nameText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL" hidden="false">
+                    <FontHeight val="10"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="2" y="-1"/>
+                        <Anchor point="TOPRIGHT" x="-2" y="-1"/>
+                    </Anchors>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+            </Layer>
+
+            <Layer level="OVERLAY">
+                <Texture name="$parentHighlight" parentKey="highlight" setAllPoints="true" file="Interface\Buttons\ButtonHilight-Square" alphaMode="ADD" alpha="0.5"/>
+            </Layer>
+        </Layers>
+
+        <Frames>
+            <!-- Flat MEDIUM strata throughout, matching UnitButton.xml's
+                 current (2026-08-01+) convention, see PartyFrames.lua's
+                 CreatePartyContainer comment for why the whole addon settled
+                 on a flat scheme instead of tiered strata. -->
+            <StatusBar name="$parentHealthBar" parentKey="healthBar" frameLevel="1" frameStrata="MEDIUM">
+                <Anchors>
+                    <Anchor point="TOPLEFT"/>
+                    <Anchor point="BOTTOMLEFT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.2" g="0.8" b="0.2" a="1"/>
+            </StatusBar>
+            <StatusBar name="$parentPowerBar" parentKey="powerBar" frameLevel="2">
+                <Size y="4"/>
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT"/>
+                    <Anchor point="BOTTOMRIGHT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.6" g="0.4" b="0.2" a="0.8"/>
+            </StatusBar>
+        </Frames>
+
+        <Scripts>
+            <!-- Only OnLoad is wired here. OnEnter/OnLeave are hooked via
+                 HookScript from OnLoad (PetButton.lua), same reasoning as
+                 UnitButton.xml, an XML <OnEnter> would drop the secure
+                 "_onenter" wrap from SecureHandlerEnterLeaveTemplate. -->
+            <OnLoad function="SquizzFramesPetButton_OnLoad"/>
+        </Scripts>
+    </Button>
+
+</Ui>

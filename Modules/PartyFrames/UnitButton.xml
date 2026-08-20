@@ -1,0 +1,142 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+../FrameXML/UI.xsd">
+
+    <!-- SquizzFrames Unit Button Template -->
+    <Button name="SquizzFramesUnitButtonTemplate"
+            inherits="BackdropTemplate,SecureUnitButtonTemplate,SecureHandlerEnterLeaveTemplate,SecureHandlerShowHideTemplate,SecureHandlerMouseUpDownTemplate"
+            virtual="true" movable="true" enableMouse="true">
+        <Size x="100" y="40"/>
+
+        <Attributes>
+            <Attribute name="toggleForVehicle" type="boolean" value="true"/>
+        </Attributes>
+
+        <Layers>
+            <Layer level="ARTWORK">
+                <!-- Selection highlight -->
+                <Texture name="$parentSelection" parentKey="selection" setAllPoints="true" file="Interface\Buttons\ButtonHilight-Square" alphaMode="ADD" alpha="0.3" hidden="true"/>
+
+                <!-- Raid icon -->
+                <Texture name="$parentRaidIcon" parentKey="raidIcon">
+                    <Size x="16" y="16"/>
+                    <Anchors>
+                        <Anchor point="CENTER" x="0" y="8" relativePoint="TOP"/>
+                    </Anchors>
+                </Texture>
+            </Layer>
+
+            <Layer level="ARTWORK" textureSubLevel="2">
+                <!-- Name text -->
+                <FontString name="$parentName" parentKey="nameText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL" hidden="false">
+                    <FontHeight val="12"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="3" y="-2"/>
+                        <Anchor point="TOPRIGHT" x="-3" y="-2"/>
+                    </Anchors>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+
+                <!-- Status text -->
+                <FontString name="$parentStatus" parentKey="statusText" font="Fonts\FRIZQT__.TTF" justifyH="CENTER" outline="NORMAL" hidden="true">
+                    <FontHeight val="10"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="2" y="2"/>
+                        <Anchor point="BOTTOMRIGHT" x="-2" y="2"/>
+                    </Anchors>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+
+                <!-- Health/Power text -->
+                <FontString name="$parentHealthText" parentKey="healthText" font="Fonts\FRIZQT__.TTF" justifyH="RIGHT" outline="NORMAL" hidden="false">
+                    <FontHeight val="10"/>
+                    <Anchors>
+                        <Anchor point="RIGHT" x="-3" y="-3"/>
+                    </Anchors>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+            </Layer>
+
+            <Layer level="OVERLAY">
+                <Texture name="$parentHighlight" parentKey="highlight" setAllPoints="true" file="Interface\Buttons\ButtonHilight-Square" alphaMode="ADD" alpha="0.5"/>
+            </Layer>
+        </Layers>
+
+        <Frames>
+            <!-- Health bar previously sat one strata tier below the button
+                 (LOW while the button was HIGH), so indicators needing to
+                 render ABOVE the health bar but BELOW everything else (e.g.
+                 Dispels' overlay) had a stable MEDIUM tier to anchor to.
+                 Frame level alone proved unreliable for that ordering: the
+                 secure group header periodically re-asserts its own (too
+                 low) level for the button itself, silently undoing any
+                 frame-level-only scheme, whereas strata always takes
+                 precedence over frame level regardless. StatusBar handles
+                 secret values at C level; no Lua arithmetic needed.
+
+                 2026-08-01, testing: the button itself is back to plain
+                 MEDIUM strata (see PartyFrames.lua's CreatePartyContainer
+                 for why; mirroring DandersFrames/EllesmereUIRaidFrames,
+                 neither of which elevates strata to beat nameplates), so
+                 this is explicit MEDIUM too rather than LOW, same tier as
+                 everything else now, matching those addons' single flat
+                 layer. AuraEngineIndicators.lua's StrataAboveHealth already
+                 floors at MEDIUM regardless of this bar's own strata, so
+                 indicator layering above the health bar is unaffected by
+                 this change either way. -->
+            <StatusBar name="$parentHealthBar" parentKey="healthBar" frameLevel="1" frameStrata="MEDIUM">
+                <Anchors>
+                    <Anchor point="TOPLEFT"/>
+                    <Anchor point="BOTTOMLEFT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.2" g="0.8" b="0.2" a="1"/>
+            </StatusBar>
+            <StatusBar name="$parentPowerBar" parentKey="powerBar" frameLevel="2">
+                <Size y="5"/>
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT"/>
+                    <Anchor point="BOTTOMRIGHT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.6" g="0.4" b="0.2" a="0.8"/>
+            </StatusBar>
+
+            <!-- Group number indicator -->
+            <Frame name="$parentGroupIndicator" parentKey="groupIndicator" setAllPoints="true" frameStrata="MEDIUM" hidden="true">
+                <Layers>
+                    <Layer level="OVERLAY">
+                        <FontString name="$parentText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL">
+                            <FontHeight val="9"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT" x="3" y="1"/>
+                            </Anchors>
+                            <Color r="1" g="1" b="1" a="0.8"/>
+                        </FontString>
+                    </Layer>
+                </Layers>
+            </Frame>
+
+            <!-- Debuff icons container -->
+            <Frame name="$parentDebuffs" parentKey="debuffs" clipChildren="true"/>
+        </Frames>
+
+        <Scripts>
+            <!-- Only OnLoad is wired here. OnEnter/OnLeave are hooked via
+                 HookScript from OnLoad (UnitButton.lua) so they run alongside
+                 the secure "_onenter" wrap from SecureHandlerEnterLeaveTemplate
+                 instead of replacing it. XML <OnEnter> would drop the secure
+                 attribute and break click-casting. -->
+            <OnLoad function="SquizzFramesUnitButton_OnLoad"/>
+        </Scripts>
+    </Button>
+
+</Ui>

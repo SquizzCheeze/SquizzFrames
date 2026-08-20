@@ -1,0 +1,21 @@
+## Interface: 120100, 120007
+## Title: SquizzFrames
+## Version: 1.7
+## Author: Squizz
+## X-Flavor: Mainline
+## SavedVariables: SquizzFramesDB
+## OptionalDeps: LibStub, CallbackHandler-1.0, Ace3
+
+Libs\LoadLibs.xml
+Locales\LoadLocales.xml
+Core.lua
+Utils.lua
+ProfileStore.lua
+Defaults\LoadDefaults.xml
+Media\LoadMedia.xml
+HideBlizzard.lua
+Modules\Options\Options.lua
+Modules\Options\Widgets.lua
+Modules\Options\OptionsFrame.lua
+Modules\LoadModules.xml
+Compat\BlizziCompat.lua

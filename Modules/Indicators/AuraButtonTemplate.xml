@@ -1,0 +1,23 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+../FrameXML/UI.xsd">
+    <!-- type="AuraButton" template required to exist under this exact name
+         for the 12.1 managed AuraContainer. Blizzard's internal
+         Blizzard_AuraContainerFrameProviders.lua hardcodes an implicit
+         inherit of a template literally named "CustomAuraButtonTemplate" for
+         every AuraButton it creates, but Blizzard never shipped that
+         template (it was only ever a placeholder name in their blog post).
+         Container button creation fails with "Couldn't find inherited node
+         CustomAuraButtonTemplate" without this. Do not rename it.
+
+         Deliberately EMPTY of Layers/Frames: XML <Layers> children do not
+         attach to type="AuraButton" nodes on this build (confirmed by
+         testing — a template with Icon/Cooldown/Count layers produced a
+         button with zero regions). The real recipe, reverse-engineered from
+         EllesmereUI's working implementation: every AuraButton region
+         (Icon texture, Cooldown frame, stack/duration FontStrings) is
+         created and registered entirely in Lua via AuraEngine.lua's
+         AE.MakeInitializer, using SetIcon/SetDurationCooldown/
+         SetApplicationCount/SetDurationText. This template only needs to
+         exist by name — see AuraEngine.lua for the actual visuals. -->
+    <Frame name="CustomAuraButtonTemplate" type="AuraButton" virtual="true"/>
+</Ui>
