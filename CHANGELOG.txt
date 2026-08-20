@@ -2,16 +2,6 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.8 (in progress)
-------------------
-
-Changes:
-
-- The addon now lists support for patch 12.1 only. It previously also declared
-  12.0.7, a version that no longer exists and that the addon could not really
-  have run on since the 12.1 rework.
-
-
 V1.7 (2026-08-21)
 -----------------
 
