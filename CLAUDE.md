@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**SquizzFrames** is a World of Warcraft (Mainline/Retail, API 12.0.7+) unit frame addon for party frames. It uses the **Ace3** framework and follows patterns from **Cell** and **DandersFrames** for secure frame handling, indicator systems, and click-casting.
+**SquizzFrames** is a World of Warcraft (Mainline/Retail, API 12.1) unit frame addon for party frames. It uses the **Ace3** framework and follows patterns from **Cell** and **DandersFrames** for secure frame handling, indicator systems, and click-casting.
 
 - **AddOn Name**: SquizzFrames
 - **SavedVariables**: `SquizzFramesDB` (AceDB-3.0 profiles)
 - **Slash Command**: `/sf` ( `/squizz` is taken by Squizzumables)
 - **Key Bindings**: Click-casting via secure attributes
-- **Runtime 12.1 branch**: the addon ships live on 12.0.7 but already carries a backported, feature-flagged 12.1 AuraContainer code path (`SquizzFrames.IS_121`) alongside the legacy one — see [12.1 AuraEngine Subsystem](#7-121-auraengine-subsystem-auraenginelua-auraengineindicatorslua) below before touching anything aura-related.
+- **Runtime 12.1 branch**: the addon ships on 12.1 and runs its feature-flagged 12.1 AuraContainer code path (`SquizzFrames.IS_121`); the legacy pre-12.1 path is still present but unreachable — see [12.1 AuraEngine Subsystem](#7-121-auraengine-subsystem-auraenginelua-auraengineindicatorslua) below before touching anything aura-related.
 
 ---
 
@@ -425,7 +425,7 @@ Only needed if the indicator tracks live aura presence/duration and must stay ac
 
 ## Version Compatibility
 
-- **Target**: WoW 12.1 — `## Interface: 120100, 120007`. 12.1 is live on retail; 12.0.7 is still listed as a secondary supported interface version since all the legacy code paths remain intact.
+- **Target**: WoW 12.1 — `## Interface: 120100`. 12.0.7 was dropped from the TOC on 2026-08-21: that client no longer exists, so listing it only advertised support the addon could not actually deliver (and made CurseForge tag every upload as 12.0.7-compatible). The pre-12.1 code paths are still in the tree but unreachable — see the dead-code note in section 7.
 - **12.1 code paths**: rather than a separate branch/release, 12.1-only code paths live in this codebase gated at runtime by `SquizzFrames.IS_121` (`Utils.lua`, build number `>= 120100`) rather than by TOC/`.toc`-version branching. This covers the AuraEngine subsystem (section 7), and the click-casting proxy transport fix. These are **active** on a 12.1 client and inert on 12.0.7.
 - Uses modern APIs: `C_AddOns.GetAddOnMetadata`, `C_Spell.GetSpellName`, `C_Spell.GetSpellInfo`, `C_UnitAuras`, `C_Item.IsUsableItem`
 - Fallback globals provided in Utils/Core for older API compat
