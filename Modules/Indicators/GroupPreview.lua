@@ -121,7 +121,10 @@ local function ApplyFakeData(button, index)
     button._sfFakeName = sample.name
     button._sfFakeClass = sample.class
     button._sfFakeRole = sample.role
-    button._sfFakeThreat = 0
+    -- 3 = tanking, which is what both aggro indicators gate on. Only one
+    -- frame gets it, same reasoning as _sfFakeTarget/_sfFakePhased below: a
+    -- whole group flashing aggro reads as a rendering bug, not a warning.
+    button._sfFakeThreat = (index == 3) and 3 or 0
     -- Only the first frame draws the target highlight -- on every frame it
     -- would read as a rendering bug rather than a highlight.
     button._sfFakeTarget = (index == 1)
@@ -139,6 +142,9 @@ local function ApplyFakeData(button, index)
     button._sfFakePowerMax = 100000
     button._sfFakeIsConnected = true
     button._sfFakeIsAFK = false
+    -- Only one frame draws it, same reasoning as _sfFakeTarget above: on
+    -- every frame a phase warning reads as a rendering bug, not a warning.
+    button._sfFakePhased = (index == 2)
     button._sfFakeIsDead = false
     button._sfFakeIsGhost = false
     button._sfFakeAssistant = false

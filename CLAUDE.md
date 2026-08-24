@@ -111,7 +111,8 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 
 ### 4. Indicator System (Indicators.lua)
 - Mirrors **Cell's** indicator architecture
-- **Built-in indicators** (17 defaults): nameText, healthText, powerText, statusText, statusIcon, roleIcon, leaderIcon, playerRaidIcon, aggroBlink, aggroBorder, shieldBar, externalCooldowns, defensiveCooldowns, debuffs, ccIndicator, dispels, missingBuffs
+- **Built-in indicators** (25 defaults, `IndicatorDefaults.BUILT_IN_COUNT`): nameText, healthText, powerText, statusText, statusIcon, roleIcon, leaderIcon, playerRaidIcon, aggroBlink, aggroBorder, shieldBar, externalCooldowns, defensiveCooldowns, debuffs, ccIndicator, dispels, missingBuffs, healerHots, shieldOverlay, healAbsorb, targetHighlight, hoverHighlight, frameBorder, dispelIcons, phasedIcon
+  - Adding one means four places, not one: an entry in `Defaults/Layout_Defaults.lua` (both `indicatorIndices` and `profile.layout.indicators`), a bump to `BUILT_IN_COUNT` plus name/settings entries in `Modules/Indicators/IndicatorDefaults.lua`, a category in `IndicatorsPanel.lua`'s `INDICATOR_CATEGORY`, and the create/check wiring in `BuiltIn_Update.lua`. Existing profiles pick it up automatically — `Core.lua`'s `MigrateMissingBuiltIns` adds any default entry the profile lacks, matched **by name**, for both the party and raid lists.
 - **Custom indicators** created by user via options; stored in `profile.layout.indicators` array
 - **Runtime**: `indicatorList` = current profile's indicator array
 - **Per-button**: `button.indicators[name]` = frame; `button._indicatorsReady` flag guards custom dispatcher
@@ -434,7 +435,7 @@ Only needed if the indicator tracks live aura presence/duration and must stay ac
 
 ## Memory/Performance Notes
 
-- **No periodic OnUpdate loops** for the legacy pipeline — event-driven via AceEvent + secure header
+- **No periodic OnUpdate loops** for the legacy pipeline — event-driven via AceEvent + secure header. The one deliberate exception is the Phased Icon's 1s `C_Timer` ticker (`BuiltIn_Update.lua`), which exists because `UnitPhaseReason` is blind past ~250 yards and no event fires when that changes — it self-cancels as soon as a pass finds no enabled `phasedIcon`, and `CheckPhasedIcon` re-arms it
 - **Indicator updates** batched per-button via `ScheduleButtonUpdate`
 - **Secure header** manages child visibility via `RegisterUnitWatch` (no manual show/hide needed for roster changes)
 - **Custom aura scanner** iterates `C_UnitAuras.GetAuraDataByIndex` — efficient for party frames (max 5 units × ~40 auras)

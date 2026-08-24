@@ -273,13 +273,22 @@ local function CreatePetGroupContainer()
     mover:SetFrameLevel(petGroupFrame:GetFrameLevel() + 10)
     mover:EnableMouse(true)
     mover:SetMovable(true)
-    mover:RegisterForDrag("LeftButton")
+    -- Deliberately NOT RegisterForDrag -- see the matching comment on
+    -- PartyFrames.lua's container mover: Blizzard's drag detection waits for
+    -- the cursor to clear a threshold before firing OnDragStart, which feels
+    -- like the frame refuses to move for the first moment of the drag. Start
+    -- on the press instead.
     mover:Hide() -- only shown in edit mode
     petGroupFrame.mover = mover
 
     local dragOffsetX, dragOffsetY = 0, 0
+    local dragging = false
 
-    mover:SetScript("OnDragStart", function(self)
+    local StopDrag
+
+    local function StartDrag(self)
+        if dragging then return end
+        dragging = true
         local p = GetProfile()
         local layoutDb = GetActivePetLayout(p)
         local pScale = UIParent:GetEffectiveScale()
@@ -294,7 +303,14 @@ local function CreatePetGroupContainer()
         dragOffsetX = layoutDb and layoutDb.anchorX or 0
         dragOffsetY = layoutDb and layoutDb.anchorY or 0
 
-        self:SetScript("OnUpdate", function()
+        self:SetScript("OnUpdate", function(f)
+            -- Self-heal for a mouse-up that never reached us (cursor dragged
+            -- off the frame/screen edge), which would otherwise leave the pet
+            -- group glued to the cursor.
+            if not IsMouseButtonDown("LeftButton") then
+                StopDrag(f)
+                return
+            end
             local cx, cy = GetCursorPosition()
             local ps = UIParent:GetEffectiveScale()
             cx = cx / ps
@@ -307,12 +323,15 @@ local function CreatePetGroupContainer()
             petGroupFrame:SetPoint("CENTER", UIParent, "CENTER",
                 dragOffsetX / frameScale, dragOffsetY / frameScale)
         end)
-    end)
+    end
 
-    mover:SetScript("OnDragStop", function(self)
+    -- Declared as a local above so the OnUpdate's release check can call it.
+    function StopDrag(self)
+        if not dragging then return end
+        dragging = false
         self:SetScript("OnUpdate", nil)
         -- No InCombatLockdown guard here -- mirrors PartyFrames.lua's own
-        -- mover precedent (its OnDragStop is likewise unguarded), an
+        -- mover precedent (its drag-stop is likewise unguarded), an
         -- accepted existing gap since dragging only happens in edit mode, a
         -- rare/deliberate out-of-combat user action. Also see this
         -- function's header comment: petGroupFrame isn't actually protected
@@ -327,7 +346,16 @@ local function CreatePetGroupContainer()
         petGroupFrame:ClearAllPoints()
         petGroupFrame:SetPoint("CENTER", UIParent, "CENTER",
             dragOffsetX / frameScale, dragOffsetY / frameScale)
+    end
+
+    mover:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then StartDrag(self) end
     end)
+    mover:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then StopDrag(self) end
+    end)
+    -- Leaving edit mode mid-drag would otherwise strand the OnUpdate handler.
+    mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
     -- Edit mode border (visual only), simplified from PartyFrames.lua's
     -- editFrame -- that one shrink-wraps to the visible BUTTONS' rects

@@ -109,6 +109,7 @@ profile.indicatorIndices = {
     hoverHighlight = 22,
     frameBorder = 23,
     dispelIcons = 24,
+    phasedIcon = 25,
     customIndicators = {},
 }
 
@@ -201,17 +202,25 @@ profile.layout.indicators = {
         position = {"TOP", "button", "TOP", 0, 3}, frameLevel = LAYER.ICON,
         size = {14, 14}, alpha = 0.77,
     },
-    -- 9: Aggro (blink) -- full-button pulsing red border, see
-    -- BuiltIn_Update.lua's aggroBlink creation. No position/size (matches
-    -- aggroBorder's shape: a border always wraps the whole button).
+    -- 9: Aggro (blink) -- a small pulsing block in the button's top-left
+    -- corner, movable and resizable. blinkOptions is {seconds per half-pulse,
+    -- percent to fade down to}; see BuiltIn_Update.lua's aggroBlink creation.
     {
         name = "Aggro (blink)", indicatorName = "aggroBlink", type = "built-in",
-        enabled = true, frameLevel = LAYER.AGGRO_BLINK, thickness = 2,
+        enabled = true, frameLevel = LAYER.AGGRO_BLINK,
+        position = {"TOPLEFT", "button", "TOPLEFT", 1, -1},
+        size = {11, 11},
+        color = {"custom_color", 1, 0, 0, 1},
+        blinkOptions = {0.5, 25},
     },
-    -- 10: Aggro (border)
+    -- 10: Aggro (border) -- wraps the whole button, so no position/size.
+    -- Same blinkOptions shape as the blink above, but with the pulse OFF (the
+    -- third slot): a border that flashed by default would be a surprise.
     {
         name = "Aggro (border)", indicatorName = "aggroBorder", type = "built-in",
         enabled = false, frameLevel = LAYER.AGGRO_BORDER, thickness = 2,
+        color = {"custom_color", 1, 0, 0, 1},
+        blinkOptions = {0.5, 25, false},
     },
     -- 11: Shield Bar
     {
@@ -226,7 +235,7 @@ profile.layout.indicators = {
         name = "External Cooldowns", indicatorName = "externalCooldowns", type = "built-in",
         enabled = true,
         position = {"RIGHT", "button", "RIGHT", 2, 5}, frameLevel = LAYER.AURA,
-        size = {12, 20}, showDuration = false, showAnimation = true,
+        size = {20, 20}, showDuration = false, showAnimation = true,
         num = 2, orientation = "right-to-left",
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
                 {"Friz QT__", 11, "OUTLINE", false, "BOTTOMRIGHT", 2, -1, {1, 1, 1}}},
@@ -240,7 +249,7 @@ profile.layout.indicators = {
         name = "Defensive Cooldowns", indicatorName = "defensiveCooldowns", type = "built-in",
         enabled = true,
         position = {"LEFT", "button", "LEFT", -2, 5}, frameLevel = LAYER.AURA,
-        size = {12, 20}, showDuration = false, showAnimation = true,
+        size = {20, 20}, showDuration = false, showAnimation = true,
         num = 2, orientation = "left-to-right",
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
                 {"Friz QT__", 11, "OUTLINE", false, "BOTTOMRIGHT", 2, -1, {1, 1, 1}}},
@@ -455,6 +464,32 @@ profile.layout.indicators = {
         -- dedupe still applies, so with this on you see the icon of whichever
         -- debuff of that type the game ranks first, not all of them.
         useSpellIcons = false,
+    },
+    -- 25: Phased Icon
+    --
+    -- "This party member isn't in your phase" -- war mode, Chromie Time,
+    -- sharding, or a quest phase -- plus the separate LFG case of a member
+    -- who's in a different instance group entirely (UnitInOtherParty).
+    --
+    -- Deliberately NOT folded into Status Icon: that indicator is a single
+    -- priority chain (ready check > offline > AFK > dead/ghost), so a phased
+    -- player who is also dead would show the skull and nothing else. Phasing
+    -- is the more actionable of the two -- you can't heal, buff or res someone
+    -- who isn't in your phase -- so it gets its own slot and can display
+    -- alongside the rest.
+    --
+    -- TOPRIGHT is the one button corner no other icon built-in claims by
+    -- default (Role Icon and Leader Icon take TOPLEFT, Raid Icon takes TOP,
+    -- Status Icon sits just under TOP).
+    {
+        name = "Phased Icon", indicatorName = "phasedIcon", type = "built-in",
+        enabled = true,
+        position = {"TOPRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = LAYER.STATUS_ICON,
+        size = {14, 14},
+        -- Show the LFG eye (rather than the generic phasing swirl) for a unit
+        -- in a different instance group. Distinct cause, distinct fix -- they
+        -- need to zone to you, not walk to you.
+        showLFGEye = true,
     },
 }
 

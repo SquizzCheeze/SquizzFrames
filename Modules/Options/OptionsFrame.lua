@@ -48,7 +48,7 @@ local NAV_ITEMS = {
 -- Fixed content heights per simple page (content can exceed; scrolls if
 -- needed). Indicators pages manage their own layout and aren't part of this.
 local pageHeights = {
-    ["general"] = 250,
+    ["general"] = 220, -- -30: Edit Mode's button moved to the title bar
     ["layout"] = 1265, -- +115 for the Copy Between Modes section
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["clickCasting"] = 460,
@@ -67,11 +67,91 @@ local function GetProfile()
 end
 
 -----------------------------------------------------------------------
+-- Edit mode toggle (shared)
+-----------------------------------------------------------------------
+
+-- Edit mode lives in the TITLE BAR rather than on the General page, so it's
+-- reachable from every tab -- you're usually on Layout or Indicators when you
+-- want to nudge the frames, and having to navigate back to General to get out
+-- of edit mode was the whole complaint. Closing the panel also leaves edit
+-- mode (see the OnHide below): the toggle is only visible while the panel is
+-- open, so leaving it on after closing meant the only way back out was to
+-- reopen the panel just to click it again.
+--
+-- Every button that displays edit-mode state registers a refresher here, so
+-- they can't drift from each other or from SquizzFrames.editMode -- which
+-- also gets toggled from outside this file (Lock Frames, the combat
+-- auto-disable in PartyFrames.lua).
+local editModeRefreshers = {}
+
+local function RefreshEditModeButtons()
+    for _, fn in ipairs(editModeRefreshers) do fn() end
+end
+
+-- The single write path for edit-mode state. Pass nil to toggle.
+local function SetEditModeEnabled(enabled)
+    if enabled == nil then enabled = not SquizzFrames.editMode end
+    enabled = enabled and true or false
+    if SquizzFrames.editMode == enabled then
+        RefreshEditModeButtons()
+        return
+    end
+    SquizzFrames.editMode = enabled
+    -- Direct call to PartyFrames module (bypasses the AceEvent message bridge,
+    -- which can fail to deliver in some load-order scenarios). PetFrames and
+    -- anything else still pick it up from the message below.
+    local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+    if partyModule and partyModule.SetEditMode then
+        partyModule:SetEditMode(enabled)
+    end
+    SquizzFrames:Fire("EditModeChanged", enabled)
+    RefreshEditModeButtons()
+end
+
+-- Applies the on/off look to a styled button used as an edit-mode toggle, and
+-- registers it for future refreshes. Shared by the title-bar button and any
+-- other surface that wants to show the same state.
+local function WireEditModeButton(btn)
+    local function Refresh()
+        if SquizzFrames.editMode then
+            local a = F.GetAccentColor()
+            btn:SetBackdropColor(a.r, a.g, a.b, 0.5)
+            btn.fontString:SetTextColor(1, 1, 1, 1)
+        else
+            btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+            btn.fontString:SetTextColor(0.7, 0.7, 0.7, 1)
+        end
+    end
+    btn:SetScript("OnClick", function() SetEditModeEnabled(nil) end)
+    -- CreateStyledButton's own OnLeave restores its *normal* colour, which
+    -- wiped the lit "edit mode is on" backdrop the moment the cursor moved
+    -- off the button. Re-assert state instead. (This was already wrong on the
+    -- old General-page button; it just mattered less there than it does two
+    -- pixels from the close button, which you hover constantly.)
+    btn:SetScript("OnLeave", function() Refresh() end)
+    editModeRefreshers[#editModeRefreshers + 1] = Refresh
+    Refresh()
+    return Refresh
+end
+
+-- Keep the toggle's look correct when edit mode changes from OUTSIDE this file
+-- -- Lock Frames turning it off, or PartyFrames' combat auto-disable. Its own
+-- message owner so it can't collide with any other "EditModeChanged" listener
+-- (see F.NewMessageOwner in Utils.lua); registered once at load, not per
+-- rebuild, since the title-bar button is created once and never rebuilt.
+if F and F.NewMessageOwner then
+    F.NewMessageOwner():RegisterMessage("EditModeChanged", RefreshEditModeButtons)
+end
+
+-----------------------------------------------------------------------
 -- Sidebar
 -----------------------------------------------------------------------
 
 local SIDEBAR_WIDTH = 150
 local ROW_HEIGHT = 24
+-- Accent alpha for a hovered (unselected) nav row. Same value the Indicators
+-- tab's header buttons use, for one consistent hover across the panel.
+local SIDEBAR_HOVER_ALPHA = 0.3
 
 local sidebarRows = {}       -- pageId -> row button
 
@@ -117,9 +197,17 @@ local function CreateSidebarRow(parent, label, onClick)
     row.fontString = text
 
     row:SetScript("OnClick", onClick)
+    -- Hover is a faint wash of the accent colour (which follows the profile's
+    -- class-colour/custom choice), not the flat warm brown it used to be.
+    -- Resolved per hover, since the accent changes with the profile and with
+    -- the accent-colour setting -- a value captured at creation would go stale
+    -- on both. Well under the 0.55 the SELECTED row uses (see HighlightRow),
+    -- which is why hovering an unselected row can't be mistaken for selecting
+    -- it. Matches the Indicators tab's own row/button hovers.
     row:SetScript("OnEnter", function(self)
         if self.isSelected then return end
-        self:SetBackdropColor(0.2, 0.17, 0.08, 1)
+        local a = F.GetAccentColor()
+        self:SetBackdropColor(a.r, a.g, a.b, SIDEBAR_HOVER_ALPHA)
     end)
     row:SetScript("OnLeave", function(self)
         if self.isSelected then return end
@@ -187,6 +275,15 @@ local function CreateOptionsFrame()
         if partyModule and partyModule.IsPreviewActive and partyModule:IsPreviewActive() then
             partyModule:SetPreviewMode(false)
         end
+        -- Leave edit mode with the panel. Its only toggle is in this window's
+        -- title bar, so staying in edit mode after closing left the frames
+        -- draggable with no visible way to stop -- you had to reopen the panel
+        -- purely to click the button again. PartyFrames:SetEditMode(false) is
+        -- combat-safe (it defers its relayout to PLAYER_REGEN_ENABLED), so
+        -- this needs no lockdown guard of its own.
+        if SquizzFrames.editMode then
+            SetEditModeEnabled(false)
+        end
     end)
 
     W.StylizeFrame(optionsFrame, {0.1, 0.1, 0.1, 0.9}, {0, 0, 0, 1})
@@ -218,10 +315,23 @@ local function CreateOptionsFrame()
     accentLine:SetHeight(1)
     accentLine:SetColorTexture(accent.r, accent.g, accent.b, 0.5)
 
+    -- Both title-bar buttons are vertically centred in the 26px bar and inset
+    -- from the right edge. Anchored at TOPRIGHT 0,0 the close button sat hard
+    -- against the window's own border and corner with all its slack below it,
+    -- which read as misaligned next to the Edit Mode button beside it.
     local closeBtn = W.CreateStyledButton(titleBar, "X", "red", {20, 20}, function()
         optionsFrame:Hide()
     end)
-    closeBtn:SetPoint("TOPRIGHT", 0, 0)
+    closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -4, 0)
+
+    -- Edit Mode toggle, left of the close button: reachable from every tab
+    -- (see SetEditModeEnabled's header comment for why it moved here off the
+    -- General page). The callback is installed by WireEditModeButton.
+    local editBtn = W.CreateStyledButton(titleBar, L["Edit Mode"] or "Edit Mode",
+        "accent-hover", {76, 20}, nil)
+    editBtn:SetPoint("RIGHT", closeBtn, "LEFT", -6, 0)
+    editBtn.fontString:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+    WireEditModeButton(editBtn)
 
     -- Resize grip (bottom-right corner)
     local resizeGrip = CreateFrame("Button", nil, optionsFrame)
@@ -1069,41 +1179,9 @@ local function BuildGeneralFields(frame)
     cb4:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 25
 
-    -- Edit Mode as a toggle button (not a checkbox) -- session-only state
-    -- (SquizzFrames.editMode), not profile data, but rebuilt here anyway
-    -- since it lives on the same page.
-    local editBtn = W.CreateStyledButton(fieldsHost, L["Edit Mode"] or "Edit Mode", "accent-hover", {202, 22}, nil)
-    editBtn:SetPoint("TOPLEFT", 15, yOffset)
-    editBtn.fontString:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-    local function RefreshEditModeButton()
-        if SquizzFrames.editMode then
-            local a = F.GetAccentColor()
-            editBtn:SetBackdropColor(a.r, a.g, a.b, 0.5)
-            editBtn.fontString:SetTextColor(1, 1, 1, 1)
-        else
-            editBtn:SetBackdropColor(0.115, 0.115, 0.115, 1)
-            editBtn.fontString:SetTextColor(0.7, 0.7, 0.7, 1)
-        end
-    end
-    editBtn:SetScript("OnClick", function()
-        SquizzFrames.editMode = not SquizzFrames.editMode
-        -- Direct call to PartyFrames module (bypasses AceEvent message bridge
-        -- which can fail to deliver in some load-order scenarios)
-        local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
-        if partyModule and partyModule.SetEditMode then
-            partyModule:SetEditMode(SquizzFrames.editMode)
-        end
-        SquizzFrames:Fire("EditModeChanged", SquizzFrames.editMode)
-        RefreshEditModeButton()
-    end)
-    RefreshEditModeButton()
-    yOffset = yOffset - 30
-
-    -- Keep the button state in sync if edit mode is toggled from elsewhere.
-    -- Re-registering under the same owner ("SquizzFrames") + event name on
-    -- every rebuild REPLACES the previous handler (CallbackHandler-3.0
-    -- semantics), it doesn't accumulate duplicates.
-    SquizzFrames:RegisterMessage("EditModeChanged", function() RefreshEditModeButton() end)
+    -- Edit Mode's toggle used to be a button here. It now lives in the title
+    -- bar (CreateOptionsFrame) so it's reachable from every tab -- see
+    -- SetEditModeEnabled's header comment. Nothing replaces it on this page.
 end
 
 local function CreateGeneralPage()

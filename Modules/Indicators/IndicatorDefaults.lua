@@ -38,7 +38,7 @@ end
 
 --- Built-in count constant. Indicators 1..BUILT_IN_COUNT are built-ins;
 --- everything after is custom.
-IndicatorDefaults.BUILT_IN_COUNT = 24
+IndicatorDefaults.BUILT_IN_COUNT = 25
 
 --- Display names for the built-ins, keyed by indicatorName.
 IndicatorDefaults.BUILT_IN_NAMES = {
@@ -66,6 +66,7 @@ IndicatorDefaults.BUILT_IN_NAMES = {
     hoverHighlight = "Hover Highlight",
     frameBorder = "Frame Border",
     dispelIcons = "Dispel Icons",
+    phasedIcon = "Phased Icon",
 }
 
 --- Every custom indicator type the runtime knows how to dispatch, whether or
@@ -118,13 +119,21 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     nameText    = {"enabled", "color-class", "textWidth", "checkbutton:showGroupNumber", "checkbutton2:hideRealmName", "vehicleNamePosition", "position", "frameLevel", "font-noOffset"},
     statusText  = {"enabled", "checkbutton:showTimer", "checkbutton2:showBackground", "statusPosition", "frameLevel", "font-noOffset"},
     statusIcon  = {"enabled", "size-square", "position", "frameLevel"},
+    -- Same shape as statusIcon (it IS a status icon, just one that gets its
+    -- own slot so it can show alongside AFK/dead rather than losing to them
+    -- -- see Layout_Defaults.lua), plus the LFG-eye toggle.
+    phasedIcon  = {"enabled", "checkbutton:showLFGEye", "size-square", "position", "frameLevel"},
     roleIcon    = {"enabled", "checkbutton:hideDamager", "size-square", "roleTexture", "position", "frameLevel"},
     leaderIcon  = {"enabled", "checkbutton:hideInCombat", "size-square", "position", "frameLevel"},
     playerRaidIcon = {"enabled", "size-square", "alpha", "position", "frameLevel"},
-    -- Full-button pulsing red border (see BuiltIn_Update.lua's aggroBlink
-    -- creation) -- no position/size tokens, same shape as aggroBorder.
-    aggroBlink  = {"enabled", "thickness", "frameLevel"},
-    aggroBorder = {"enabled", "thickness", "frameLevel"},
+    -- A movable/resizable pulsing block, so it takes the full position+size
+    -- treatment (see BuiltIn_Update.lua's aggroBlink creation). aggroBorder
+    -- stays a full-button border and has no geometry of its own.
+    -- Free width/height rather than "size-square": it's a solid colour block,
+    -- not icon art, so a non-square one (a bar down an edge, say) is a
+    -- legitimate look rather than a distortion.
+    aggroBlink  = {"enabled", "color-alpha", "blinkOptions", "size", "position", "frameLevel"},
+    aggroBorder = {"enabled", "color-alpha", "blinkOptions", "thickness", "frameLevel"},
     -- Same full-button border shape, driven by UnitIsUnit(unit, "target").
     -- color-alpha matches EllesmereUIRaidFrames' targetBorderColor/Alpha.
     targetHighlight = {"enabled", "thickness", "color-alpha", "frameLevel"},

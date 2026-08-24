@@ -426,6 +426,22 @@ local function CreateBarFrame(parent)
     tex:SetAllPoints()
     f:SetStatusBarTexture(tex)
 
+    -- Bar Orientation is a FILL direction: which axis the bar drains along and
+    -- from which end. This overrides StatusBar's own SetOrientation (which only
+    -- understands "HORIZONTAL"/"VERTICAL"), so capture the native one first and
+    -- call it underneath -- Indicators.lua hands us the dropdown's direction
+    -- token, and without this the setting was simply dropped on the floor.
+    local nativeSetOrientation = f.SetOrientation
+    function f:SetOrientation(token)
+        local vertical = (token == "top-to-bottom" or token == "bottom-to-top" or token == "vertical")
+        nativeSetOrientation(self, vertical and "VERTICAL" or "HORIZONTAL")
+        -- A StatusBar fills left->right and bottom->top by default, so exactly
+        -- the other two tokens need the fill reversed.
+        if self.SetReverseFill then
+            self:SetReverseFill(token == "right-to-left" or token == "top-to-bottom")
+        end
+    end
+
     -- ShowCustomIndicators only calls SetCooldown when the aura SCAN
     -- re-runs (UNIT_AURA events), which can be many seconds apart -- without
     -- its own periodic driver the bar just snapshots whatever fraction was

@@ -91,7 +91,7 @@ local function GetIndicatorList()
         local order = {
             "nameText", "healthText", "powerText", "statusText", "statusIcon",
             "roleIcon", "leaderIcon", "playerRaidIcon", "aggroBlink",
-            "aggroBorder", "shieldBar", "externalCooldowns", "defensiveCooldowns",
+            "aggroBorder", "phasedIcon", "shieldBar", "externalCooldowns", "defensiveCooldowns",
             "debuffs", "ccIndicator", "dispels", "missingBuffs", "targetHighlight",
             "hoverHighlight", "frameBorder",
         }
@@ -189,6 +189,7 @@ local TOKEN_HEIGHTS = {
     ["size-border"] = 75,
     ["spacing"] = 75,
     ["thickness"] = 75,
+    ["blinkOptions"] = 105, -- checkbox row + two sliders
     ["height"] = 75,
     ["alpha"] = 75,
     ["num"] = 75,
@@ -282,6 +283,10 @@ local INDICATOR_CATEGORY = {
     ccIndicator = "Alerts",
     externalCooldowns = "Defensives Available", defensiveCooldowns = "Defensives Available",
     statusText = "Alerts", statusIcon = "Alerts", aggroBlink = "Alerts", aggroBorder = "Alerts",
+    -- Filed with the other status readouts on purpose: it answers the same
+    -- "can I actually do anything for this person right now" question that
+    -- Status Icon and Status Text do.
+    phasedIcon = "Alerts",
     targetHighlight = "Alerts", hoverHighlight = "Alerts",
     roleIcon = "Alerts", playerRaidIcon = "Alerts", leaderIcon = "Alerts",
     shieldBar = "Vitals", shieldOverlay = "Vitals", healAbsorb = "Vitals",
@@ -295,12 +300,33 @@ local function GetIndicatorCategory(t)
 end
 
 -- Selected row previously only got an accent-colored TEXT tint -- easy to
--- miss against the same background as every other row, especially since the
--- hover tint (warm brownish-gold) reads similarly at a glance. Now also
--- tints the row's own background with the accent color so the selected
--- indicator is unambiguous even without reading the text color.
+-- miss against the same background as every other row. Now also tints the
+-- row's own background with the accent color so the selected indicator is
+-- unambiguous even without reading the text color.
 local ROW_BG_NORMAL = {0.1, 0.1, 0.08, 0.9}
-local ROW_BG_HOVER = {0.25, 0.2, 0.1, 0.95}
+-- Hover is a faint wash of the accent colour (which follows the profile's
+-- class-colour/custom choice -- see F.GetAccentColor), not the flat warm brown
+-- it used to be. Resolved per hover rather than baked into a constant at load:
+-- the accent changes with the profile and with the accent-colour setting, and
+-- a load-time snapshot would go stale on both.
+--
+-- Deliberately fainter than the SELECTED row's own accent wash (0.3 in
+-- UpdateRowVisual) so the two are still tellable apart on adjacent rows.
+local ROW_BG_HOVER_ALPHA = 0.18
+local function RowHoverColor()
+    local a = F.GetAccentColor()
+    return a.r, a.g, a.b, ROW_BG_HOVER_ALPHA
+end
+
+-- Same idea for the header buttons (Party/Raid, Show Group Preview), a touch
+-- stronger: they sit on the page background rather than in a list of near-
+-- identical rows, so a 0.18 wash barely registers on them. Still well under
+-- the 0.55 those buttons use for their ACTIVE state.
+local TOGGLE_HOVER_ALPHA = 0.3
+local function ToggleHoverColor()
+    local a = F.GetAccentColor()
+    return a.r, a.g, a.b, TOGGLE_HOVER_ALPHA
+end
 local function UpdateRowVisual(btn)
     if not btn then return end
     local text = btn.fontString
@@ -351,6 +377,13 @@ local function SelectIndicator(name)
     -- Show animated highlight on preview button for the selected indicator
     if SquizzFrames.Indicators then SquizzFrames.Indicators.ShowPreviewHighlight(name) end
     ShowSettings(name)
+    -- Land at the top of the settings pane for the newly picked indicator --
+    -- keeping the previous one's scroll offset dropped you into the middle of
+    -- a different set of settings. Deliberately here and not in ShowSettings:
+    -- that also runs as a refresh for the indicator you're ALREADY editing
+    -- (after dragging it on the preview, on a party/raid tab switch), where
+    -- yanking the pane back to the top mid-edit would be the wrong call.
+    if settingsScroll then settingsScroll:Reset() end
 end
 
 -- Creates one plain (non-interactive) category header row at the given
@@ -389,7 +422,7 @@ end
 -- Used both for real built-in indicators (onClick selects them) and for the
 -- single synthetic "Custom Indicators" entry (onClick opens the manager
 -- pane instead of selecting anything).
-local function CreateListRow(scrollChild, y, displayText, indicatorName, enabled, onClick, textColor)
+local function CreateListRow(scrollChild, y, displayText, indicatorName, enabled, onClick)
     local btn = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
     btn:SetHeight(LIST_ROW_HEIGHT)
     btn:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
@@ -405,7 +438,6 @@ local function CreateListRow(scrollChild, y, displayText, indicatorName, enabled
     text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     text:SetText(displayText)
-    if textColor then text:SetTextColor(textColor[1], textColor[2], textColor[3], 1) end
     btn.fontString = text
 
     btn.indicatorName = indicatorName
@@ -414,21 +446,17 @@ local function CreateListRow(scrollChild, y, displayText, indicatorName, enabled
     btn:SetScript("OnClick", onClick)
     btn:SetScript("OnEnter", function(self)
         if selectedButton ~= self then
-            self:SetBackdropColor(unpack(ROW_BG_HOVER))
+            self:SetBackdropColor(RowHoverColor())
         end
     end)
     -- Re-derive the row's own state instead of hardcoding the default
     -- background -- previously this unconditionally reset even the
     -- SELECTED row's background when the mouse left it, undoing its
-    -- highlight. Skipped for rows with an explicit textColor (the "Custom
-    -- Indicators" entry) -- UpdateRowVisual's enabled/disabled branches
-    -- would otherwise stomp that color back to plain white immediately.
-    if textColor then
-        btn:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(ROW_BG_NORMAL)) end)
-    else
-        btn:SetScript("OnLeave", function(self) UpdateRowVisual(self) end)
-        UpdateRowVisual(btn)
-    end
+    -- highlight. Every row goes through this now, including "Custom
+    -- Indicators": that one used to opt out so its accent text colour
+    -- wouldn't be stomped back to white, and it no longer has one.
+    btn:SetScript("OnLeave", function(self) UpdateRowVisual(self) end)
+    UpdateRowVisual(btn)
     listButtons[#listButtons + 1] = btn
     return y + LIST_ROW_HEIGHT + 1
 end
@@ -450,9 +478,12 @@ local function BuildIndicatorList()
     -- Ensure scrollChild width matches the scroll frame's current width.
     -- (CreateScrollFrame sets content width at creation time; if the parent
     -- was 0x0 then, the content width would be 1px and rows would be invisible.)
+    -- GetContentWidth, not GetWidth: the scroll frame reserves a lane on the
+    -- right for its scrollbar (see CreateScrollFrame in Widgets.lua), and
+    -- writing the full width back here would put the rows under it again.
     local sfWidth = listScroll:GetWidth()
     if sfWidth and sfWidth > 1 then
-        scrollChild:SetWidth(sfWidth)
+        scrollChild:SetWidth(listScroll:GetContentWidth())
     end
 
     -- Two-level walk: category, then built-in indicators within it. Custom
@@ -462,7 +493,6 @@ local function BuildIndicatorList()
     -- custom indicator actually lives.
     local y = 0
     local firstCategory = true
-    local accent = F.GetAccentColor()
     for _, category in ipairs(CATEGORY_ORDER) do
         local items = {}
         for _, t in ipairs(fullList) do
@@ -490,9 +520,13 @@ local function BuildIndicatorList()
         end
 
         if category == CUSTOM_INDICATORS_HOME_CATEGORY then
+            -- Styled exactly like every other row. It used to be drawn in the
+            -- accent colour to mark it as an entry point rather than an
+            -- indicator, but that's the same colour a SELECTED row uses, so it
+            -- permanently looked like the selection -- the trailing ">" is
+            -- what says "this opens something".
             y = CreateListRow(scrollChild, y, "Custom Indicators  >", nil, true,
-                function() ShowCustomIndicatorsManager() end,
-                {accent.r, accent.g, accent.b})
+                function() ShowCustomIndicatorsManager() end)
         end
     end
 
@@ -591,8 +625,9 @@ ShowSettings = function(name)
     local scrollChild = settingsScroll and settingsScroll.scrollChild
     if not scrollChild then return end
 
+    -- GetContentWidth, not GetWidth -- see the same note in BuildIndicatorList.
     local sfWidth = settingsScroll:GetWidth()
-    if sfWidth and sfWidth > 1 then scrollChild:SetWidth(sfWidth) end
+    if sfWidth and sfWidth > 1 then scrollChild:SetWidth(settingsScroll:GetContentWidth()) end
 
     -- Show animated highlight around the selected indicator in preview
     if SquizzFrames.Indicators then
@@ -836,6 +871,14 @@ ShowSettings = function(name)
         elseif n == "thickness" then
             w:SetDBValue(t.thickness or 2)
             w:SetFunc(function(n2) SetField(t, "thickness", n2) end)
+
+        -- Pulse on/off + speed + depth, as one {speed, faintPct, pulse} table.
+        -- The default for the pulse checkbox differs per indicator (the blink
+        -- pulses, the border doesn't unless asked), so it's passed through --
+        -- see AttachBlinkBehaviour in BuiltIn_Update.lua.
+        elseif n == "blinkOptions" then
+            w:SetDBValue(t.blinkOptions, t.indicatorName == "aggroBlink")
+            w:SetFunc(function(opts) SetField(t, "blinkOptions", opts) end)
 
         -- Height
         elseif n == "height" then
@@ -1744,6 +1787,17 @@ local function Build(parentFrame, optionsFrame)
                 if IndicatorsModule then IndicatorsModule.ShowPreviewHighlight(selectedName) end
             end
         end)
+        -- Hover wash, skipped while this button is the ACTIVE one: it already
+        -- carries the accent at 0.55, and lightening that on hover would read
+        -- as the tab deselecting itself. OnLeave goes through the shared
+        -- refresh rather than restoring a hardcoded colour, so it can't drift
+        -- from whatever state the button is actually in.
+        btn:SetScript("OnEnter", function(self)
+            if activeIndicatorLayoutKey ~= key then
+                self:SetBackdropColor(ToggleHoverColor())
+            end
+        end)
+        btn:SetScript("OnLeave", RefreshIndicatorToggleVisual)
         toggleButtons[key] = btn
         return btn
     end
@@ -1782,6 +1836,19 @@ local function Build(parentFrame, optionsFrame)
             gpText:SetText(L["Show Group Preview"] or "Show Group Preview")
         end
     end
+
+    -- Same hover treatment as the Party/Raid buttons, and skipped for the same
+    -- reason while the preview window is open (this button is accent-filled
+    -- then). Its "active" state is the window's own visibility, so that's what
+    -- the check reads.
+    groupPreviewBtn:SetScript("OnEnter", function(self)
+        local GroupPreview = SquizzFrames.GroupPreview
+        local shown = GroupPreview and GroupPreview.IsShown and GroupPreview.IsShown()
+        if not shown then
+            self:SetBackdropColor(ToggleHoverColor())
+        end
+    end)
+    groupPreviewBtn:SetScript("OnLeave", RefreshGroupPreviewVisual)
 
     groupPreviewBtn:SetScript("OnClick", function()
         local GroupPreview = SquizzFrames.GroupPreview

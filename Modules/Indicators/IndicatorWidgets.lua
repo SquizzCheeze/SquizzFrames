@@ -339,6 +339,16 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
     slider:SetMinMaxValues(_min, _max)
     slider:SetValueStep(step or 1)
     slider:SetObeyStepOnDrag(true)
+    -- The visible track is deliberately a 4px hairline, but a Slider's mouse
+    -- region is its frame rect -- so grabbing one meant hitting a 4px band.
+    -- Negative hit-rect insets EXPAND the clickable area without touching the
+    -- layout or the thumb's travel: up into the label's empty gap, down toward
+    -- (but not onto) the value editbox. Same numbers as Options/Widgets.lua's
+    -- CreateStyledSlider -- keep the two in sync.
+    slider:SetHitRectInsets(0, 0, -11, -6)
+    -- Deliberately no EnableMouseWheel here -- see the matching note in
+    -- Options/Widgets.lua: it would eat the page scroll and silently change
+    -- values when the cursor passed over a slider mid-scroll.
 
     slider:SetBackdrop({
         bgFile = [[Interface\Buttons\WHITE8X8]],
@@ -384,6 +394,10 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
     editBox:SetAutoFocus(false)
     editBox:SetMaxLetters(10)
     editBox:SetJustifyH("CENTER")
+    -- Both are children of `container` at the same frame level, so which one
+    -- wins the overlap where the slider's expanded hit rect reaches down here
+    -- would otherwise be creation-order luck. Make the editbox explicitly win.
+    editBox:SetFrameLevel(slider:GetFrameLevel() + 5)
     editBox:SetBackdrop({
         bgFile = [[Interface\Buttons\WHITE8X8]],
         edgeFile = [[Interface\Buttons\WHITE8X8]],
@@ -930,6 +944,57 @@ local function CreateSetting_Thickness(parent)
         function widget:SetFunc(func) widget.func = func end
         function widget:SetDBValue(n) widget.size:SetValue(n) end
     else widget = settingWidgets["thickness"] end
+    widget:Show(); return widget
+end
+
+-- Aggro (blink) / Aggro (border): how the pulse behaves.
+-- Stored positionally as { seconds per half-pulse, percent to fade down to,
+-- pulse on/off } -- one table, so the panel writes it with a single SetField
+-- and the indicator re-applies all three together (a speed change without the
+-- matching depth would restart the animation twice).
+local function CreateSetting_BlinkOptions(parent)
+    local widget
+    if not settingWidgets["blinkOptions"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_BlinkOptions", parent, 300, 105)
+        settingWidgets["blinkOptions"] = widget
+
+        widget.pulse = SF_CreateCheckButton(widget, "Pulse")
+        widget.pulse:SetPoint("TOPLEFT", widget, 8, -8)
+        widget.pulse.onClick = function(checked)
+            if widget.func then
+                widget.func({ widget.speed:GetValue(), widget.depth:GetValue(), checked })
+            end
+        end
+
+        -- Seconds for ONE half of the pulse (fade out, then back in), so the
+        -- full cycle is twice this -- labelled in seconds rather than a made-up
+        -- "speed" number so the slider means something concrete.
+        widget.speed = SF_CreateSlider("Fade Time (sec)", widget, 0.05, 2, 100, 0.05)
+        widget.speed:SetPoint("TOPLEFT", widget, 5, -50)
+        widget.speed.afterValueChangedFn = function(value)
+            if widget.func then
+                widget.func({ value, widget.depth:GetValue(), widget.pulse:GetChecked() })
+            end
+        end
+
+        widget.depth = SF_CreateSlider("Fade To (%)", widget, 0, 95, 100, 5)
+        widget.depth:SetPoint("LEFT", widget.speed, "RIGHT", 15, 0)
+        widget.depth.afterValueChangedFn = function(value)
+            if widget.func then
+                widget.func({ widget.speed:GetValue(), value, widget.pulse:GetChecked() })
+            end
+        end
+
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(opts, defaultPulse)
+            opts = opts or {}
+            widget.speed:SetValue(tonumber(opts[1]) or 0.5)
+            widget.depth:SetValue(tonumber(opts[2]) or 25)
+            local pulse = defaultPulse and true or false
+            if opts[3] ~= nil then pulse = opts[3] and true or false end
+            widget.pulse:SetChecked(pulse)
+        end
+    else widget = settingWidgets["blinkOptions"] end
     widget:Show(); return widget
 end
 
@@ -1684,6 +1749,7 @@ local function MakeCheckButton(key, defaultLabel)
                         showIconBorder = "Show Icon Border",
                         showSwipe = "Show Cooldown Swipe",
                         useSpellIcons = "Use Spell Icons",
+                        showLFGEye = "LFG Eye for Other Group",
                     }
                     local labelText = labels[setting] or setting
                     if widget.cb.labelText then
@@ -1714,15 +1780,35 @@ local function CreateSetting_Orientation(parent)
     if not settingWidgets["orientation"] then
         widget = SF_CreateFrame("SFIndicatorSettings_Orientation", parent, 300, ROW_HEIGHT)
         settingWidgets["orientation"] = widget
-        local orientations = {"left-to-right", "right-to-left", "top-to-bottom", "bottom-to-top", "horizontal", "vertical"}
+        -- Four directions, two axes. "horizontal"/"vertical" used to be
+        -- offered here as two EXTRA entries alongside these, which was the
+        -- worst of both: they duplicate the first direction of each axis, and
+        -- several indicators only ever tested for the directional tokens, so
+        -- picking "vertical" silently laid out left-to-right. They're still
+        -- accepted as aliases on the way IN (see SetDBValue) so profiles that
+        -- stored one keep working -- they're just no longer selectable.
+        local orientations = {
+            { text = "Left to Right", value = "left-to-right" },
+            { text = "Right to Left", value = "right-to-left" },
+            { text = "Top to Bottom", value = "top-to-bottom" },
+            { text = "Bottom to Top", value = "bottom-to-top" },
+        }
         widget.dd = LayoutDropdownRow(widget, "Orientation", 140)
         local items = {}
         for _, o in ipairs(orientations) do
-            table.insert(items, { text = o, value = o, onClick = function() widget.func(o) end })
+            table.insert(items, { text = o.text, value = o.value,
+                onClick = function() widget.func(o.value) end })
         end
         widget.dd:SetItems(items)
         function widget:SetFunc(func) widget.func = func end
-        function widget:SetDBValue(val) widget.dd:SetSelectedValue(val or "left-to-right") end
+        function widget:SetDBValue(val)
+            if val == "vertical" then
+                val = "top-to-bottom"
+            elseif val == "horizontal" then
+                val = "left-to-right"
+            end
+            widget.dd:SetSelectedValue(val or "left-to-right")
+        end
     else widget = settingWidgets["orientation"] end
     widget:Show(); return widget
 end
@@ -2947,6 +3033,7 @@ local builders = {
     ["size-border"] = CreateSetting_SizeAndBorder,
     ["spacing"] = CreateSetting_Spacing,
     ["thickness"] = CreateSetting_Thickness,
+    ["blinkOptions"] = CreateSetting_BlinkOptions,
     ["height"] = CreateSetting_Height,
     ["durationOffset"] = CreateSetting_DurationOffset,
     ["textWidth"] = CreateSetting_TextWidth,

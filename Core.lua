@@ -174,14 +174,17 @@ local function MigrateDispelsShape(profile, listKey)
     end
 end
 
--- One-time correction: Aggro (blink) was rebuilt from an 11x11 icon-sized
--- frame (position/size, wrapped in LibCustomGlow's PixelGlow marching-pixel
--- effect) into a full-button pulsing red border matching aggroBorder's own
--- shape (no position/size, just optional thickness) -- an existing
--- profile's old position/size fields would otherwise conflict with the
--- border's own fixed 4-edge anchoring the next time the generic
--- position-apply path runs. Detected by the old shape's hallmark
--- (position field present); only enabled/frameLevel are preserved.
+-- One-time correction (2026-08-24): Aggro (blink) goes back to being a small
+-- movable, resizable pulsing block -- its original shape -- after a spell as a
+-- full-button pulsing border. The border shape duplicated what Aggro (border)
+-- already does and, having no position/size of its own, could not be placed
+-- anywhere; per explicit user request the marker is what's wanted.
+--
+-- An existing profile's border-shaped entry has no position/size at all, so
+-- without this it would keep rendering a 0-geometry block forever. Detected by
+-- that shape's hallmark (no position field); only enabled/frameLevel carry
+-- over -- see the note inside on why the previous migration was deleted rather
+-- than kept alongside this one.
 -- Drop the Private Auras indicator from existing profiles (removed 2026-08-13).
 --
 -- Boss private auras are rendered by the 12.1 AuraContainer engine itself
@@ -244,7 +247,34 @@ local function MigrateDispelIconsSplit(profile, listKey)
     old.position = nil
 end
 
-local function MigrateAggroBlinkShape(profile, listKey)
+-- External/Defensive Cooldowns shipped a 12x20 default icon size, so square
+-- spell art was drawn stretched into a tall rect. The default is square now
+-- (2026-08-24).
+--
+-- Existing profiles keep their own copy of every indicator entry, so a changed
+-- default reaches nobody without this. It rewrites ONLY entries still holding
+-- that exact old pair -- any other size means the user set it deliberately and
+-- is left alone, which is the whole reason this matches on the old value
+-- instead of just overwriting from defaults.
+local OLD_CD_ICON_W, OLD_CD_ICON_H = 12, 20
+local NEW_CD_ICON_W, NEW_CD_ICON_H = 20, 20
+local function MigrateCooldownIconSquare(profile, listKey)
+    listKey = listKey or "indicators"
+    if not profile or not profile.layout or not profile.layout[listKey] then return end
+    for _, ind in ipairs(profile.layout[listKey]) do
+        if ind.indicatorName == "externalCooldowns" or ind.indicatorName == "defensiveCooldowns" then
+            -- Size is stored flat ({w,h}) but the nested {{w,h}} shape exists
+            -- in the wild too -- see ExtractSize in AuraEngineIndicators.lua.
+            local sz = ind.size
+            if type(sz) == "table" and type(sz[1]) == "table" then sz = sz[1] end
+            if type(sz) == "table" and sz[1] == OLD_CD_ICON_W and sz[2] == OLD_CD_ICON_H then
+                sz[1], sz[2] = NEW_CD_ICON_W, NEW_CD_ICON_H
+            end
+        end
+    end
+end
+
+local function MigrateAggroBlinkMarker(profile, listKey)
     listKey = listKey or "indicators"
     if not profile or not profile.layout or not profile.layout[listKey] then return end
     local defIndicators = SquizzFrames.defaults and SquizzFrames.defaults.profile
@@ -258,12 +288,32 @@ local function MigrateAggroBlinkShape(profile, listKey)
     if not defBlink then return end
 
     for i, ind in ipairs(profile.layout[listKey]) do
-        if ind.indicatorName == "aggroBlink" and ind.position ~= nil then
-            local wasEnabled = ind.enabled
+        -- Border-shaped entries are the ones with NO position -- the marker
+        -- always has one. (This is the exact inverse of the test the previous
+        -- migration used, which is why that one had to go rather than being
+        -- left in place: the two would have rewritten each other's work on
+        -- every single load.)
+        if ind.indicatorName == "aggroBlink" and ind.position == nil then
             local copy = F.CopyTable and F.CopyTable(defBlink) or defBlink
-            if wasEnabled ~= nil then copy.enabled = wasEnabled end
+            -- Only enabled/frameLevel survive: `thickness` was the border's
+            -- own setting and means nothing to a block, and there's no
+            -- position/size to carry over -- that's what makes it a border.
+            if ind.enabled ~= nil then copy.enabled = ind.enabled end
+            if ind.frameLevel ~= nil then copy.frameLevel = ind.frameLevel end
             profile.layout[listKey][i] = copy
-            print("|cff33cc99[SquizzFrames]|r Migration: rebuilt 'Aggro (blink)' indicator as a full-button border (" .. listKey .. ")")
+            print("|cff33cc99[SquizzFrames]|r Migration: rebuilt 'Aggro (blink)' as a movable marker (" .. listKey .. ")")
+            break
+        end
+    end
+
+    -- Aggro (border) gained a colour setting at the same time. Its frame has
+    -- always drawn red from a hardcoded default, so backfill that exact value
+    -- rather than leaving the field nil -- the colour picker falls back to
+    -- WHITE when it finds nothing, which would have shown every existing user
+    -- a swatch that didn't match what was on screen.
+    for _, ind in ipairs(profile.layout[listKey]) do
+        if ind.indicatorName == "aggroBorder" and ind.color == nil then
+            ind.color = {"custom_color", 1, 0, 0, 1}
             break
         end
     end
@@ -358,7 +408,8 @@ local function EnsureIndicatorLists(profile)
 
         MigrateMissingBuiltIns(profile, listKey)
         MigrateDispelsShape(profile, listKey)
-        MigrateAggroBlinkShape(profile, listKey)
+        MigrateAggroBlinkMarker(profile, listKey)
+        MigrateCooldownIconSquare(profile, listKey)
         MigrateRemovedPrivateAuras(profile, listKey)
         -- AFTER MigrateMissingBuiltIns above, which is what actually creates
         -- the new dispelIcons entry for an existing profile -- this only moves

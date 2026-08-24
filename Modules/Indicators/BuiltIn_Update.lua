@@ -164,6 +164,27 @@ local function CreateIconIndicator(button, name)
             self:Hide()
         end
     end
+    -- Atlas variant. Blizzard reissued most raid-frame status icons as atlas
+    -- entries (sharper, and the only version that tracks art updates), but
+    -- kept the legacy files around -- so this takes both and falls back when
+    -- the atlas isn't present on this client. Same show/hide contract as
+    -- SetIcon: a nil atlas AND nil fallback hides the frame.
+    --
+    -- SetAtlas owns the texcoords, so the explicit SetTexCoord reset on the
+    -- fallback branch matters: without it a frame that previously rendered an
+    -- atlas keeps that atlas's cropping and shows a sliver of the legacy file.
+    function f:SetAtlasIcon(atlas, fallbackTexture)
+        if atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas) then
+            self.tex:SetAtlas(atlas)
+            self:Show()
+        elseif fallbackTexture then
+            self.tex:SetTexture(fallbackTexture)
+            self.tex:SetTexCoord(0, 1, 0, 1)
+            self:Show()
+        else
+            self:Hide()
+        end
+    end
     -- NOTE: no custom SetSize needed here. The frame's native SetSize works,
     -- and f.tex was created with SetAllPoints so it resizes automatically.
     return f
@@ -213,6 +234,84 @@ end
 -- up, so they build just these two border frames directly rather than going
 -- through I.HandleIndicators/I.CreateIndicator.
 BU.CreateBorderIndicator = CreateBorderIndicator
+
+-- Adds a configurable in/out pulse to any frame, plus the SetGlow(on) entry
+-- point both aggro indicators are driven through.
+--
+-- Shared by Aggro (blink) -- where the pulse is the whole point -- and Aggro
+-- (border), where it's opt-in: the two are otherwise the same warning drawn in
+-- two places, so they get the same knobs.
+--
+-- blinkOptions is a positional table: { seconds per half-pulse, percent to
+-- fade down to, pulse on/off }. `defaultPulse` is what the third slot means
+-- when a profile hasn't set it -- true for the blink, false for the border,
+-- so neither changes behaviour just by gaining the setting.
+local function AttachBlinkBehaviour(frame, defaultPulse)
+    local anim = frame:CreateAnimationGroup()
+    anim:SetLooping("REPEAT")
+    local fadeOut = anim:CreateAnimation("Alpha")
+    fadeOut:SetOrder(1)
+    fadeOut:SetSmoothing("IN_OUT")
+    local fadeIn = anim:CreateAnimation("Alpha")
+    fadeIn:SetOrder(2)
+    fadeIn:SetSmoothing("IN_OUT")
+    frame._blinkAnim = anim
+    frame._blinkPulse = defaultPulse and true or false
+
+    function frame:SetBlinkOptions(opts)
+        local speed = tonumber(opts and opts[1]) or 0.5
+        local faint = (tonumber(opts and opts[2]) or 25) / 100
+        local pulse = defaultPulse and true or false
+        if opts and opts[3] ~= nil then pulse = opts[3] and true or false end
+        -- Clamped rather than trusted: these come straight from a profile,
+        -- and a zero/negative duration makes the animation system misbehave
+        -- rather than error.
+        speed = math.max(0.05, math.min(3, speed))
+        faint = math.max(0, math.min(0.95, faint))
+        self._blinkSpeed, self._blinkFaint, self._blinkPulse = speed, faint, pulse
+        fadeOut:SetFromAlpha(1)
+        fadeOut:SetToAlpha(faint)
+        fadeOut:SetDuration(speed)
+        fadeIn:SetFromAlpha(faint)
+        fadeIn:SetToAlpha(1)
+        fadeIn:SetDuration(speed)
+        -- Re-sync against the new options whenever the frame is actually
+        -- visible. Three things need this and all of them are invisible
+        -- otherwise until threat happens to change:
+        --   * a duration/alpha change is not picked up by an animation that is
+        --     already running, so it has to be bounced;
+        --   * switching the pulse ON has to start one that was never playing
+        --     (the border's normal state);
+        --   * switching it OFF has to stop mid-flash and restore full alpha,
+        --     or the frame keeps whatever alpha the animation halted on.
+        if self:IsShown() then
+            anim:Stop()
+            self:SetAlpha(1)
+            if pulse then anim:Play() end
+        elseif anim:IsPlaying() then
+            anim:Stop()
+            self:SetAlpha(1)
+        end
+    end
+    frame:SetBlinkOptions(nil)  -- seed the animations with the defaults
+
+    function frame:SetGlow(on)
+        if on then
+            self:SetAlpha(1)
+            self:Show()
+            if self._blinkPulse then
+                if not anim:IsPlaying() then anim:Play() end
+            else
+                anim:Stop()
+                self:SetAlpha(1)
+            end
+        else
+            anim:Stop()
+            self:SetAlpha(1)
+            self:Hide()
+        end
+    end
+end
 
 -- Simple StatusBar for shieldBar. Unlike shieldOverlay/healAbsorb (which
 -- SetAllPoints to the health bar and get their width for free), this bar is
@@ -581,12 +680,31 @@ local function CreateCooldownGrid(button, name, maxSlots, supportsBorder)
         f._showStack = (show ~= false)
     end
     function f:SetOrientation(orient)
-        -- Lay out slots. Simplified: horizontal left-to-right.
+        -- "horizontal"/"vertical" are aliases the shared Orientation dropdown
+        -- used to offer and old profiles can still hold. Untranslated they
+        -- fell through to the left-to-right branch below, so picking Vertical
+        -- did nothing at all. (Live path for Missing Buffs; the other grids
+        -- here are the pre-12.1 fallbacks.)
+        if orient == "vertical" then
+            orient = "top-to-bottom"
+        elseif orient == "horizontal" then
+            orient = "left-to-right"
+        end
         f._orientation = orient
+        -- The first slot pins the corner the block grows AWAY from, so the
+        -- row/column stays inside the indicator's own rect instead of running
+        -- off its left/top edge. Same convention as ResolveFlow's `corner` in
+        -- AuraEngineIndicators.lua.
+        local corner = "TOPLEFT"
+        if orient == "right-to-left" then
+            corner = "TOPRIGHT"
+        elseif orient == "bottom-to-top" then
+            corner = "BOTTOMLEFT"
+        end
         for i, slot in ipairs(f._slots) do
             slot:ClearAllPoints()
             if i == 1 then
-                slot:SetPoint("TOPLEFT", f, "TOPLEFT")
+                slot:SetPoint(corner, f, corner)
             else
                 local prev = f._slots[i - 1]
                 if orient == "right-to-left" then
@@ -748,6 +866,190 @@ local function CreateCooldownGrid(button, name, maxSlots, supportsBorder)
     return f
 end
 
+-- ------------------------------------------------------------------
+-- Phased Icon: "this unit is not in your phase"
+-- ------------------------------------------------------------------
+-- Two genuinely different situations share one indicator:
+--   * UnitPhaseReason(unit) -- non-nil means war mode / Chromie Time /
+--     sharding / quest phasing. nil means SAME PHASE, which is a real answer,
+--     not a missing one. That inverts this file's usual "nil = no data"
+--     reading, and is the same way AuraEngineIndicators.lua's identity gate
+--     already treats this API -- see its comment.
+--   * UnitInOtherParty(unit) -- an LFG member sitting in a different instance
+--     group entirely. UnitPhaseReason returns nil for those, so without this
+--     second check they would read as "same phase" and show nothing.
+--
+-- POLLED, not purely event-driven, and that is not laziness: UnitPhaseReason
+-- only gives a meaningful answer within roughly 250 yards and returns nil
+-- beyond it -- indistinguishable from "same phase". No event fires for "the
+-- answer would be different now because they walked closer", so the events in
+-- eventMap catch the fast cases and the ticker below catches the rest. Both
+-- DandersFrames and Grid2 landed on the same shape.
+--
+-- Those two additionally gate the poll on UnitDistanceSquared, re-checking a
+-- unit only when its in-range flag flips. That is deliberately NOT copied
+-- here: it cannot shrink the ~250yd blind spot (nothing can), and it means a
+-- phase change while a unit stays in range is only ever caught by an event.
+-- Five party members -- forty in a raid -- polled once a second is not worth
+-- that gap, and the per-unit cache below already collapses an unchanged
+-- result to zero work.
+local PHASE_POLL_INTERVAL = 1
+
+-- Blizzard reissued both icons as atlases; the legacy file paths are kept as
+-- the fallback (see CreateIconIndicator's SetAtlasIcon).
+local PHASE_ICON_ATLAS   = "RaidFrame-Icon-Phasing"
+local PHASE_ICON_TEXTURE = [[Interface\TargetingFrame\UI-PhasingIcon]]
+local LFG_ICON_ATLAS     = "RaidFrame-Icon-LFR"
+local LFG_ICON_TEXTURE   = [[Interface\LFGFrame\LFG-Eye]]
+
+-- Sentinel for "different instance group", kept apart from every real
+-- Enum.PhaseReason value (those are all >= 0).
+local PHASE_OTHER_PARTY = -1
+
+-- phasedCache[unit] = false (checked, same phase) | PHASE_OTHER_PARTY | a
+-- phase reason number. nil means "not checked yet".
+--
+-- Keyed by UNIT TOKEN, which the secure header reassigns between buttons on
+-- every re-sort -- hence the wipe on GROUP_ROSTER_UPDATE below. A stale entry
+-- is self-correcting either way (the poller recomputes and compares, and
+-- CheckPhasedIcon always renders from the cache rather than from a delta),
+-- but wiping stops a token that just changed hands from suppressing the first
+-- update for a second.
+local phasedCache = {}
+
+local function ReadPhaseState(unit)
+    -- Different instance group first: it is the case UnitPhaseReason cannot
+    -- see, and it earns its own icon.
+    if UnitInOtherParty then
+        local ok, inOther = pcall(UnitInOtherParty, unit)
+        if ok and F.IsValueNonSecret(inOther) and inOther then
+            return PHASE_OTHER_PARTY
+        end
+    end
+    if UnitPhaseReason then
+        local ok, reason = pcall(UnitPhaseReason, unit)
+        -- F.IsValueNonSecret returns false for nil, which is exactly what is
+        -- wanted here even though nil is meaningful: "same phase" and "the
+        -- value is secret" both mean "show nothing", so they collapse into
+        -- the same branch. Failing towards no icon is the right way round --
+        -- a spurious phase warning is worse than a missing one.
+        if ok and F.IsValueNonSecret(reason) then
+            return reason
+        end
+    end
+    return false
+end
+
+-- Recompute one unit's phase state. Returns true if the cached value changed.
+local function CheckUnitPhase(unit)
+    local state = ReadPhaseState(unit)
+    if state ~= phasedCache[unit] then
+        phasedCache[unit] = state
+        return true
+    end
+    return false
+end
+
+-- Defined below, but CheckPhasedIcon re-arms it -- see that function.
+local StartPhasePolling
+
+local function CheckPhasedIcon(button)
+    local indicator = button and button.indicators and button.indicators.phasedIcon
+    if not indicator then return end
+    local t = indicator._sfTable or indicator.configs
+    if not t or not t.enabled then indicator:Hide() return end
+
+    -- An enabled indicator is the only thing keeping the poller alive (it
+    -- stops itself once a pass finds none), so re-arm from here rather than
+    -- from creation -- indicators get created whether or not they are
+    -- enabled, and this runs on every rebuild and on the options panel's
+    -- enable toggle.
+    StartPhasePolling()
+
+    -- Designer/group preview: no real unit to ask, and an indicator that
+    -- renders nothing cannot be positioned. _sfFakePhased is set by the
+    -- preview builders (Indicators.lua, GroupPreview.lua).
+    if button._sfFakeIsConnected ~= nil then
+        if button._sfFakePhased then
+            indicator:SetAtlasIcon(PHASE_ICON_ATLAS, PHASE_ICON_TEXTURE)
+        else
+            indicator:Hide()
+        end
+        return
+    end
+
+    local unit = button.unit or button:GetAttribute("unit")
+    if not unit then indicator:Hide() return end
+
+    -- Populate on first sight instead of waiting up to a second for the
+    -- poller, or a freshly rebuilt button shows nothing until the next tick.
+    if phasedCache[unit] == nil then CheckUnitPhase(unit) end
+
+    local state = phasedCache[unit]
+    if not state then
+        indicator:Hide()
+    elseif state == PHASE_OTHER_PARTY and t.showLFGEye then
+        indicator:SetAtlasIcon(LFG_ICON_ATLAS, LFG_ICON_TEXTURE)
+    else
+        -- Includes an other-party unit with the LFG eye turned off: they are
+        -- still unreachable, so they still get the generic phasing icon.
+        indicator:SetAtlasIcon(PHASE_ICON_ATLAS, PHASE_ICON_TEXTURE)
+    end
+end
+
+local phaseTicker
+
+function StartPhasePolling()
+    if phaseTicker then return end
+    phaseTicker = C_Timer.NewTicker(PHASE_POLL_INTERVAL, function()
+        local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+        if not PartyFrames or not PartyFrames.IterateButtons then return end
+        local active = 0
+        PartyFrames:IterateButtons(function(button)
+            local indicator = button and button.indicators and button.indicators.phasedIcon
+            if not indicator then return end
+            local t = indicator._sfTable or indicator.configs
+            if not t or not t.enabled then return end
+            active = active + 1
+            local unit = button.unit or button:GetAttribute("unit")
+            if unit and CheckUnitPhase(unit) then
+                CheckPhasedIcon(button)
+            end
+        end)
+        -- Nothing left to watch -- stop instead of ticking forever. This is
+        -- the addon's only always-on timer outside AuraEngine, so it has to
+        -- pay for itself. CheckPhasedIcon re-arms it the moment an enabled
+        -- one exists again.
+        if active == 0 and phaseTicker then
+            phaseTicker:Cancel()
+            phaseTicker = nil
+        end
+    end)
+end
+
+-- UNIT_PHASE and UNIT_OTHER_PARTY_CHANGED both carry a real unit, so this only
+-- ever runs for the button that actually changed. Forces a recompute rather
+-- than trusting the cache -- the event IS the notification that it moved.
+local function RefreshPhasedIcon(button)
+    local unit = button and (button.unit or button:GetAttribute("unit"))
+    if unit then CheckUnitPhase(unit) end
+    CheckPhasedIcon(button)
+end
+
+-- GROUP_ROSTER_UPDATE has no unit payload and is broadcast to every button, so
+-- the wipe is coalesced to once per frame. GetTime() is frame-resolution in
+-- WoW, which makes it the frame identity needed without hooking OnUpdate --
+-- same idiom as AuraEngineIndicators.lua's identity-gate memo.
+local phaseWipeStamp = -1
+local function ResetPhasedIcons(button)
+    local now = GetTime()
+    if now ~= phaseWipeStamp then
+        phaseWipeStamp = now
+        wipe(phasedCache)
+    end
+    RefreshPhasedIcon(button)
+end
+
 -- Forward-declared: defined near CheckDispels, much further down this file
 -- (it needs CheckDispels as an upvalue for its live-update Set* methods) --
 -- but CreateBuiltInIndicator's dispatch below needs to call it. Without this,
@@ -796,6 +1098,15 @@ function BU.CreateBuiltInIndicator(button, t)
     elseif name == "statusIcon" then
         indicator = CreateIconIndicator(button, "StatusIcon")
         indicator._sfType = "builtin"
+    elseif name == "phasedIcon" then
+        indicator = CreateIconIndicator(button, "PhasedIcon")
+        indicator._sfType = "builtin"
+        -- No StartPhasePolling() here on purpose. Indicators are created
+        -- whether or not they're enabled (see HandleIndicators), so arming the
+        -- poller from creation would start a 1s ticker for a switched-off
+        -- indicator. CheckPhasedIcon arms it instead, and HandleIndicators
+        -- ends with a BU.CheckAll pass -- so an enabled one still starts
+        -- polling within the same call that built it.
     elseif name == "roleIcon" then
         -- The button template's roleIcon is a FontString (text display), which
         -- has no CreateTexture method. Always create a fresh icon Frame for the
@@ -825,44 +1136,44 @@ function BU.CreateBuiltInIndicator(button, t)
         -- re-sets the texture file itself.
         indicator.tex:SetTexture(RAID_MARKER_TEX)
     elseif name == "aggroBlink" then
-        -- Solid red border around the whole button that pulses in/out --
-        -- NOT LibCustomGlow's PixelGlow (a marching ring of small pixels
-        -- travelling around the edge), which reads as an "ant trail" rather
-        -- than a clear aggro warning. Same 4-texture border as aggroBorder,
-        -- just animated instead of static.
-        indicator = CreateBorderIndicator(button, "AggroBlink")
+        -- A small solid block that pulses in and out, placed wherever the user
+        -- drags it. This is the indicator's ORIGINAL shape, restored on
+        -- 2026-08-24 by request: it spent a while as a full-button pulsing
+        -- border, which duplicated what Aggro (border) already does and could
+        -- not be moved or resized (see Core.lua's MigrateAggroBlinkMarker).
+        --
+        -- Deliberately a plain texture, NOT LibCustomGlow's PixelGlow -- the
+        -- very first version used that, and a marching ring of small pixels
+        -- reads as an "ant trail" rather than an aggro warning.
+        -- Anonymous when the parent is (the group preview's mock buttons) --
+        -- a global name derived from a nil GetName() would throw, and two
+        -- buttons sharing one made-up name would collide.
+        local blinkName = button:GetName() and (button:GetName() .. "AggroBlink") or nil
+        indicator = CreateFrame("Frame", blinkName, button)
         indicator._sfType = "builtin"
-        indicator:SetColor(1, 0, 0, 1)
+        indicator:SetSize(11, 11)
+        indicator:Hide()
 
-        local anim = indicator:CreateAnimationGroup()
-        anim:SetLooping("REPEAT")
-        local fadeOut = anim:CreateAnimation("Alpha")
-        fadeOut:SetFromAlpha(1)
-        fadeOut:SetToAlpha(0.25)
-        fadeOut:SetDuration(0.5)
-        fadeOut:SetOrder(1)
-        fadeOut:SetSmoothing("IN_OUT")
-        local fadeIn = anim:CreateAnimation("Alpha")
-        fadeIn:SetFromAlpha(0.25)
-        fadeIn:SetToAlpha(1)
-        fadeIn:SetDuration(0.5)
-        fadeIn:SetOrder(2)
-        fadeIn:SetSmoothing("IN_OUT")
-        indicator._blinkAnim = anim
+        local blinkTex = indicator:CreateTexture(nil, "OVERLAY")
+        blinkTex:SetAllPoints(indicator)
+        blinkTex:SetColorTexture(1, 0, 0, 1)
 
-        function indicator:SetGlow(on)
-            if on then
-                self:SetAlpha(1)
-                self:Show()
-                if not anim:IsPlaying() then anim:Play() end
-            else
-                anim:Stop()
-                self:Hide()
-            end
+        -- Generic path: HandleIndicators/ApplySettingToOne call this for the
+        -- "color-alpha" setting. The animation drives the FRAME's alpha, which
+        -- multiplies with the texture's own -- so a user-chosen opacity is the
+        -- ceiling the pulse fades down from, not something the pulse fights.
+        function indicator:SetColor(r, g, b, a)
+            blinkTex:SetColorTexture(r or 1, g or 0, b or 0, a or 1)
         end
+
+        -- Pulses by default -- that's what this indicator is.
+        AttachBlinkBehaviour(indicator, true)
     elseif name == "aggroBorder" then
         indicator = CreateBorderIndicator(button, "AggroBorder")
         indicator._sfType = "builtin"
+        -- Same knobs as the blink, but static unless the user turns the pulse
+        -- on: a border that started flashing on upgrade would be a surprise.
+        AttachBlinkBehaviour(indicator, false)
     elseif name == "targetHighlight" then
         indicator = CreateBorderIndicator(button, "TargetHighlight")
         indicator._sfType = "builtin"
@@ -996,10 +1307,20 @@ function BU.SetupIndicator(button, t)
     local indicator = button.indicators and button.indicators[name]
     if not indicator then return end
 
-    if name == "aggroBorder" or name == "aggroBlink" or name == "targetHighlight"
+    if name == "aggroBorder" or name == "targetHighlight"
        or name == "hoverHighlight" or name == "frameBorder" then
         if t.thickness and indicator.SetThickness then
             indicator:SetThickness(t.thickness)
+        end
+    end
+
+    -- Aggro blink/border: the pulse's speed, depth and on/off have to be
+    -- re-applied on every rebuild -- the animations are created with the
+    -- built-in defaults and know nothing about the profile. (Aggro (blink) is
+    -- a movable block, not a border, so it takes no thickness above.)
+    if name == "aggroBlink" or name == "aggroBorder" then
+        if indicator.SetBlinkOptions then
+            indicator:SetBlinkOptions(t.blinkOptions)
         end
     elseif name == "statusText" then
         -- Position itself was already applied earlier in HandleIndicators'
@@ -1761,9 +2082,7 @@ local function CheckPlayerRaidIcon(button)
 end
 
 local function CheckAggroBlink(button)
-    local unit = button.unit or button:GetAttribute("unit")
-    if not unit then return end
-    local indicator = button.indicators and button.indicators.aggroBlink
+    local indicator = button and button.indicators and button.indicators.aggroBlink
     if not indicator then return end
     local t = indicator._sfTable or indicator.configs
     if not t or not t.enabled then
@@ -1771,11 +2090,15 @@ local function CheckAggroBlink(button)
         return
     end
 
-    -- For preview button, use fake threat
-    local threat
-    if button._sfFakeThreat ~= nil then
-        threat = button._sfFakeThreat
-    else
+    -- Fake data FIRST, real unit only if there is none -- the unit guard used
+    -- to run before this and returned early on the group preview's mock
+    -- buttons, which have no unit at all, so the aggro indicators could never
+    -- render there no matter what threat value was faked. Same precedence
+    -- CheckPhasedIcon uses for the same reason.
+    local threat = button._sfFakeThreat
+    if threat == nil then
+        local unit = button.unit or button:GetAttribute("unit")
+        if not unit then return end
         threat = UnitThreatSituation(unit)
     end
     -- Secret-gated (2026-08-07): comparing a secret number against a
@@ -1785,26 +2108,26 @@ local function CheckAggroBlink(button)
 end
 
 local function CheckAggroBorder(button)
-    local unit = button.unit or button:GetAttribute("unit")
-    if not unit then return end
-    local indicator = button.indicators and button.indicators.aggroBorder
+    local indicator = button and button.indicators and button.indicators.aggroBorder
     if not indicator then return end
     local t = indicator._sfTable or indicator.configs
-    if not t or not t.enabled then indicator:Hide() return end
+    if not t or not t.enabled then
+        indicator:SetGlow(false)
+        return
+    end
 
-    -- For preview button, use fake threat
-    local threat
-    if button._sfFakeThreat ~= nil then
-        threat = button._sfFakeThreat
-    else
+    -- Fake data first -- see CheckAggroBlink above for why the unit guard
+    -- can't come first.
+    local threat = button._sfFakeThreat
+    if threat == nil then
+        local unit = button.unit or button:GetAttribute("unit")
+        if not unit then return end
         threat = UnitThreatSituation(unit)
     end
-    -- See CheckAggroBlink above -- same secret-comparison gate.
-    if F.IsValueNonSecret(threat) and threat == 3 then
-        indicator:Show()
-    else
-        indicator:Hide()
-    end
+    -- SetGlow, not Show/Hide: the border can pulse now too (opt-in), and
+    -- that's where starting/stopping the animation is handled. See
+    -- CheckAggroBlink above for the same secret-comparison gate.
+    indicator:SetGlow(F.IsValueNonSecret(threat) and threat == 3)
 end
 
 function BU.CheckTargetHighlight(button)
@@ -3309,6 +3632,7 @@ function BU.CheckAll(button)
     if not button then return end
     CheckNameText(button)
     CheckStatusIcon(button)
+    CheckPhasedIcon(button)
     BU.CheckRoleIcon(button)
     CheckLeaderIcon(button)
     CheckPlayerRaidIcon(button)
@@ -3338,7 +3662,9 @@ local eventMap = {
     -- AFK/DND toggle event is PLAYER_FLAGS_CHANGED(unit).
     PLAYER_FLAGS_CHANGED     = { CheckStatusIcon },
     UNIT_CONNECTION          = { CheckStatusIcon, CheckNameText },
-    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight },
+    -- ResetPhasedIcons wipes the unit-token-keyed phase cache (once per
+    -- frame, not once per button) before re-rendering -- see its comment.
+    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight, ResetPhasedIcons },
     -- The actual "a unit's assigned role changed" event -- GROUP_ROSTER_UPDATE
     -- only fires on membership changes (someone joining/leaving), not on an
     -- in-place role reassignment (role-check UI, LFG role swap, manually
@@ -3368,6 +3694,14 @@ local eventMap = {
     UNIT_AURA                = { CheckExternalCooldowns, CheckDefensiveCooldowns, CheckHealerHots, CheckDispels, CheckDebuffs, CheckCCIndicator, CheckMissingBuffs },
     RAID_TARGET_UPDATE       = { CheckPlayerRaidIcon },
     UNIT_NAME_UPDATE         = { CheckNameText },
+    -- Both carry a real unit, so these reach only the button that changed.
+    -- They are the fast path only: UnitPhaseReason is blind past ~250yd, so
+    -- the poller in the Phased Icon block above is what actually keeps this
+    -- honest. Note UNIT_FLAGS is NOT listed -- DandersFrames registers it
+    -- for this, but it is not a real event on Mainline (same trap already
+    -- documented at the top of this table).
+    UNIT_PHASE               = { RefreshPhasedIcon },
+    UNIT_OTHER_PARTY_CHANGED = { RefreshPhasedIcon },
     READY_CHECK              = { StartReadyCheck },
     READY_CHECK_CONFIRM      = { ConfirmReadyCheck },
     READY_CHECK_FINISHED     = { FinishReadyCheck },

@@ -428,8 +428,64 @@ end
 -- orientation) always grows the rect rightward from a fixed left edge,
 -- which is exactly what left-to-right looks like even when set to
 -- right-to-left.
-local function ContainerAnchorCorner(orientation)
-    return (orientation == "left-to-right") and "TOPLEFT" or "TOPRIGHT"
+-- Resolve one of the shared Orientation dropdown's six tokens into everything
+-- the flow layout needs. The four AuraGroup indicators (Healer HoTs, External
+-- /Defensive Cooldowns, Debuffs, CC) each used to inline
+-- `(token == "left-to-right") and "RIGHT" or "LEFT"`, which only ever
+-- described a horizontal row: the vertical tokens fell through to the
+-- right-to-left branch and produced a leftward ROW, so picking Vertical
+-- appeared to do nothing (or worse, silently flipped the row).
+--
+--   axis    -- row vs column. Blizzard's flow layout defaults to Horizontal,
+--              so a column needs SetFlowLayoutAxis; nothing else implies it.
+--   growthH -- which way along a row. growthV -- which way down a column.
+--   corner  -- the CONTAINER's own anchor on the wrapper. It auto-sizes to
+--              its content, so this is the edge that stays put as icons
+--              appear, and it has to agree with the growth direction or the
+--              block grows the opposite way to the icons inside it.
+--
+-- Same four-value shape (and the same conventions) as ResolveOrientation
+-- further down, which does this for Dispel Icons' two-dropdown
+-- orientation+growth pair. This one takes the single combined token instead.
+local function ResolveFlow(orientation)
+    if orientation == "top-to-bottom" or orientation == "vertical" then
+        return "VERTICAL", "RIGHT", "DOWN", "TOPLEFT"
+    elseif orientation == "bottom-to-top" then
+        return "VERTICAL", "RIGHT", "UP", "BOTTOMLEFT"
+    elseif orientation == "right-to-left" then
+        return "HORIZONTAL", "LEFT", "DOWN", "TOPRIGHT"
+    end
+    -- "left-to-right", "horizontal", and anything unrecognised.
+    return "HORIZONTAL", "RIGHT", "DOWN", "TOPLEFT"
+end
+
+-- Flow layout table for a container spec, from one orientation token.
+local function FlowLayout(orientation)
+    local axis, growthH, growthV = ResolveFlow(orientation)
+    return {
+        axis = axis,
+        -- Anchor point is the OPPOSITE edge to the growth direction, so
+        -- content flows away from a fixed edge rather than off it.
+        anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
+        growthH = growthH,
+        growthV = growthV,
+    }
+end
+
+-- Re-point a live container at a new orientation. Shared by all four
+-- AuraGroup indicators' SetOrientation.
+local function ApplyFlowToContainer(container, orientation, wrapper)
+    if not container then return end
+    local AE = SquizzFrames.AuraEngine
+    local axis, growthH, growthV, corner = ResolveFlow(orientation)
+    local flowAxis = AE and AE.FlowAxis and AE.FlowAxis(axis)
+    if flowAxis and container.SetFlowLayoutAxis then
+        pcall(container.SetFlowLayoutAxis, container, flowAxis)
+    end
+    container:SetFlowLayoutAnchorPoint((growthH == "RIGHT") and "LEFT" or "RIGHT")
+    container:SetFlowLayoutGrowthDirection(AE.FlowDir(growthH), AE.FlowDir(growthV))
+    container:ClearAllPoints()
+    container:SetPoint(corner, wrapper, corner, 0, 0)
 end
 
 local function ExtractSize(t)
@@ -439,8 +495,8 @@ local function ExtractSize(t)
 end
 
 -- Preview-only: a row of `count` static icon frames, children of `wrapper`,
--- laid out the same corner/direction ContainerAnchorCorner would grow the
--- real AuraContainer in. Shared by healerHots and the cooldown kinds since
+-- laid out on the same corner/axis/direction ResolveFlow gives the
+-- real AuraContainer. Shared by healerHots and the cooldown kinds since
 -- both need the exact same "show N dummy icons matching the max-icons
 -- setting" mockup. `iconPaths` is an array of texture paths, one per slot
 -- (cycled if shorter than `count`) -- distinct icons per slot rather than
@@ -542,10 +598,14 @@ local function CreateFallbackIconRow(wrapper, count, iconPaths, defaultW, defaul
         end
     end
     local function Reposition()
-        local corner = ContainerAnchorCorner(wrapper._orientation)
+        -- Mirrors the real container's flow: same axis, same growth direction,
+        -- same fixed corner. The preview is the only place a vertical stack
+        -- can be judged before there are real auras to look at, so it has to
+        -- follow all four tokens, not just the horizontal pair.
+        local axis, growthH, growthV, corner = ResolveFlow(wrapper._orientation)
+        local vertical = (axis == "VERTICAL")
         local iw = wrapper._w or defaultW
         local ih = wrapper._h or defaultH
-        local growRight = (wrapper._orientation == "left-to-right")
         local shown = math.min(wrapper._num or count, count)
         local prev
         for i, f in ipairs(icons) do
@@ -554,7 +614,13 @@ local function CreateFallbackIconRow(wrapper, count, iconPaths, defaultW, defaul
                 f:SetSize(iw, ih)
                 if not prev then
                     f:SetPoint(corner, wrapper, corner, 0, 0)
-                elseif growRight then
+                elseif vertical then
+                    if growthV == "UP" then
+                        f:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, FALLBACK_ICON_GAP)
+                    else
+                        f:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -FALLBACK_ICON_GAP)
+                    end
+                elseif growthH == "RIGHT" then
                     f:SetPoint("TOPLEFT", prev, "TOPRIGHT", FALLBACK_ICON_GAP, 0)
                 else
                     f:SetPoint("TOPRIGHT", prev, "TOPLEFT", -FALLBACK_ICON_GAP, 0)
@@ -623,14 +689,8 @@ local function BuildSpec(button, t)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[STYLE_KEY], t.font)
 
-    local growthH = (t.orientation == "left-to-right") and "RIGHT" or "LEFT"
-
     return {
-        layout = {
-            anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
-            growthH = growthH,
-            growthV = "DOWN",
-        },
+        layout = FlowLayout(t.orientation),
         groups = {
             {
                 key = GROUP_KEY,
@@ -745,14 +805,7 @@ function AEI.CreateHealerHotsIndicator(button, t)
 
     function wrapper:SetOrientation(token)
         wrapper._orientation = token
-        local container = wrapper._container
-        if container then
-            local growthH = (token == "left-to-right") and "RIGHT" or "LEFT"
-            container:SetFlowLayoutAnchorPoint((growthH == "RIGHT") and "LEFT" or "RIGHT")
-            container:SetFlowLayoutGrowthDirection(AE.FlowDir(growthH), AE.FlowDir("DOWN"))
-            container:ClearAllPoints()
-            container:SetPoint(ContainerAnchorCorner(token), wrapper, ContainerAnchorCorner(token), 0, 0)
-        end
+        ApplyFlowToContainer(wrapper._container, token, wrapper)
         if RepositionFallback then RepositionFallback() end
     end
 
@@ -894,9 +947,11 @@ function AEI.CreateHealerHotsIndicator(button, t)
         local unit = button.unit or button:GetAttribute("unit")
         AE.RequestContainer(wrapper, unit, spec, function(container)
             wrapper._container = container
-            local corner = ContainerAnchorCorner(wrapper._orientation)
-            container:ClearAllPoints()
-            container:SetPoint(corner, wrapper, corner, 0, 0)
+            -- Re-assert the whole flow (axis, growth, anchored corner), not
+            -- just the corner: the spec's layout was resolved when the
+            -- container was REQUESTED, which can be several seconds and a
+            -- combat drop earlier than this callback.
+            ApplyFlowToContainer(container, wrapper._orientation, wrapper)
             container:SetShown(wrapper:IsShown())
             SeedGateState(wrapper)
         end)
@@ -982,14 +1037,8 @@ local function BuildCooldownSpec(kind, t, specUnit)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[kind.styleKey], t.font)
 
-    local growthH = (t.orientation == "left-to-right") and "RIGHT" or "LEFT"
-
     return {
-        layout = {
-            anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
-            growthH = growthH,
-            growthV = "DOWN",
-        },
+        layout = FlowLayout(t.orientation),
         groups = {
             {
                 key = kind.groupKey,
@@ -1065,14 +1114,7 @@ local function CreateCooldownIndicator(kind, button, t)
 
     function wrapper:SetOrientation(token)
         wrapper._orientation = token
-        local container = wrapper._container
-        if container then
-            local growthH = (token == "left-to-right") and "RIGHT" or "LEFT"
-            container:SetFlowLayoutAnchorPoint((growthH == "RIGHT") and "LEFT" or "RIGHT")
-            container:SetFlowLayoutGrowthDirection(AE.FlowDir(growthH), AE.FlowDir("DOWN"))
-            container:ClearAllPoints()
-            container:SetPoint(ContainerAnchorCorner(token), wrapper, ContainerAnchorCorner(token), 0, 0)
-        end
+        ApplyFlowToContainer(wrapper._container, token, wrapper)
         if RepositionFallback then RepositionFallback() end
     end
 
@@ -1160,9 +1202,11 @@ local function CreateCooldownIndicator(kind, button, t)
         local unit = button.unit or button:GetAttribute("unit")
         AE.RequestContainer(wrapper, unit, spec, function(container)
             wrapper._container = container
-            local corner = ContainerAnchorCorner(wrapper._orientation)
-            container:ClearAllPoints()
-            container:SetPoint(corner, wrapper, corner, 0, 0)
+            -- Re-assert the whole flow (axis, growth, anchored corner), not
+            -- just the corner: the spec's layout was resolved when the
+            -- container was REQUESTED, which can be several seconds and a
+            -- combat drop earlier than this callback.
+            ApplyFlowToContainer(container, wrapper._orientation, wrapper)
             container:SetShown(wrapper:IsShown())
             SeedGateState(wrapper)
         end)
@@ -1257,14 +1301,8 @@ local function BuildDebuffSpec(t)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[DEBUFFS_STYLE_KEY], t.font)
 
-    local growthH = (t.orientation == "left-to-right") and "RIGHT" or "LEFT"
-
     return {
-        layout = {
-            anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
-            growthH = growthH,
-            growthV = "DOWN",
-        },
+        layout = FlowLayout(t.orientation),
         groups = {
             {
                 key = DEBUFFS_GROUP_KEY,
@@ -1334,14 +1372,7 @@ function AEI.CreateDebuffsIndicator(button, t)
 
     function wrapper:SetOrientation(token)
         wrapper._orientation = token
-        local container = wrapper._container
-        if container then
-            local growthH = (token == "left-to-right") and "RIGHT" or "LEFT"
-            container:SetFlowLayoutAnchorPoint((growthH == "RIGHT") and "LEFT" or "RIGHT")
-            container:SetFlowLayoutGrowthDirection(AE.FlowDir(growthH), AE.FlowDir("DOWN"))
-            container:ClearAllPoints()
-            container:SetPoint(ContainerAnchorCorner(token), wrapper, ContainerAnchorCorner(token), 0, 0)
-        end
+        ApplyFlowToContainer(wrapper._container, token, wrapper)
         if RepositionFallback then RepositionFallback() end
     end
 
@@ -1410,9 +1441,11 @@ function AEI.CreateDebuffsIndicator(button, t)
         local unit = button.unit or button:GetAttribute("unit")
         AE.RequestContainer(wrapper, unit, spec, function(container)
             wrapper._container = container
-            local corner = ContainerAnchorCorner(wrapper._orientation)
-            container:ClearAllPoints()
-            container:SetPoint(corner, wrapper, corner, 0, 0)
+            -- Re-assert the whole flow (axis, growth, anchored corner), not
+            -- just the corner: the spec's layout was resolved when the
+            -- container was REQUESTED, which can be several seconds and a
+            -- combat drop earlier than this callback.
+            ApplyFlowToContainer(container, wrapper._orientation, wrapper)
             container:SetShown(wrapper:IsShown())
             SeedGateState(wrapper)
         end)
@@ -1465,14 +1498,8 @@ local function BuildCCSpec(t)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[CC_STYLE_KEY], t.font)
 
-    local growthH = (t.orientation == "left-to-right") and "RIGHT" or "LEFT"
-
     return {
-        layout = {
-            anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
-            growthH = growthH,
-            growthV = "DOWN",
-        },
+        layout = FlowLayout(t.orientation),
         groups = {
             {
                 key = CC_GROUP_KEY_TAGGED,
@@ -1537,14 +1564,7 @@ function AEI.CreateCCIndicator(button, t)
 
     function wrapper:SetOrientation(token)
         wrapper._orientation = token
-        local container = wrapper._container
-        if container then
-            local growthH = (token == "left-to-right") and "RIGHT" or "LEFT"
-            container:SetFlowLayoutAnchorPoint((growthH == "RIGHT") and "LEFT" or "RIGHT")
-            container:SetFlowLayoutGrowthDirection(AE.FlowDir(growthH), AE.FlowDir("DOWN"))
-            container:ClearAllPoints()
-            container:SetPoint(ContainerAnchorCorner(token), wrapper, ContainerAnchorCorner(token), 0, 0)
-        end
+        ApplyFlowToContainer(wrapper._container, token, wrapper)
         if RepositionFallback then RepositionFallback() end
     end
 
@@ -1602,9 +1622,11 @@ function AEI.CreateCCIndicator(button, t)
         local unit = button.unit or button:GetAttribute("unit")
         AE.RequestContainer(wrapper, unit, spec, function(container)
             wrapper._container = container
-            local corner = ContainerAnchorCorner(wrapper._orientation)
-            container:ClearAllPoints()
-            container:SetPoint(corner, wrapper, corner, 0, 0)
+            -- Re-assert the whole flow (axis, growth, anchored corner), not
+            -- just the corner: the spec's layout was resolved when the
+            -- container was REQUESTED, which can be several seconds and a
+            -- combat drop earlier than this callback.
+            ApplyFlowToContainer(container, wrapper._orientation, wrapper)
             container:SetShown(wrapper:IsShown())
             SeedGateState(wrapper)
         end)
@@ -2995,6 +3017,19 @@ local function ApplyCustomBarSlotStyle(slotButton, d, style)
     end
     d.bar:ClearAllPoints()
     d.bar:SetAllPoints(d.wrapper)
+    -- Bar Orientation is a FILL direction here, not a grid growth direction:
+    -- which axis the bar drains along and from which end. Applied here (the
+    -- style's applyExtra) rather than from the wrapper's setter, because this
+    -- is the engine's own restyle window -- the only place it is legal to
+    -- touch a slot button's regions. See CLAUDE.md section 7.
+    local token = style.orientation
+    local vertical = (token == "top-to-bottom" or token == "bottom-to-top" or token == "vertical")
+    d.bar:SetOrientation(vertical and "VERTICAL" or "HORIZONTAL")
+    -- A StatusBar fills left->right and bottom->top by default, so exactly the
+    -- other two tokens need the fill reversed.
+    if d.bar.SetReverseFill then
+        d.bar:SetReverseFill(token == "right-to-left" or token == "top-to-bottom")
+    end
     local color = style.color or { 0, 1, 0, 1 }
     d.bar.tex:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
     d.bar:Show()
@@ -3036,6 +3071,7 @@ function AEI.CreateCustomBarIndicator(button, t)
         AE.styles[styleKey] = {
             noRegions = true,
             color = color,
+            orientation = wrapper._t.orientation,
             applyExtra = ApplyCustomBarSlotStyle,
         }
         if fallbackTex then
@@ -3050,6 +3086,16 @@ function AEI.CreateCustomBarIndicator(button, t)
     -- plain function, not a method).
     wrapper.SetColors = function(value)
         wrapper._t.colors = value
+        RebuildStyle()
+    end
+
+    -- The Bar Orientation dropdown wrote t.orientation and nothing read it --
+    -- custom bars had no SetOrientation at all, so Indicators.lua's
+    -- `indicator.SetOrientation and ...` dispatch skipped it silently and the
+    -- control did nothing. The style carries it now; restyling re-applies it
+    -- to every live slot button.
+    function wrapper:SetOrientation(token)
+        wrapper._t.orientation = token
         RebuildStyle()
     end
 

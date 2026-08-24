@@ -858,6 +858,11 @@ local function ApplySettingToOne(button, name, setting, value, value2)
     elseif setting == "thickness" and indicator.SetThickness then
         indicator:SetThickness(value)
         if RefreshHighlightSize then RefreshHighlightSize(name) end
+    elseif setting == "blinkOptions" and indicator.SetBlinkOptions then
+        -- The setter restarts a running pulse itself, so the change is visible
+        -- immediately on a frame that's already flashing (including the
+        -- Designer's preview, which permanently fakes aggro).
+        indicator:SetBlinkOptions(value)
     elseif setting == "alpha" then
         indicator:SetAlpha(value)
     elseif setting == "height" then
@@ -1355,6 +1360,10 @@ function I:OnEnable()
     HookEventSafe("UNIT_NAME_UPDATE")
     HookEventSafe("UNIT_POWER_UPDATE")
     HookEventSafe("UNIT_MAXPOWER")
+    -- Phased Icon (BuiltIn_Update.lua). Both carry a unit, so they take the
+    -- generic per-unit dispatch below rather than broadcasting.
+    HookEventSafe("UNIT_PHASE")
+    HookEventSafe("UNIT_OTHER_PARTY_CHANGED")
     -- Identity-gate only (see IDENTITY_GATE_EVENTS below). PLAYER_FLAGS_CHANGED,
     -- GROUP_ROSTER_UPDATE and the two vehicle events are in that set too, but
     -- are already registered above for their own reasons.
@@ -1670,7 +1679,13 @@ function I.InitPreviewData(pb)
     -- avoids a truthiness test on a potentially-secret return (12.1) and
     -- always yields a valid TANK/HEALER/DAMAGER key.
     pb._sfFakeRole = F.GetRoleKey("player")
-    pb._sfFakeThreat = 0
+    -- 3 = tanking. Both aggro indicators gate on exactly that value, so at 0
+    -- neither one ever drew in the Designer -- there was no way to see the
+    -- blink's colour/thickness, or to tell whether it worked at all, without
+    -- pulling a mob. Same reasoning as _sfFakePhased/_sfFakeTarget below:
+    -- the preview shows every enabled indicator at once so it can be judged
+    -- and positioned, rather than reproducing a realistic unit state.
+    pb._sfFakeThreat = 3
     pb._sfFakeTarget = true
     pb._sfFakeLeader = true
     pb._sfFakeRaidIcon = 1
@@ -1700,6 +1715,10 @@ function I.InitPreviewData(pb)
     -- Fake status (connected, not AFK, not dead)
     pb._sfFakeIsConnected = true
     pb._sfFakeIsAFK = false
+    -- Phased Icon has no real unit to read in the Designer, and an
+    -- indicator that renders nothing cannot be dragged into place -- so the
+    -- preview always shows it (see CheckPhasedIcon's preview branch).
+    pb._sfFakePhased = true
     pb._sfFakeIsDead = false
     pb._sfFakeIsGhost = false
     pb._sfFakeAssistant = false
@@ -1971,9 +1990,14 @@ local function CreatePreviewHighlight(parentButton)
     -- can't EnableMouse/RegisterForDrag themselves, so dragging the indicator
     -- directly isn't an option for nameText/healthText/statusText/etc).
     f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-
-    f:SetScript("OnDragStart", function(self)
+    -- Deliberately NOT RegisterForDrag: Blizzard's drag detection only fires
+    -- OnDragStart once the cursor has cleared its own threshold, so the first
+    -- moment of every drag felt dead ("I click, then it starts moving a beat
+    -- later"). OnMouseDown/OnMouseUp (wired below FinishDrag) begin the drag
+    -- on the press itself. A press that never moves is harmless -- FinishDrag
+    -- skips the write when no OnUpdate tick ever produced a new position.
+    local function BeginDrag()
+        if dragState then return end
         if not highlightedName then return end
         local t = FindIndicatorByName(I.GetIndicatorsList(I.previewIsRaidTab), highlightedName)
         local pb = I.GetPreviewButton()
@@ -1993,10 +2017,10 @@ local function CreatePreviewHighlight(parentButton)
             startCursorY = startCursorY,
             scale = indicator.GetEffectiveScale and indicator:GetEffectiveScale() or 1,
         }
-    end)
+    end
 
     -- Persists the dragged position and clears dragState. Shared by the real
-    -- OnDragStop below AND the defensive "mouse button isn't actually down
+    -- mouse-up below AND the defensive "mouse button isn't actually down
     -- anymore" check in OnUpdate -- some indicators (observed with External
     -- Cooldowns, a grid of individually mouse-enabled cooldown icons) can
     -- apparently swallow the mouse-up before it reaches this frame despite
@@ -2010,7 +2034,13 @@ local function CreatePreviewHighlight(parentButton)
     local function FinishDrag()
         if not dragState then return end
         local t = FindIndicatorByName(I.GetIndicatorsList(I.previewIsRaidTab), dragState.name)
-        if t and t.position then
+        -- finalX/finalY are only ever set by an OnUpdate tick that actually
+        -- moved the indicator. A press-and-release with no movement (i.e. a
+        -- plain click on the highlight, which now begins a drag because the
+        -- threshold-based OnDragStart was dropped) leaves them nil -- persist
+        -- nothing in that case rather than re-firing UpdateIndicators with
+        -- the position it already has.
+        if t and t.position and dragState.finalX then
             -- Keep whatever anchor point was already selected for this
             -- indicator (dragState.point/relativePoint, captured at
             -- OnDragStart and never changed mid-drag -- OnUpdate's own
@@ -2101,7 +2131,12 @@ local function CreatePreviewHighlight(parentButton)
         pcall(LayoutDashes, self, self._marchPhase)
     end)
 
-    f:SetScript("OnDragStop", FinishDrag)
+    f:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then BeginDrag() end
+    end)
+    f:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" then FinishDrag() end
+    end)
 
     previewHighlight = f
     return f

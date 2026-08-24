@@ -31,6 +31,14 @@ local DARK_BORDER = {0, 0, 0, 1}
 local PANEL_BG = {0.115, 0.115, 0.115, 1}
 local GREY_TEXT = {0.7, 0.7, 0.7, 1}
 
+-- How far a slider's mouse hit rect is grown past its 4px visual track.
+-- Asymmetric on purpose: above the track there's only the (mouse-blind) label
+-- fontstring, so it can grow generously; below it sits the value editbox 4px
+-- down, so keep that side small. IndicatorWidgets.lua's SF_CreateSlider uses
+-- the same numbers -- keep them in sync if either changes.
+local SLIDER_HIT_EXPAND_UP = 11
+local SLIDER_HIT_EXPAND_DOWN = 6
+
 -- Forward-declared: defined much further down this file (needs ROW_H and
 -- other locals declared in between), but CreateStyledDropdown's OpenPopup
 -- closure (defined earlier) needs to call it for long item lists. Lua locals
@@ -322,6 +330,16 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
     slider:SetMinMaxValues(low, high)
     slider:SetValueStep(step or 1)
     slider:SetObeyStepOnDrag(true)
+    -- The visible track is deliberately a 4px hairline, but a Slider's mouse
+    -- region is its frame rect -- so grabbing one meant hitting a 4px band.
+    -- Negative hit-rect insets EXPAND the clickable area without touching the
+    -- layout or the thumb's travel: up into the label's empty gap, down toward
+    -- (but not onto) the value editbox.
+    slider:SetHitRectInsets(0, 0, -SLIDER_HIT_EXPAND_UP, -SLIDER_HIT_EXPAND_DOWN)
+    -- Deliberately no EnableMouseWheel here: these sliders live on pages that
+    -- scroll, so a wheel handler would eat the scroll and silently change a
+    -- value whenever the cursor happened to pass over a slider mid-scroll.
+    -- Type an exact number in the editbox below instead.
 
     slider:SetBackdrop({
         bgFile = WHITE_TEXTURE,
@@ -365,6 +383,10 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
     editBox:SetAutoFocus(false)
     editBox:SetMaxLetters(10)
     editBox:SetJustifyH("CENTER")
+    -- Both are children of `container` at the same frame level, so which one
+    -- wins the overlap where the slider's expanded hit rect reaches down here
+    -- would otherwise be creation-order luck. Make the editbox explicitly win.
+    editBox:SetFrameLevel(slider:GetFrameLevel() + 5)
 
     editBox:SetBackdrop({
         bgFile = WHITE_TEXTURE,
@@ -806,17 +828,140 @@ local GRID_PADDING = 6
 -----------------------------------------------------------------------
 -- Returns the scroll frame. Access content via scrollFrame.scrollChild.
 -- Methods: SetContentHeight(rows), ScrollToBottom(), Reset().
+--
+-- The scrollbar is OURS, not the one UIPanelScrollFrameTemplate brings: the
+-- inherited bar renders invisibly on this client, so panes scrolled with no
+-- indication that there was anything below the fold. Blizzard's bar is hidden
+-- and replaced with a thin accent slider matching OptionsFrame's own, which
+-- also puts the wheel step, the show-when-scrollable rule and Reset() under
+-- our control instead of the template's internals.
+local SCROLL_BAR_WIDTH = 8
+-- Content is kept this much narrower than the scroll frame so the bar has a
+-- lane of its own. It's reserved unconditionally rather than only while the
+-- bar is visible: a width that changed with scrollability could re-wrap
+-- content into a taller/shorter rect and flip scrollability back, oscillating.
+-- Almost every caller re-anchors the scroll frame flush to its pane (the
+-- BOTTOMRIGHT -18 default below survives at the dropdown popups only), so the
+-- lane has to come out of the content, not out of the frame.
+local SCROLL_CONTENT_INSET = SCROLL_BAR_WIDTH + 4
+-- Pixels per wheel notch. The template's default step is a large fraction of
+-- the visible height, which jumped roughly a page per notch; a fixed small
+-- step reads as smooth and is independent of how tall the pane happens to be.
+local SCROLL_STEP = 24
+
 function CreateScrollFrame(parent)
     local sf = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
     sf:SetPoint("TOPLEFT", 0, 0)
     sf:SetPoint("BOTTOMRIGHT", -18, 0)
     sf:SetClipsChildren(true)
 
+    -- Width the scroll child should have: the frame's, less the bar's lane.
+    function sf:GetContentWidth()
+        local w = self:GetWidth() or 0
+        return math.max(1, w - SCROLL_CONTENT_INSET)
+    end
+
     local content = CreateFrame("Frame", nil, sf)
-    content:SetWidth(sf:GetWidth() > 0 and sf:GetWidth() or 1)
+    content:SetWidth(sf:GetContentWidth())
     content:SetClipsChildren(false)
     sf:SetScrollChild(content)
     sf.scrollChild = content
+
+    -- Hide the inherited scrollbar (and its arrow buttons) rather than trying
+    -- to restyle it -- it stays wired to the template's own handlers, which is
+    -- harmless as long as nothing drives it.
+    local blizzBar = sf.ScrollBar
+    if blizzBar then
+        blizzBar:Hide()
+        blizzBar:SetScript("OnShow", blizzBar.Hide)
+    end
+
+    -- The bar rides INSIDE the scroll frame's right edge, in the lane
+    -- SCROLL_CONTENT_INSET reserves. Parented to sf (not to sf's parent) so it
+    -- can't end up underneath the content when a caller raises the scroll
+    -- frame's frame level after creation -- IndicatorsPanel's settings pane
+    -- does exactly that. Only the scroll CHILD moves when scrolling, so a
+    -- plain child of the scroll frame stays put.
+    local bar = CreateFrame("Slider", nil, sf, "BackdropTemplate")
+    bar:SetWidth(SCROLL_BAR_WIDTH)
+    bar:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -1, 0)
+    bar:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -1, 0)
+    bar:SetOrientation("VERTICAL")
+    bar:SetMinMaxValues(0, 0)
+    bar:SetValueStep(1)
+    bar:SetObeyStepOnDrag(true)
+    bar:SetValue(0)
+    bar:SetFrameLevel(sf:GetFrameLevel() + 5)
+    StylizeFrame(bar, {0.08, 0.08, 0.08, 0.9}, {0, 0, 0, 1})
+    -- A vertical slider's mouse region is only as wide as the bar itself;
+    -- widen the hit rect so the thin track is still easy to grab (same fix as
+    -- CreateStyledSlider's).
+    bar:SetHitRectInsets(-4, -4, 0, 0)
+
+    local barThumb = bar:CreateTexture(nil, "OVERLAY")
+    barThumb:SetSize(SCROLL_BAR_WIDTH, 40)
+    barThumb:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.75)
+    bar:SetThumbTexture(barThumb)
+    bar:Hide()  -- shown only once there's something to scroll
+    sf.bar = bar
+
+    -- Guard against the feedback loop: setting the scroll fires
+    -- OnScrollRangeChanged/OnVerticalScroll, which writes the bar back.
+    local syncing = false
+
+    local function SyncBar()
+        if syncing then return end
+        syncing = true
+        local range = sf:GetVerticalScrollRange() or 0
+        -- Ranges under a pixel are rounding noise, not scrollable content.
+        if range < 1 then
+            bar:SetMinMaxValues(0, 0)
+            bar:SetValue(0)
+            bar:Hide()
+        else
+            bar:SetMinMaxValues(0, range)
+            bar:SetValue(math.min(sf:GetVerticalScroll() or 0, range))
+            -- Thumb length tracks the visible fraction, the usual scrollbar
+            -- affordance for "how much of this am I seeing".
+            local h = bar:GetHeight() or 0
+            local visible = sf:GetHeight() or 0
+            if h > 0 and visible > 0 then
+                local frac = visible / (visible + range)
+                barThumb:SetHeight(math.max(20, math.min(h, h * frac)))
+            end
+            -- Re-assert the level rather than trusting the offset set at
+            -- creation: callers that raise the scroll frame's frame level
+            -- afterwards (IndicatorsPanel's settings pane) would otherwise
+            -- leave the bar buried under the content it's meant to sit on.
+            local wantLevel = sf:GetFrameLevel() + 5
+            if bar:GetFrameLevel() ~= wantLevel then bar:SetFrameLevel(wantLevel) end
+            bar:Show()
+        end
+        syncing = false
+    end
+    sf.SyncBar = SyncBar
+
+    bar:SetScript("OnValueChanged", function(_, value)
+        if syncing then return end
+        sf:SetVerticalScroll(value)
+    end)
+
+    sf:HookScript("OnScrollRangeChanged", SyncBar)
+    sf:HookScript("OnVerticalScroll", SyncBar)
+    sf:HookScript("OnShow", SyncBar)
+
+    -- Fixed-step wheel scrolling, replacing the template's page-sized jump.
+    local function WheelScroll(_, delta)
+        local range = sf:GetVerticalScrollRange() or 0
+        if range < 1 then return end
+        local target = (sf:GetVerticalScroll() or 0) - delta * SCROLL_STEP
+        sf:SetVerticalScroll(math.max(0, math.min(range, target)))
+        SyncBar()
+    end
+    sf:EnableMouseWheel(true)
+    sf:SetScript("OnMouseWheel", WheelScroll)
+    bar:EnableMouseWheel(true)
+    bar:SetScript("OnMouseWheel", WheelScroll)
 
     -- sf:GetWidth() is often still 0 right after the SetPoint calls above --
     -- WoW resolves anchor-derived sizes a frame later, not synchronously --
@@ -827,21 +972,27 @@ function CreateScrollFrame(parent)
     -- frame's actual resolved width whenever it changes.
     sf:SetScript("OnSizeChanged", function(self, width)
         if width and width > 0 then
-            content:SetWidth(width)
+            content:SetWidth(self:GetContentWidth())
         end
+        SyncBar()
     end)
 
     function sf:SetContentHeight(rows)
         content:SetHeight(math.max(1, rows * (ROW_H + 2)))
         sf:UpdateScrollChildRect()
         sf.scrollChild = content
+        SyncBar()
     end
     function sf:ScrollToBottom()
-        local _, max = sf.ScrollBar:GetMinMaxValues()
-        sf.ScrollBar:SetValue(max)
+        sf:SetVerticalScroll(sf:GetVerticalScrollRange() or 0)
+        SyncBar()
     end
+    -- Back to the top. Callers use this when the pane's CONTENT is replaced
+    -- (e.g. selecting a different indicator), where keeping the old scroll
+    -- offset would drop you into the middle of unrelated settings.
     function sf:Reset()
-        sf.ScrollBar:SetValue(0)
+        sf:SetVerticalScroll(0)
+        SyncBar()
     end
     content.UpdateScrollChildRect = content.UpdateScrollChildRect or function() sf:UpdateScrollChildRect() end
 

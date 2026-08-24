@@ -62,7 +62,7 @@ local RebuildRangeChecker, UpdateRangeAlpha, ResetRangeAlpha
 -- needs to re-invoke it when it detects the header configured for the wrong
 -- group mode -- see the reconciliation block in WireUpAllButtons.
 local ApplyLayout
--- Same reason: the container mover's OnDragStop (created inside
+-- Same reason: the container mover's StopDrag (created inside
 -- CreatePartyContainer, well above the definition) re-asserts the dragged
 -- position through ApplyContainerAnchor so the anchor point, scale
 -- compensation and default fallbacks all stay in one place. Without this
@@ -563,8 +563,8 @@ local function CreatePartyContainer()
     -- (children of the secure header) swallow mouse-up events, which would
     -- prevent a container-level drag handler from ever seeing the release.
     -- Instead we use a dedicated non-secure MOVER FRAME on top, following the
-    -- DandersFrames pattern: the mover handles drag via standard OnDragStart/
-    -- OnDragStop, and repositions the container underneath it.
+    -- DandersFrames pattern: the mover handles the drag itself (OnMouseDown/
+    -- OnMouseUp -- see below) and repositions the container underneath it.
     partyFrame:EnableMouse(false)
 
     local mover = CreateFrame("Frame", "SquizzFramesPartyMover", partyFrame)
@@ -573,14 +573,23 @@ local function CreatePartyContainer()
     mover:SetFrameLevel(partyFrame:GetFrameLevel() + 10)
     mover:EnableMouse(true)
     mover:SetMovable(true)
-    mover:RegisterForDrag("LeftButton")
+    -- Deliberately NOT RegisterForDrag: Blizzard's drag detection only fires
+    -- OnDragStart after the cursor has travelled its own threshold distance,
+    -- which reads in-game as "I click, then the frame starts moving a moment
+    -- later". OnMouseDown/OnMouseUp below start the drag on the press itself,
+    -- so the frame tracks the cursor from the first pixel. Nothing here used
+    -- StartMoving/StopMovingOrSizing anyway -- the OnUpdate always did the
+    -- repositioning by hand -- so no drag-system behaviour is lost.
     mover:Hide()  -- only shown in edit mode
     partyFrame.mover = mover
 
     -- Shared drag state (upvalues readable by both scripts)
     local dragOffsetX, dragOffsetY = 0, 0
+    local dragging = false
 
-    mover:SetScript("OnDragStart", function(self)
+    local StopDrag
+
+    local function StartDrag(self)
         -- Moving the container is PROTECTED in combat: it parents the secure
         -- header, so the ClearAllPoints/SetPoint in the OnUpdate below throws
         -- ADDON_ACTION_BLOCKED. The blame in that error lands on whichever
@@ -596,6 +605,8 @@ local function CreatePartyContainer()
             SquizzFrames:Print("Frames can't be moved during combat.")
             return
         end
+        if dragging then return end
+        dragging = true
         -- Compute the offset between the cursor and the container's center
         -- so the frame doesn't jump to the cursor on drag start.
         -- Read the active layout dynamically (don't reuse the upvalue `db`
@@ -623,11 +634,19 @@ local function CreatePartyContainer()
         dragOffsetX = layoutDb and layoutDb.anchorX or 0
         dragOffsetY = layoutDb and layoutDb.anchorY or 0
 
-        self:SetScript("OnUpdate", function()
+        self:SetScript("OnUpdate", function(f)
+            -- Safety net for a lost mouse-up: OnMouseUp is only guaranteed
+            -- while the cursor is still over the mover, and a fast drag off
+            -- the screen edge (or a UI reload of the frame underneath) can
+            -- swallow it, which used to leave the frame glued to the cursor.
+            if not IsMouseButtonDown("LeftButton") then
+                StopDrag(f)
+                return
+            end
             -- Combat can start mid-drag. Stop repositioning (protected --
-            -- see the OnDragStart guard) but leave the handler installed so
+            -- see the StartDrag guard) but leave the handler installed so
             -- the drag picks itself back up when the fight ends. The offsets
-            -- are deliberately left alone too, so OnDragStop persists where
+            -- are deliberately left alone too, so StopDrag persists where
             -- the frame actually IS rather than where the cursor wandered.
             if InCombatLockdown() then return end
             local cx, cy = GetCursorPosition()
@@ -645,9 +664,12 @@ local function CreatePartyContainer()
             partyFrame:SetPoint(anchorPoint, UIParent, anchorPoint,
                 dragOffsetX / frameScale, dragOffsetY / frameScale)
         end)
-    end)
+    end
 
-    mover:SetScript("OnDragStop", function(self)
+    -- Declared as a local above so the OnUpdate's release check can call it.
+    function StopDrag(self)
+        if not dragging then return end
+        dragging = false
         self:SetScript("OnUpdate", nil)
         -- Persist the final offset (raw pixels from screen center).
         -- Read the active layout dynamically (don't reuse the upvalue `db`
@@ -663,7 +685,17 @@ local function CreatePartyContainer()
         -- so the anchor point, scale compensation and default fallbacks can't
         -- drift from what ApplyLayout would have produced.
         ApplyContainerAnchor(p, layoutDb)
+    end
+
+    mover:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then StartDrag(self) end
     end)
+    mover:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then StopDrag(self) end
+    end)
+    -- Hiding the mover (leaving edit mode, /reload of the panel) mid-drag would
+    -- otherwise strand the OnUpdate handler on a hidden frame.
+    mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
     -- Edit mode border: visual-only overlay that wraps the visible buttons.
     -- Uses four colored edge textures for a reliable visible border.
@@ -937,17 +969,21 @@ local function WireUpButton(button, unit)
     -- by setting the specific typeN attributes.
     button:RegisterForClicks("AnyUp")
 
-    -- Drag-to-move: when in edit mode, dragging a button moves the container.
-    -- Uses the same manual OnKeyDown/OnMouseUp approach as the container so
-    -- the drag always resolves (secure buttons swallow OnDragStop).
-    -- Drag-to-move: when in edit mode, left-drag on a button starts the
-    -- container's drag. We hook OnMouseDown (secure buttons have this) and
-    -- delegate to the container's OnMouseDown handler.
+    -- Drag-to-move: when in edit mode, left-press on a button starts the
+    -- container's drag. Hooked (never SetScript -- that would replace the
+    -- secure click-cast wrap) and delegated to the MOVER's own OnMouseDown,
+    -- which is where the drag handlers actually live. This used to delegate
+    -- to partyFrame's OnMouseDown, which is nil -- partyFrame is
+    -- EnableMouse(false) and never had scripts -- so the whole hook was a
+    -- silent no-op, and dragging only worked where the mover itself won the
+    -- click. The mover's release is covered by its OnUpdate IsMouseButtonDown
+    -- check, so a mouse-up swallowed by the secure button can't strand it.
     button:HookScript("OnMouseDown", function(_, btn)
-        if btn == "LeftButton" and SquizzFrames.editMode and partyFrame then
-            local onMouseDown = partyFrame:GetScript("OnMouseDown")
-            if onMouseDown then onMouseDown(partyFrame, "LeftButton") end
-        end
+        if btn ~= "LeftButton" or not SquizzFrames.editMode then return end
+        local mover = partyFrame and partyFrame.mover
+        if not mover or not mover:IsShown() then return end
+        local onMouseDown = mover:GetScript("OnMouseDown")
+        if onMouseDown then onMouseDown(mover, "LeftButton") end
     end)
 end
 
@@ -3736,7 +3772,8 @@ local function GetOrCreatePreviewMover()
     mover:SetFrameLevel(50)
     mover:EnableMouse(true)
     mover:SetMovable(true)
-    mover:RegisterForDrag("LeftButton")
+    -- Deliberately NOT RegisterForDrag -- see the container mover above: the
+    -- drag-system threshold makes the first moment of every drag feel dead.
     mover:Hide()
 
     local accent = F.GetAccentColor()
@@ -3757,8 +3794,13 @@ local function GetOrCreatePreviewMover()
     mover.label:SetText(L["Preview — drag to move"] or "Preview — drag to move")
 
     local dragOffsetX, dragOffsetY = 0, 0
+    local dragging = false
 
-    mover:SetScript("OnDragStart", function(self)
+    local StopPreviewDrag
+
+    local function StartPreviewDrag(self)
+        if dragging then return end
+        dragging = true
         local prof = GetProfile()
         local layout = prof and prof.layout and (previewIsRaidTab and prof.layout.raid or prof.layout.main)
         local pScale = UIParent:GetEffectiveScale()
@@ -3778,7 +3820,14 @@ local function GetOrCreatePreviewMover()
         dragOffsetX = layout and layout.anchorX or 0
         dragOffsetY = layout and layout.anchorY or 0
 
-        self:SetScript("OnUpdate", function()
+        self:SetScript("OnUpdate", function(f)
+            -- Self-heal for a mouse-up that never reached us -- the mover's
+            -- own border is repositioned under the cursor every tick, so a
+            -- fast drag can outrun it and release off-frame.
+            if not IsMouseButtonDown("LeftButton") then
+                StopPreviewDrag(f)
+                return
+            end
             local cx, cy = GetCursorPosition()
             local ps = UIParent:GetEffectiveScale()
             cx = cx / ps
@@ -3789,9 +3838,12 @@ local function GetOrCreatePreviewMover()
             LayoutPreviewButtons(previewCount, previewIsRaidTab, dragOffsetX, dragOffsetY)
             PartyFrames:RefreshPreviewMoverBounds()
         end)
-    end)
+    end
 
-    mover:SetScript("OnDragStop", function(self)
+    -- Declared as a local above so the OnUpdate's release check can call it.
+    function StopPreviewDrag(self)
+        if not dragging then return end
+        dragging = false
         self:SetScript("OnUpdate", nil)
         local prof = GetProfile()
         local layout = prof and prof.layout and (previewIsRaidTab and prof.layout.raid or prof.layout.main)
@@ -3801,7 +3853,16 @@ local function GetOrCreatePreviewMover()
         end
         LayoutPreviewButtons(previewCount, previewIsRaidTab)
         PartyFrames:RefreshPreviewMoverBounds()
+    end
+
+    mover:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then StartPreviewDrag(self) end
     end)
+    mover:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then StopPreviewDrag(self) end
+    end)
+    -- Closing the options panel mid-drag would otherwise strand the OnUpdate.
+    mover:SetScript("OnHide", function(self) StopPreviewDrag(self) end)
 
     previewMover = mover
     return mover

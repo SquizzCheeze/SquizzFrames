@@ -2,6 +2,124 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.8 (2026-08-24)
+-----------------
+
+New:
+
+- New "Phased Icon" indicator: shows when a party member isn't in your phase -
+  war mode, Chromie Time, sharding or quest phasing - or is off in a different
+  instance group entirely, which gets the LFG eye instead.
+
+  It's a separate indicator rather than another entry in Status Icon on
+  purpose. Status Icon can only show one thing at a time, so a phased player
+  who was also dead would show the skull and nothing else - and phasing is the
+  more useful of the two to know about, since you can't heal, buff or res
+  someone who isn't in your phase.
+
+  Find it under Indicators, in the same Alerts group as Status Icon and Status
+  Text. On by default, in the top-right corner of the button.
+
+  One caveat worth knowing: the game only reports phasing for people within
+  about 250 yards, and gives no answer at all past that. Nothing can work
+  around it, so a phased player far enough away will show nothing until they
+  get closer.
+
+Changed:
+
+- Aggro (blink) is a small movable block again, the way it originally was,
+  instead of a border around the whole button - that shape duplicated what
+  Aggro (border) already does and couldn't be placed anywhere. It starts in
+  the top-left corner at 11x11 and can be dragged and resized like any other
+  indicator. If you're upgrading, it's rebuilt at that default; only its
+  on/off state and frame level carry over, since a border had no position or
+  size to keep.
+
+- Both aggro indicators gained a colour picker and the same pulse controls:
+  whether it pulses at all, how long each fade takes, and how faint it goes.
+  The blink pulses by default and the border doesn't, so neither changes
+  behaviour just by gaining the settings - tick Pulse on Aggro (border) if you
+  want the whole outline flashing instead of a corner marker.
+
+- Edit Mode moved out of the General page and into the options window's title
+  bar, next to the close button, so it can be reached from any tab.
+
+- Closing the options window now leaves Edit Mode. Its toggle only exists in
+  that window, so staying in edit mode after closing meant reopening the panel
+  purely to switch it back off.
+
+- Picking a different indicator now puts the settings pane back at the top,
+  instead of keeping the previous indicator's scroll position and dropping you
+  into the middle of an unrelated list of settings.
+
+- The mouse wheel scrolls those panes a notch at a time now. It used to jump
+  close to a full page per notch.
+
+- External and Defensive Cooldowns now default to square icons (20x20) instead
+  of 12x20, which drew every icon stretched. If you'd already changed the size
+  yourself it's left exactly as you set it.
+
+- The Orientation dropdown lists four directions with proper names ("Top to
+  Bottom" rather than "top-to-bottom"). The two extra entries it used to
+  carry, "horizontal" and "vertical", were duplicates of the first direction
+  on each axis and several indicators ignored them outright - they're still
+  understood if a profile has one saved, just no longer offered.
+
+Fixed:
+
+- Dragging frames in edit mode now starts the moment you press the mouse
+  button, instead of sitting still for a moment first. Applies to the party
+  container, the pet frames, the preview frames in the options panel, and
+  dragging an indicator around in the Designer.
+
+- Dragging by grabbing a unit frame itself (rather than the space around them)
+  now works - that path had been doing nothing at all.
+
+- Sliders are much easier to grab: the clickable area now extends above and
+  below the thin track instead of matching the 4-pixel line exactly.
+
+- The Edit Mode button stayed lit only while the cursor was on it; it now
+  keeps showing whether edit mode is actually on.
+
+- Neither aggro indicator ever appeared in the Designer or the group preview,
+  so there was no way to see or place them without pulling a mob. The preview
+  faked "no threat", and the check bailed out before reading the fake value at
+  all on the group preview's frames, which have no unit.
+
+- Vertical orientation now actually works for Healer HoTs, External and
+  Defensive Cooldowns, Debuffs and CC. Those five only ever laid out a
+  horizontal row: "Top to Bottom" and "Bottom to Top" fell through to a
+  right-to-left row instead of stacking. Both the live frames and the
+  Designer's preview follow the setting now, including which corner the block
+  grows away from.
+
+- Missing Buffs understood the four directions but not the "vertical" entry
+  described above, and its right-to-left/bottom-to-top rows grew out of the
+  indicator's own rect instead of inside it.
+
+- A custom Bar indicator's "Bar Orientation" setting did nothing at all -
+  nothing ever read it. It now sets which way the bar drains.
+
+- Hovering is a faint tint of your accent colour (class colour by default)
+  everywhere in the options window now, instead of the flat brownish-gold two
+  places still used: the left-hand tab list (General, Layout, ...) and the
+  indicator list on the Indicators tab. It stays well under the selected
+  row's own tint so the two can't be confused.
+
+- The Party/Raid buttons and Show Group Preview now light up on hover too, in
+  the same accent tint. Whichever one you're already on doesn't change - it's
+  accent-filled already.
+
+- The "Custom Indicators >" row in the indicator list was drawn in the accent
+  colour, which is the same colour a selected row uses - so it always looked
+  like it was selected. It's styled like every other row now.
+
+- Scrollbars are visible again on the Indicators tab and everywhere else that
+  scrolls a list (spell lists, click-casting bindings, nicknames), so there's
+  some indication that there's more below the fold. They appear only when
+  there's actually something to scroll.
+
+
 V1.7 (2026-08-21)
 -----------------
 
