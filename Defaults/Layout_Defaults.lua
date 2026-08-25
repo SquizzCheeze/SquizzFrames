@@ -67,6 +67,17 @@ profile.layout = {
         anchorY = 200,
         spacingY = 0,
         groupSpacing = 6,
+        -- Which way the subgroup BLOCKS march, and from where -- the level
+        -- above growthDirection (which is about units inside one block).
+        -- Runs along whichever axis the blocks sit on: RIGHT/LEFT/CENTER_H
+        -- when they're side by side, DOWN/UP/CENTER_V when stacked. The
+        -- CENTER options straddle the anchor so the raid grows both ways as
+        -- groups fill in, instead of always extending off one side of it.
+        -- "RIGHT" is the historical behaviour for the default vertical
+        -- orientation, so an existing profile with no value set looks
+        -- unchanged (LayoutRaidGroupHeaders treats anything that doesn't
+        -- belong to the current axis as this default).
+        groupGrowthDirection = "RIGHT",
         sortByRole = true,
         roleOrder = {"TANK", "HEALER", "DAMAGER"},
         hideSelf = false,

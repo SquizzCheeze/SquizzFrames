@@ -1720,13 +1720,29 @@ end
 -- What this function owns that the single header used to do internally is the
 -- placement of the group BLOCKS themselves -- the job columnAnchorPoint /
 -- columnSpacing / maxColumns did before.
+-- Which axis the raid's GROUP BLOCKS run along, given a raid layout table.
+-- True = side by side (X), false = stacked (Y).
+--
+-- It's the perpendicular of the unit axis: a vertical stack of units puts the
+-- groups beside each other, a horizontal row stacks them downward. Exported
+-- because the Layout tab's Group Growth dropdown has to offer Right/Left vs
+-- Down/Up accordingly, and a second copy of this rule over there would drift
+-- from LayoutRaidGroupHeaders the first time either changed.
+function PartyFrames.RaidGroupsAlongX(layout)
+    local growthDir = layout and layout.growthDirection
+    if growthDir == "CENTER_H" then return false end   -- units run along X
+    if growthDir == "CENTER_V" then return true end    -- units run along Y
+    return (layout and layout.orientation) ~= "horizontal"
+end
+
 local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, bW, bH, isCenterH, isCenterV)
     if not partyFrame then return end
     CreateRaidGroupHeaders()
     if not groupHeaders[1] then return end
 
     local groupSpacing = layout.groupSpacing or 6
-    CensusRaidGroups()
+    local numGroups = CensusRaidGroups()
+    if not numGroups or numGroups < 1 then numGroups = 1 end
 
     -- Unit axis within one subgroup -- same meaning as the party path's "point".
     local point
@@ -1760,6 +1776,22 @@ local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, b
     local groupStride = groupsAlongX and (bW + groupSpacing) or (bH + groupSpacing)
     local basePoint = GetAnchorPoint(layout)
 
+    -- Which way the GROUPS themselves march along that axis, and from where.
+    -- Independent of growthDirection, which only describes the units inside
+    -- one subgroup. Unset (and any token that doesn't belong to the current
+    -- axis, e.g. "RIGHT" left over from before the orientation was flipped)
+    -- means the original behaviour: group 1 at the anchor, later groups
+    -- rightward or downward from it.
+    local groupGrowth = layout.groupGrowthDirection
+    local groupReverse = (groupGrowth == (groupsAlongX and "LEFT" or "UP"))
+    local groupCenter = (groupGrowth == (groupsAlongX and "CENTER_H" or "CENTER_V"))
+    -- Half the block's full span, so the populated groups straddle the anchor
+    -- instead of starting at it. Deliberately measured on the POPULATED count
+    -- (CensusRaidGroups' first return) rather than all eight: the empty
+    -- headers are parked past the end and render nothing, so counting them
+    -- would push the visible block off to one side.
+    local groupCenterShift = groupCenter and ((numGroups - 1) * groupStride / 2) or 0
+
     for i = 1, RAID_GROUP_COUNT do
         local h = groupHeaders[i]
         if h then
@@ -1778,6 +1810,8 @@ local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, b
             ApplyRoleSortAttributes(h, layout)
 
             local along = ((raidGroupSlots[i] or i) - 1) * groupStride
+            if groupReverse then along = -along end
+            along = along - groupCenterShift
             local count = raidGroupCounts[i] or 1
             if count < 1 then count = 1 end
 
@@ -1995,8 +2029,9 @@ function ApplyLayout()
         -- at the top of this file). orientation/growthDirection are
         -- reinterpreted one level up from party's meaning -- see
         -- Layout_Defaults.lua's comment on profile.layout.raid. CENTER_H/
-        -- CENTER_V centre the unit axis WITHIN each subgroup; group placement
-        -- itself (blocks side by side / stacked) is unaffected.
+        -- CENTER_V centre the unit axis WITHIN each subgroup; where the group
+        -- BLOCKS go is layout.groupGrowthDirection's business (which has its
+        -- own centre option) -- see LayoutRaidGroupHeaders.
         isCenterH = (growthDir == "CENTER_H")
         isCenterV = (growthDir == "CENTER_V")
 

@@ -118,10 +118,26 @@ end
 -- Button update functions (health/power/name)
 -----------------------------------------------------------------------
 
+-- Aggro (blink) + Aggro (border) for one pet button. Pet buttons are outside
+-- BuiltIn_Update's eventMap dispatch, so nothing re-runs these for them --
+-- exactly the gap the target-highlight fix further down closed. Called from
+-- UpdatePetButton (so they refresh alongside everything else) and from
+-- UNIT_THREAT_SITUATION_UPDATE, which is the event that actually matters.
+local function RefreshPetAggro(button)
+    local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
+    if not BU then return end
+    if BU.CheckAggroBlink then BU.CheckAggroBlink(button) end
+    if BU.CheckAggroBorder then BU.CheckAggroBorder(button) end
+end
+
 local function UpdatePetButton(button)
     if not button or not button.petUnit then return end
     local unit = button.petUnit
     if not UnitExists(unit) then return end
+
+    -- Before the dead/disconnected early-out below: a dead pet reads as no
+    -- threat, which is precisely when these need to be cleared.
+    RefreshPetAggro(button)
 
     if button.nameText then
         -- Passed straight through, no `or ""` (2026-08-07): SetText handles
@@ -731,12 +747,16 @@ function PetFrames:OnInitialize()
     -- already the handler for four other messages and re-runs constantly, so
     -- one more call on a layout edit costs nothing and can't go stale.
     self:RegisterMessage("LayoutChanged", function() ApplyPetLayout() end)
-    -- Border colour/thickness/enabled changes. UpdateIndicators fires for
-    -- every indicator edit; only the three border ones affect pet buttons, so
-    -- filter rather than re-styling on every unrelated indicator change.
+    -- Border/aggro colour, thickness, size, position, pulse and enabled
+    -- changes. UpdateIndicators fires for every indicator edit; only the ones
+    -- pet buttons actually build affect them, so filter rather than re-styling
+    -- on every unrelated indicator change.
+    local PET_BUTTON_INDICATORS = {
+        frameBorder = true, hoverHighlight = true, targetHighlight = true,
+        aggroBlink = true, aggroBorder = true,
+    }
     self:RegisterMessage("UpdateIndicators", function(_, indicatorName)
-        if indicatorName == "frameBorder" or indicatorName == "hoverHighlight"
-            or indicatorName == "targetHighlight" then
+        if PET_BUTTON_INDICATORS[indicatorName] then
             PetFrames.RefreshBorders()
         end
     end)
@@ -831,6 +851,15 @@ function PetFrames:OnEnable()
             for _, button in pairs(petButtons) do
                 BU.CheckTargetHighlight(button)
             end
+        end)
+
+        -- Aggro indicators (2026-08-25). The same event the main frames use
+        -- (BuiltIn_Update's eventMap), which pet buttons are not part of. It
+        -- carries the unit whose threat changed, so only that pet's button is
+        -- touched -- a pet's threat is its own, not its owner's.
+        self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", function(_, unit)
+            local button = unit and petButtons[unit]
+            if button then RefreshPetAggro(button) end
         end)
 
         if SquizzFrames.editMode then

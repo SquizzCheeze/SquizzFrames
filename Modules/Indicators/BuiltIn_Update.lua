@@ -312,6 +312,40 @@ local function AttachBlinkBehaviour(frame, defaultPulse)
         end
     end
 end
+-- Exported (2026-08-25) so PetButton.lua can give pet buttons the same two
+-- aggro indicators. Pet buttons don't run the indicator system, so they build
+-- the frames themselves and reuse these -- the same arrangement
+-- CreateBorderIndicator above already has with the hover/target borders.
+BU.AttachBlinkBehaviour = AttachBlinkBehaviour
+
+-- The Aggro (blink) marker: a plain coloured block that pulses, sized and
+-- placed by its settings. Split out of CreateBuiltInIndicator's own branch so
+-- pet buttons can build one without going through the indicator registry.
+function BU.CreateBlinkMarker(button, nameSuffix)
+    -- Anonymous when the parent is (the group preview's mock buttons) -- a
+    -- global name derived from a nil GetName() would throw, and two buttons
+    -- sharing one made-up name would collide.
+    local markerName = button:GetName() and (button:GetName() .. (nameSuffix or "AggroBlink")) or nil
+    local f = CreateFrame("Frame", markerName, button)
+    f:SetSize(11, 11)
+    f:Hide()
+
+    local tex = f:CreateTexture(nil, "OVERLAY")
+    tex:SetAllPoints(f)
+    tex:SetColorTexture(1, 0, 0, 1)
+
+    -- Generic path: HandleIndicators/ApplySettingToOne call this for the
+    -- "color-alpha" setting. The animation drives the FRAME's alpha, which
+    -- multiplies with the texture's own -- so a user-chosen opacity is the
+    -- ceiling the pulse fades down from, not something the pulse fights.
+    function f:SetColor(r, g, b, a)
+        tex:SetColorTexture(r or 1, g or 0, b or 0, a or 1)
+    end
+
+    -- Pulses by default -- that's what this indicator is.
+    AttachBlinkBehaviour(f, true)
+    return f
+end
 
 -- Simple StatusBar for shieldBar. Unlike shieldOverlay/healAbsorb (which
 -- SetAllPoints to the health bar and get their width for free), this bar is
@@ -1145,29 +1179,8 @@ function BU.CreateBuiltInIndicator(button, t)
         -- Deliberately a plain texture, NOT LibCustomGlow's PixelGlow -- the
         -- very first version used that, and a marching ring of small pixels
         -- reads as an "ant trail" rather than an aggro warning.
-        -- Anonymous when the parent is (the group preview's mock buttons) --
-        -- a global name derived from a nil GetName() would throw, and two
-        -- buttons sharing one made-up name would collide.
-        local blinkName = button:GetName() and (button:GetName() .. "AggroBlink") or nil
-        indicator = CreateFrame("Frame", blinkName, button)
+        indicator = BU.CreateBlinkMarker(button, "AggroBlink")
         indicator._sfType = "builtin"
-        indicator:SetSize(11, 11)
-        indicator:Hide()
-
-        local blinkTex = indicator:CreateTexture(nil, "OVERLAY")
-        blinkTex:SetAllPoints(indicator)
-        blinkTex:SetColorTexture(1, 0, 0, 1)
-
-        -- Generic path: HandleIndicators/ApplySettingToOne call this for the
-        -- "color-alpha" setting. The animation drives the FRAME's alpha, which
-        -- multiplies with the texture's own -- so a user-chosen opacity is the
-        -- ceiling the pulse fades down from, not something the pulse fights.
-        function indicator:SetColor(r, g, b, a)
-            blinkTex:SetColorTexture(r or 1, g or 0, b or 0, a or 1)
-        end
-
-        -- Pulses by default -- that's what this indicator is.
-        AttachBlinkBehaviour(indicator, true)
     elseif name == "aggroBorder" then
         indicator = CreateBorderIndicator(button, "AggroBorder")
         indicator._sfType = "builtin"
@@ -2129,6 +2142,11 @@ local function CheckAggroBorder(button)
     -- CheckAggroBlink above for the same secret-comparison gate.
     indicator:SetGlow(F.IsValueNonSecret(threat) and threat == 3)
 end
+
+-- Exported for PetButton.lua, which builds the same two indicators by hand
+-- and needs the same show/hide logic -- see BU.AttachBlinkBehaviour above.
+BU.CheckAggroBlink = CheckAggroBlink
+BU.CheckAggroBorder = CheckAggroBorder
 
 function BU.CheckTargetHighlight(button)
     local unit = button.unit or button:GetAttribute("unit")

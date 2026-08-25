@@ -2,6 +2,33 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.9 (2026-08-25)
+-----------------
+
+New:
+
+- Raid frames get a "Group Growth" setting, next to Growth Direction on the
+  Layout tab's Raid page. Growth Direction has always been about the units
+  inside one subgroup; this is the level above it - which way the subgroup
+  blocks themselves march, and from where.
+
+  It offers Right/Left/Center when the groups sit side by side and Down/Up/
+  Center when they're stacked (whichever axis they're on follows your
+  orientation). Center is the interesting one: the blocks straddle the anchor
+  so the raid fills out evenly both ways as groups fill in, instead of always
+  extending off one side of it. With the frames anchored by their top edge,
+  for instance, they used to creep rightward as groups appeared - now they
+  stay centred under the anchor.
+
+  Existing raid layouts are unchanged: no setting means the old behaviour.
+
+- Both aggro indicators now work on pet frames, so a pet pulling something is
+  as obvious as its owner doing it. They read the same settings as the main
+  frames - colour, size, position, pulse - so there's nothing extra to set up,
+  and threat is read per pet, meaning only the pet that actually has aggro
+  lights up.
+
+
 V1.8 (2026-08-24)
 -----------------
 

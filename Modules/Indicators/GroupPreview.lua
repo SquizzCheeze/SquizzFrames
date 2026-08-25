@@ -306,10 +306,21 @@ local function LayoutButtons()
         local numGroups = math.ceil(count / RAID_GROUP_SIZE)
         local vertical = (orientation ~= "horizontal")
 
+        -- Group growth (layout.groupGrowthDirection) works the same way the
+        -- unit direction does above: the block is always drawn from this
+        -- window's corner, so only the ORDER is visible here -- with the
+        -- groups growing LEFT/UP, group 1 sits at the far end. The centre
+        -- options aren't reversed and, since this window shrink-wraps the
+        -- block, they look identical to the default here even though they
+        -- very much aren't on screen.
+        local groupGrowth = layout.groupGrowthDirection
+        local groupReverse = (groupGrowth == "LEFT") or (groupGrowth == "UP")
+
         for i = 1, count do
             local button = GetOrCreateButton(i, w, h, powerH, scale)
             if not button then break end
             local groupIdx = math.floor((i - 1) / RAID_GROUP_SIZE)
+            if groupReverse then groupIdx = numGroups - 1 - groupIdx end
             -- Direction applies WITHIN a subgroup (that's the level
             -- growthDirection operates at for raid -- see Layout_Defaults);
             -- subgroup order itself is always left-to-right / top-to-bottom.

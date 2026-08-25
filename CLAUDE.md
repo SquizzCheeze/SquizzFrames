@@ -49,6 +49,9 @@ SquizzFrames/
     ├── Nicknames/           # Display-name replacement (private list + group-synced)
     │   ├── Nicknames.lua       # Storage, secret-safe resolution cache, AceComm-free addon-message sync, /sf nick
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API
+    ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group)
+    │   ├── PetFrames.lua       # Layout/anchoring/edit mode, roster + unit events, RefreshBorders
+    │   └── PetButton.lua       # Secure pet button OnLoad + PetButton_ApplyBorders
     ├── ClickCasting/        # Cell-style click-casting on SecureActionButtonTemplate
     │   ├── ClickCasting.lua   # Binding parser, attribute writer, proxy for 12.0.7 click-gate + separate 12.1 macro-transport proxy
     │   └── ClickCastingPanel.lua # Options UI
@@ -106,6 +109,7 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 - `PartyButtonsWired` fires **once per active header** (8× in a raid); listeners that walk `ipairs(header)` therefore work unchanged, but anything caching the payload must keep a set (see `ClickCasting.lua`'s `headerFrames`)
 - Attribute writes only take effect while a header `IsVisible()` — `SecureGroupHeader_OnAttributeChanged` early-returns otherwise, and `OnShow` is wired straight to `SecureGroupHeader_Update`. **Always set attributes first, `Show()` last**
 - **Growth directions**: `DOWN`, `UP`, `RIGHT`, `LEFT`, `CENTER_H`, `CENTER_V`
+- **Raid has a second, independent direction**: `layout.raid.groupGrowthDirection` places the subgroup BLOCKS (`growthDirection` only ever describes units *within* one block). It takes the same tokens, restricted to whichever axis the blocks sit on — that axis is the perpendicular of the unit axis, and `PartyFrames.RaidGroupsAlongX(layout)` is the single source of truth for it (the Layout tab's Group Growth dropdown calls it so its offered options can't drift from `LayoutRaidGroupHeaders`' placement). A `CENTER_*` value straddles the container's anchor point instead of growing from it, measured on the **populated** group count so empty groups don't push the block off-centre. Any value belonging to the other axis is treated as the default direction, so flipping orientation can never produce a broken layout; the options panel maps it across (`GROUP_GROWTH_ACROSS`) to preserve intent.
 - **Container auto-sizes** to visible buttons via `SizeContainerToButtons()` — no empty draggable strip
 - **Edit mode** uses a non-secure **mover frame** (`mover:SetAllPoints(container)`) on top — secure buttons swallow clicks, so drag must be on a separate frame
 
@@ -271,6 +275,7 @@ Replaces the name drawn by the `nameText` indicator. Four layers, resolved highe
 
 ### Indicators/BuiltIn_Update.lua
 - Legacy built-in check/update functions, including the manual-scan versions of `healerHots`/`dispels`/`externalCooldowns`/`defensiveCooldowns`/`debuffs`/`ccIndicator` that AuraEngine now supersedes on 12.1 (still load-bearing on pre-12.1 clients — see AuraEngine section above)
+- **Shared with pet buttons** (which are outside the indicator system entirely): `BU.CreateBorderIndicator`, `BU.CreateBlinkMarker`, `BU.AttachBlinkBehaviour`, and the `BU.Check*` functions for hover/target highlight and both aggro indicators. `PetButton_ApplyBorders` builds those frames by hand and fakes the one field the Check functions need (`indicator._sfTable = {enabled = ...}`). Settings come from the **Party** indicator list entry in every case — these are "universal" indicators, so a pet matches whatever its owner's frame is set to and there's no second set of options. Nothing re-runs a Check for a pet button automatically: `PetFrames.lua` registers the driving events itself (`PLAYER_TARGET_CHANGED`, `UNIT_THREAT_SITUATION_UPDATE`) and filters `UpdateIndicators` down to the five indicators pet buttons actually build.
 
 ### Indicators/Custom_Dispatch.lua
 - `Scan(button)`: Iterates auras via `C_UnitAuras.GetAuraDataByIndex`, matches against custom indicator `auras` lookup, calls type-specific `Update` (icons, bars, text)

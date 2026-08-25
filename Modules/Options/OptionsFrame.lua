@@ -25,6 +25,7 @@ local scrollFrame, scrollBar, scrollChild -- shared scroll for simple pages
 local indicatorsHost -- full-area host frame for Indicators pages
 local contentFrames = {}   -- pageId -> content frame
 local growthDirDropdown   -- dropdown widget (container) for growth direction
+local groupGrowthDropdown -- raid-only: direction the subgroup BLOCKS grow in
 local currentPageId       -- currently shown pageId (functions can't hold fields)
 -- Which layout sub-table the Layout page's widgets currently read/write:
 -- "main" (Party) or "raid" (Raid). Independent of the player's REAL current
@@ -49,7 +50,7 @@ local NAV_ITEMS = {
 -- needed). Indicators pages manage their own layout and aren't part of this.
 local pageHeights = {
     ["general"] = 220, -- -30: Edit Mode's button moved to the title bar
-    ["layout"] = 1265, -- +115 for the Copy Between Modes section
+    ["layout"] = 1335, -- +115 Copy Between Modes, +70 raid-only Group Growth
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["clickCasting"] = 460,
     ["nicknames"] = 780,
@@ -636,6 +637,10 @@ local function SetOrientation(val)
             -- Sync displayed value to the reset growth direction
             growthDirDropdown.dropdown.selectedValue = newVal
         end
+        -- Orientation flips the axis the raid's group blocks sit on, so the
+        -- Group Growth dropdown has to swap its Right/Left pair for Down/Up
+        -- (or back) and carry the stored value across with it.
+        RefreshGroupGrowthDropdown()
         -- Re-anchor to the corner that matches the (possibly reset) growth
         -- direction so the block grows from the correct edge. ONLY when
         -- editing the tab that matches the player's REAL current group
@@ -656,6 +661,86 @@ local function SetOrientation(val)
         end
         SquizzFrames:Fire("LayoutChanged")
     end
+end
+
+-- ---------------------------------------------------------------------
+-- Raid-only: which way the subgroup BLOCKS grow (the level above growth
+-- direction, which is about units inside one block).
+-- ---------------------------------------------------------------------
+
+-- The blocks sit on whichever axis the units DON'T, so the pair on offer
+-- follows orientation -- and the CENTER growth directions, which pin the unit
+-- axis regardless of orientation and therefore flip this too. The rule itself
+-- lives in PartyFrames (RaidGroupsAlongX) so this can't drift from the code
+-- that actually does the placing.
+local function RaidGroupsAlongX(layout)
+    local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+    if partyModule and partyModule.RaidGroupsAlongX then
+        return partyModule.RaidGroupsAlongX(layout)
+    end
+    return (layout and layout.orientation) ~= "horizontal"
+end
+
+-- Same intent, other axis -- so flipping orientation keeps a user's choice of
+-- "centred" (or "backwards") instead of silently resetting it to the default.
+local GROUP_GROWTH_ACROSS = {
+    RIGHT = "DOWN", LEFT = "UP", CENTER_H = "CENTER_V",
+    DOWN = "RIGHT", UP = "LEFT", CENTER_V = "CENTER_H",
+}
+
+-- Coerce a stored value onto the axis the blocks are currently on.
+local function NormalizeGroupGrowth(layout, val)
+    local alongX = RaidGroupsAlongX(layout)
+    local valid = alongX
+        and { RIGHT = true, LEFT = true, CENTER_H = true }
+        or  { DOWN = true, UP = true, CENTER_V = true }
+    if valid[val] then return val end
+    local across = GROUP_GROWTH_ACROSS[val]
+    if valid[across] then return across end
+    return alongX and "RIGHT" or "DOWN"
+end
+
+local function GetGroupDirectionItems(layout)
+    if RaidGroupsAlongX(layout) then
+        return {
+            {value = "RIGHT",    text = L["Right"] or "Right"},
+            {value = "LEFT",     text = L["Left"] or "Left"},
+            {value = "CENTER_H", text = L["Center (Horizontal)"] or "Center (Horizontal)"},
+        }
+    end
+    return {
+        {value = "DOWN",     text = L["Down"] or "Down"},
+        {value = "UP",       text = L["Up"] or "Up"},
+        {value = "CENTER_V", text = L["Center (Vertical)"] or "Center (Vertical)"},
+    }
+end
+
+local function GetGroupGrowthDirection()
+    local l = GetActiveLayoutTable()
+    if not l then return "RIGHT" end
+    return NormalizeGroupGrowth(l, l.groupGrowthDirection)
+end
+
+local function SetGroupGrowthDirection(val)
+    local l = GetActiveLayoutTable()
+    if not l then return end
+    l.groupGrowthDirection = NormalizeGroupGrowth(l, val)
+    SquizzFrames:Fire("LayoutChanged")
+end
+
+-- Re-point the Group Growth dropdown at the axis the blocks are now on, and
+-- carry the stored value across with it. Called from both SetOrientation and
+-- SetGrowthDirection, either of which can flip that axis.
+local function RefreshGroupGrowthDropdown()
+    local l = GetActiveLayoutTable()
+    if not l or not groupGrowthDropdown or not groupGrowthDropdown.dropdown
+       or not groupGrowthDropdown.dropdown.RefreshItems then
+        return
+    end
+    local newVal = NormalizeGroupGrowth(l, l.groupGrowthDirection)
+    l.groupGrowthDirection = newVal
+    groupGrowthDropdown.dropdown:RefreshItems(GetGroupDirectionItems(l))
+    groupGrowthDropdown.dropdown.selectedValue = newVal
 end
 
 local function GetGrowthDirection()
@@ -680,6 +765,10 @@ local function SetGrowthDirection(val)
             end
         end
         l.growthDirection = val
+        -- CENTER_H/CENTER_V pin the unit axis regardless of orientation, so
+        -- picking (or leaving) one can flip which axis the raid's group blocks
+        -- sit on -- same refresh SetOrientation does.
+        RefreshGroupGrowthDropdown()
         -- Re-anchor to the corner that matches the new growth direction --
         -- ONLY when editing the tab that matches real IsInRaid() (see the
         -- matching comment in SetOrientation for why: ReanchorContainer
@@ -1388,6 +1477,26 @@ local function BuildLayoutFields(frame)
     growthDirDropdown = dd
     dd:SetPoint("TOPLEFT", 15, yOffset - 20)
     yOffset = yOffset - 70
+
+    -- Raid-only: which way the subgroup BLOCKS grow. Sits directly under
+    -- Growth Direction because the two read as a pair -- that one is units
+    -- within a group, this one is the groups themselves. Its options follow
+    -- whichever axis the blocks are on (see GetGroupDirectionItems), and the
+    -- Center entry straddles the anchor so the raid fills out both ways
+    -- instead of running off one side.
+    if isRaid then
+        local ddGroup = W.CreateStyledDropdown(fieldsHost, 200, 40,
+            L["Group Growth"] or "Group Growth",
+            GetGroupDirectionItems(GetActiveLayoutTable()),
+            GetGroupGrowthDirection, SetGroupGrowthDirection)
+        groupGrowthDropdown = ddGroup
+        ddGroup:SetPoint("TOPLEFT", 15, yOffset - 20)
+        yOffset = yOffset - 70
+    else
+        -- Party has no group blocks; make sure a stale widget from the Raid
+        -- tab's last build can't be refreshed behind this page's back.
+        groupGrowthDropdown = nil
+    end
 
     -- Screen anchor point (independent per Party/Raid tab). Changing it
     -- re-expresses the saved position against the new point, so the frames

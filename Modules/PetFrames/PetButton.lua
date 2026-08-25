@@ -75,6 +75,63 @@ function SquizzFrames.PetButton_ApplyBorders(button)
     EnsureBorder("hoverHighlight", "HoverHighlight", "hoverHighlight")
     EnsureBorder("targetHighlight", "TargetHighlight", "targetHighlight")
 
+    -- Aggro (border) + Aggro (blink), on the same "universal indicator" terms
+    -- as the borders above: the settings come from the Party list entry, so a
+    -- pet warns you the same way its owner's frame does, with no second set of
+    -- options to keep in sync. Threat is read per-unit by the Check functions,
+    -- so a pet holding aggro lights up independently of its owner.
+    --
+    -- Both frames are built here rather than by the indicator system (pets
+    -- aren't part of it) using the factories BuiltIn_Update exports for
+    -- exactly this.
+    local aggroBorder = EnsureBorder("aggroBorder", "AggroBorder", "aggroBorder")
+    if aggroBorder and not aggroBorder._sfBlinkWired and BU.AttachBlinkBehaviour then
+        -- Pulse defaults OFF for the border, matching the main frames.
+        BU.AttachBlinkBehaviour(aggroBorder, false)
+        aggroBorder._sfBlinkWired = true
+    end
+    if aggroBorder and aggroBorder.SetBlinkOptions then
+        local t = BorderSettings("aggroBorder")
+        aggroBorder:SetBlinkOptions(t and t.blinkOptions)
+        -- EnsureBorder's default is "enabled unless explicitly off", which is
+        -- right for the always-on borders but wrong here: Aggro (border) ships
+        -- disabled, and a missing entry must not turn it on for pets only.
+        aggroBorder._sfTable = {enabled = (t ~= nil) and (t.enabled == true)}
+    end
+
+    if BU.CreateBlinkMarker then
+        local blink = button.indicators.aggroBlink
+        if not blink then
+            blink = BU.CreateBlinkMarker(button, "AggroBlink")
+            -- Above the health/power bars (children of the button at +1),
+            -- rather than the absolute frameLevel the main path applies: pet
+            -- buttons have no indicator layering scheme to slot into.
+            blink:SetFrameLevel((button:GetFrameLevel() or 1) + 5)
+            button.indicators.aggroBlink = blink
+        end
+        local t = BorderSettings("aggroBlink")
+        local r, g, b, a = F.ColorRGB(t and t.color)
+        blink:SetColor(r, g, b, a)
+        if t and t.size then blink:SetSize(t.size[1] or 11, t.size[2] or 11) end
+        if blink.SetBlinkOptions then blink:SetBlinkOptions(t and t.blinkOptions) end
+        -- Same position tuple the main frames use, resolved by hand -- pet
+        -- buttons can't call the indicator system's ApplyPosition. Only
+        -- "healthBar" and the button itself exist to anchor to here; anything
+        -- else (another indicator, on a frame that has none) falls back to the
+        -- button, which is where the default sits anyway.
+        local pos = t and t.position
+        blink:ClearAllPoints()
+        if pos then
+            local relTo = button
+            if pos[2] == "healthBar" and button.healthBar then relTo = button.healthBar end
+            blink:SetPoint(pos[1] or "TOPLEFT", relTo, pos[3] or pos[1] or "TOPLEFT",
+                pos[4] or 0, pos[5] or 0)
+        else
+            blink:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+        end
+        blink._sfTable = {enabled = (t == nil) or (t.enabled ~= false)}
+    end
+
     -- Static decorative border around the whole button. Unlike the two above
     -- it has no Check function driving visibility -- it's simply on or off
     -- per the setting, so show/hide it directly here.
@@ -87,10 +144,12 @@ function SquizzFrames.PetButton_ApplyBorders(button)
         end
     end
 
-    -- Re-run the hover/target checks so a settings change takes effect
-    -- immediately instead of waiting for the next mouseover/target swap.
+    -- Re-run the checks so a settings change takes effect immediately instead
+    -- of waiting for the next mouseover/target swap/threat change.
     if BU.CheckHoverHighlight then BU.CheckHoverHighlight(button) end
     if BU.CheckTargetHighlight then BU.CheckTargetHighlight(button) end
+    if BU.CheckAggroBlink then BU.CheckAggroBlink(button) end
+    if BU.CheckAggroBorder then BU.CheckAggroBorder(button) end
 end
 
 local function PetButton_OnEnter(self)
