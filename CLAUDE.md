@@ -198,6 +198,8 @@ Tagging is what publishes — pushes to `main` never reach CurseForge.
 2. `git tag -a v1.7 -m "V1.7"` && `git push origin v1.7`
 3. `.github/workflows/release.yml` (BigWigsMods/packager) builds the zip, uploads it to CurseForge (project ID read from `## X-Curse-Project-ID` in the TOC) and attaches it to a GitHub release.
 
+**Tags are listed newest-first by date, always.** This repo sets `tag.sort = -creatordate` locally (`git config tag.sort -creatordate`), so plain `git tag` is already correct — don't reintroduce the raw alphabetical listing by passing something else. Versions went past `1.9` into `1.10`, which sorts *before* `1.9` as plain text: an alphabetical listing shows the newest release buried in the middle, which reads as "the tag didn't push". Nothing in the release path itself is affected (`git describe` walks the commit graph, CurseForge orders by upload) — it's the human read of `git tag` that misleads. Re-run the config in a fresh clone; it's local, not committed.
+
 Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` ticked. Builds and uploads nothing, leaving the zip as an artifact. Requires the `CF_API_TOKEN` repo secret; `GITHUB_TOKEN` is automatic. `.pkgmeta` controls what's excluded from the zip and feeds `CHANGELOG.txt` in as the release notes (whole file, not just the newest section).
 
 **Three failure modes that a green checkmark won't show you** — all learned the hard way on Squizzumables (its `CLAUDE.md` "Releasing" section is the original writeup; this toolchain is shared, so check there before debugging packaging here):
