@@ -676,6 +676,17 @@ local function ApplyPetLayout()
     end
 
     applyingPetLayout = false
+
+    -- Pet frames being turned on/off (or a profile switch doing it) changes
+    -- whether the range poll has anything to watch while ungrouped. This is
+    -- the one hook every such path already runs through -- PetFramesChanged,
+    -- ProfileChanged, LayoutChanged and GroupTypeChanged all land here -- and
+    -- RefreshRangePolling is cheap and idempotent, so covering them all from
+    -- here beats four separate call sites drifting apart.
+    local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+    if PartyFrames and PartyFrames.RefreshRangePolling then
+        PartyFrames.RefreshRangePolling()
+    end
 end
 
 -----------------------------------------------------------------------
@@ -835,6 +846,14 @@ function PetFrames:OnEnable()
         self:RegisterEvent("UNIT_PET", function()
             ApplyPetLayout()
             UpdateAllPetButtons()
+            -- A pet appearing/vanishing is what decides whether the range poll
+            -- has anything to watch while ungrouped -- see PartyFrames'
+            -- RangePollNeeded. Deferred a tick: RegisterUnitWatch does the
+            -- actual show/hide, and HasVisibleButtons reads exactly that.
+            local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+            if PartyFrames and PartyFrames.RefreshRangePolling then
+                C_Timer.After(0, PartyFrames.RefreshRangePolling)
+            end
         end)
 
         -- Target Highlight bug fix (2026-08-05, user report: the border
@@ -906,6 +925,20 @@ end
 -- system's own update pipeline, so nothing else re-styles them when those
 -- universal border settings change -- without this they'd keep whatever
 -- colour/thickness they were built with until a reload.
+-- Is any pet button actually on screen? Asked by PartyFrames' RangePollNeeded:
+-- a visible pet is the only thing worth range-polling while ungrouped, so this
+-- is what keeps the poll alive (or lets it stop) for a solo player.
+--
+-- Deliberately a plain loop, not IterateButtons: this is called from the poll
+-- itself, and passing a closure would allocate on every tick -- the exact
+-- churn the stop condition exists to avoid.
+function PetFrames.HasVisibleButtons()
+    for _, button in pairs(petButtons) do
+        if button:IsShown() then return true end
+    end
+    return false
+end
+
 function PetFrames.RefreshBorders()
     if not SquizzFrames.PetButton_ApplyBorders then return end
     for _, button in pairs(petButtons) do

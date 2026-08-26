@@ -2,8 +2,23 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.10
------
+V1.10 (2026-08-26)
+------------------
+
+Fixed:
+
+- "Fade Out of Range" did nothing. The checkbox saved your choice and nothing
+  ever read it, so frames faded whether it was ticked or not. It works now,
+  and turning it off stops the range checking entirely rather than just hiding
+  the result.
+
+- SquizzFrames no longer runs its two background checks when there's nothing
+  for them to look at. Standing around solo, the range check was still running
+  twice a second (you are never out of range of yourself, and it forced your
+  own frame to full opacity every time), and the phase check once a second
+  (you can't be in a different phase from yourself). Both now stop when you're
+  alone and start again when you group up - the range one also keeps running
+  solo if you have a pet frame, which is the one thing that can wander off.
 
 
 V1.9 (2026-08-25)

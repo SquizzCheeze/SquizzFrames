@@ -530,6 +530,13 @@ local function SetFadeOut(checked)
     local p = GetProfile()
     if p and p.general then
         p.general.fadeOut = checked
+        -- Start/stop the range poll to match. Nothing consumed this setting
+        -- at all until now (it was written here and read nowhere), so the
+        -- checkbox looked like it worked and didn't.
+        local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+        if partyModule and partyModule.RefreshRangePolling then
+            partyModule.RefreshRangePolling()
+        end
         SquizzFrames:Fire("LayoutChanged")
     end
 end

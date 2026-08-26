@@ -1035,6 +1035,14 @@ local phaseTicker
 
 function StartPhasePolling()
     if phaseTicker then return end
+    -- Nothing to watch when ungrouped: this walks unitButtons only (pets are
+    -- never checked), so solo the single unit is you -- and your own phase
+    -- relative to yourself cannot change. UnitPhaseReason("player") is always
+    -- nil and UnitInOtherParty("player") always false, so every tick would
+    -- recompute "not phased" and compare it against a cached "not phased".
+    -- CheckPhasedIcon re-arms this, and it runs on every roster update, so
+    -- joining a group starts it again.
+    if not IsInGroup() then return end
     phaseTicker = C_Timer.NewTicker(PHASE_POLL_INTERVAL, function()
         local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
         if not PartyFrames or not PartyFrames.IterateButtons then return end
@@ -1054,7 +1062,13 @@ function StartPhasePolling()
         -- the addon's only always-on timer outside AuraEngine, so it has to
         -- pay for itself. CheckPhasedIcon re-arms it the moment an enabled
         -- one exists again.
-        if active == 0 and phaseTicker then
+        --
+        -- `not IsInGroup()` as well as `active == 0`: dropping group leaves
+        -- your own button behind with the indicator still enabled, so the
+        -- count alone stays 1 and the poll would run forever checking a unit
+        -- that can never be phased from itself. Same condition StartPhasePolling
+        -- refuses to start on.
+        if (active == 0 or not IsInGroup()) and phaseTicker then
             phaseTicker:Cancel()
             phaseTicker = nil
         end

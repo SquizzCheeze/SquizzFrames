@@ -57,7 +57,7 @@ local blizzardPanelHooksInstalled = false
 -- locals aren't visible to code already parsed before they're declared, even
 -- though init() only actually RUNS later -- same trap BuiltIn_Update.lua's
 -- CreateDispelsIndicatorLegacy hit.
-local RebuildRangeChecker, UpdateRangeAlpha, ResetRangeAlpha
+local RebuildRangeChecker, UpdateRangeAlpha, ResetRangeAlpha, RefreshRangePolling
 -- Also forward-declared: WireUpAllButtons (defined well above ApplyLayout)
 -- needs to re-invoke it when it detects the header configured for the wrong
 -- group mode -- see the reconciliation block in WireUpAllButtons.
@@ -2794,6 +2794,10 @@ function PartyFrames:OnEnable()
         -- firing once.
         local rosterRetryFrame
         SquizzFrames:RegisterEvent("GROUP_ROSTER_UPDATE", function()
+            -- Joining a group gives the range poll something to look at;
+            -- leaving one takes it away. Immediate, not on the staggered
+            -- retries below -- it touches no secure state.
+            RefreshRangePolling()
             C_Timer.After(0.3, ReapplyRosterLayout)
             C_Timer.After(1.0, ReapplyRosterLayout)
             C_Timer.After(2.0, ReapplyRosterLayout)
@@ -2954,41 +2958,25 @@ function PartyFrames:OnEnable()
             -- UNIT_IN_RANGE_UPDATE fires the instant a group member crosses
             -- Blizzard's own ~40yd range boundary -- this is what makes the
             -- fade feel immediate rather than up to a poll interval late,
-            -- which matters most in combat where people are moving.
+            -- which matters most in combat where people are moving. Its
+            -- handler and the payload/debounce reasoning live with
+            -- RefreshRangePolling, which owns the registration.
             --
-            -- The 0.5s ticker below STAYS as the backbone, deliberately. The
-            -- event only knows about that one fixed Blizzard boundary, not
-            -- the class spell range the in-combat path actually uses -- an
-            -- Evoker crossing their 25yd Emerald Blossom range produces no
-            -- event at all -- and out of combat nothing fires on plain
-            -- movement either. Grid2/ElvUI/DandersFrames all likewise keep
-            -- both, event for responsiveness and poll for completeness.
+            -- The 0.5s ticker STAYS as the backbone, deliberately. The event
+            -- only knows about that one fixed Blizzard boundary, not the class
+            -- spell range the in-combat path actually uses -- an Evoker
+            -- crossing their 25yd Emerald Blossom range produces no event at
+            -- all -- and out of combat nothing fires on plain movement either.
+            -- Grid2/ElvUI/DandersFrames all likewise keep both, event for
+            -- responsiveness and poll for completeness.
             --
-            -- The PAYLOAD IS IGNORED ENTIRELY -- both the unit token and the
-            -- isInRange flag. Blizzard's API documentation declares this
-            -- event SecretPayloads, so reading either is a taint risk for no
-            -- benefit; it's used purely as a "something moved" ping and every
-            -- button is then re-evaluated through the normal path. That's 5
-            -- units plus pets, so there's nothing to gain from a narrower
-            -- per-unit update.
-            --
-            -- Debounced to one pass per frame: the event is synchronous and
-            -- per-unit, so a group crossing the boundary together (everyone
-            -- running out of an ability, a party-wide teleport) delivers a
-            -- burst of them in a single frame.
-            local rangeEventPending = false
-            self:RegisterEvent("UNIT_IN_RANGE_UPDATE", function()
-                if rangeEventPending then return end
-                rangeEventPending = true
-                C_Timer.After(0, function()
-                    rangeEventPending = false
-                    UpdateRangeAlpha()
-                end)
-            end)
-
-            if not rangeTicker then
-                rangeTicker = C_Timer.NewTicker(0.5, UpdateRangeAlpha)
-            end
+            -- Both the ticker AND the UNIT_IN_RANGE_UPDATE registration are
+            -- started through RefreshRangePolling rather than unconditionally:
+            -- solo with no pet there is nothing for either to look at, and the
+            -- ticker used to run from login to logout regardless (OnDisable
+            -- was its only cancel). Re-armed from GROUP_ROSTER_UPDATE and from
+            -- PetFrames when a pet button appears/disappears.
+            RefreshRangePolling()
         end
 
         -- Blizzard special-frame visibility poll (bug fix 2026-07-31): party
@@ -3166,6 +3154,24 @@ end
 -- header children, so they're pulled in through the same IterateButtons
 -- accessor ClickCasting.lua's CollectButtons uses -- rather than duplicating
 -- the LibRangeCheck setup, ticker and combat handling over in PetFrames.lua.
+-- Is there anything the range poll could actually change?
+--
+-- Solo with no pet the answer is no, and it used to poll anyway from login to
+-- logout (the ticker was only ever cancelled in OnDisable). Two subjects
+-- exist:
+--   * group members -- the whole point of the feature;
+--   * a visible pet button -- the one thing that can be out of range while
+--     ungrouped. UNIT_IN_RANGE_UPDATE can't cover it on its own: it's a unit
+--     event Blizzard registers per displayed unit, and nothing fires on plain
+--     movement out of combat (see the registration site's own comment).
+-- Your own frame is never dimmed -- UpdateRangeAlpha forces IsPlayerUnit to
+-- full alpha -- so a lone player is polling to write alpha 1 over alpha 1.
+local function RangePollNeeded()
+    if IsInGroup() then return true end
+    local PetFrames = SquizzFrames.modules and SquizzFrames.modules["PetFrames"]
+    return (PetFrames and PetFrames.HasVisibleButtons and PetFrames.HasVisibleButtons()) or false
+end
+
 local function ForEachRangeButton(func)
     for unit, button in pairs(unitButtons) do
         func(unit, button)
@@ -3185,6 +3191,76 @@ function ResetRangeAlpha()
             button:SetAlpha(1)
         end
     end)
+end
+
+-- Start or stop the 0.5s poll to match what there is to poll. Cheap and
+-- idempotent, so it can be called from anything that changes the answer --
+-- roster changes, a pet appearing, the Fade Out of Range setting.
+--
+-- Stopping resets alpha: whatever dimming was last applied has to be undone,
+-- not frozen in place, since nothing will re-evaluate it (same reasoning as
+-- OnDisable's own cancel).
+-- UNIT_IN_RANGE_UPDATE handler, hoisted to file scope so RefreshRangePolling
+-- can register and unregister it.
+--
+-- Debounced to one pass per frame: the event is synchronous and per-unit, so a
+-- group crossing the boundary together (everyone running out of an ability, a
+-- party-wide teleport) delivers a burst of them in a single frame.
+--
+-- The PAYLOAD IS IGNORED ENTIRELY -- both the unit token and the isInRange
+-- flag. Blizzard's API documentation declares this event SecretPayloads
+-- (confirmed in UnitDocumentation.lua), so reading either is a taint risk for
+-- no benefit; it's used purely as a "something moved" ping and every button is
+-- then re-evaluated through the normal path.
+local rangeEventPending = false
+local function FlushRangeEvent()
+    rangeEventPending = false
+    UpdateRangeAlpha()
+end
+local function OnRangeEvent()
+    if rangeEventPending then return end
+    rangeEventPending = true
+    C_Timer.After(0, FlushRangeEvent)
+end
+
+function RefreshRangePolling()
+    -- The Fade Out of Range checkbox (profile.general.fadeOut) was WRITTEN by
+    -- the options page and read by nothing -- range fading ran regardless of
+    -- it. Honoured here, which is also the cheapest possible reading of "off":
+    -- the poll doesn't run at all. Defaults to on when the key is absent, so
+    -- an existing profile behaves exactly as it did.
+    local prof = GetProfile()
+    local fadeEnabled = (not prof or not prof.general or prof.general.fadeOut ~= false)
+    if not RC or not fadeEnabled or not RangePollNeeded() then
+        if rangeTicker then
+            rangeTicker:Cancel()
+            rangeTicker = nil
+            ResetRangeAlpha()
+        end
+        -- Drop the event too, not just the ticker. Blizzard's own
+        -- CompactUnitFrame registers UNIT_IN_RANGE_UPDATE only while a frame
+        -- is visible, with the note that "C++ does extra work to send these
+        -- events while any frame is registered for them" -- so staying
+        -- registered while we have nothing to do with it makes the client pay
+        -- for a ping we'd throw away. AceEvent releases the underlying WoW
+        -- registration once its last handler for an event goes.
+        --
+        -- Deliberately NOT per-unit (RegisterUnitEvent): unit tokens get
+        -- reassigned across buttons by the secure header on every re-sort, so
+        -- a per-token registration needs its own re-wiring lifecycle, and
+        -- getting it wrong fails silently -- the 0.5s poll would mask it, and
+        -- the fade would just quietly stop being immediate.
+        PartyFrames:UnregisterEvent("UNIT_IN_RANGE_UPDATE")
+        return
+    end
+    if not rangeTicker then
+        rangeTicker = C_Timer.NewTicker(0.5, UpdateRangeAlpha)
+        -- Same owner + event, so re-registering is a replace, not a stack.
+        PartyFrames:RegisterEvent("UNIT_IN_RANGE_UPDATE", OnRangeEvent)
+        -- Catch up immediately rather than showing a stale alpha for up to
+        -- half a second after (re)starting.
+        UpdateRangeAlpha()
+    end
 end
 
 -- Secret-safe "is this the player's own frame?".
@@ -4072,6 +4148,13 @@ end
 -- need to duplicate the LSM statusbar-texture resolution logic.
 function PartyFrames.GetBarTexture()
     return GetBarTexture()
+end
+
+-- Exposed for PetFrames: a pet button appearing or going away changes whether
+-- the range poll has anything to look at while ungrouped (see
+-- RangePollNeeded). Also the hook the Fade Out of Range setting goes through.
+function PartyFrames.RefreshRangePolling()
+    RefreshRangePolling()
 end
 
 -- TEMPORARY diagnostic (/sfrosterdiag) -- chasing a user report that a Delve
