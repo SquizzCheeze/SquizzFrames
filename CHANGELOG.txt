@@ -2,6 +2,23 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.11 (2026-08-27)
+------------------
+
+Fixed:
+
+- Joining a raid left the party frames on screen underneath the raid frames.
+  The addon wasn't noticing the party-to-raid switch at all until something
+  else forced it to re-read your group - which is why a /reload cleared it.
+  Zoning into an instance also hid it, so it mostly showed up when you were
+  invited while standing around.
+
+- Same fault, second symptom: nothing re-read your spec or group type when you
+  zoned, which is one of the things that stops profiles auto-switching. If you
+  have spec or group profiles set up, expect them to start switching again -
+  that's the intended behaviour returning, not a new one.
+
+
 V1.10 (2026-08-26)
 ------------------
 

@@ -2793,7 +2793,22 @@ function PartyFrames:OnEnable()
         -- registered) on every roster change, unregisters itself after
         -- firing once.
         local rosterRetryFrame
-        SquizzFrames:RegisterEvent("GROUP_ROSTER_UPDATE", function()
+        -- Registered on `self` (PartyFrames), NOT SquizzFrames -- exactly the
+        -- reason spelled out at the PLAYER_REGEN_DISABLED registration below.
+        --
+        -- BUG FIX 2026-08-27 (user report: "just got into a raid group and
+        -- it's still showing the party frames and raid frames", cleared by a
+        -- /reload). This was `SquizzFrames:RegisterEvent`, and Core.lua's
+        -- OnEnable already claims GROUP_ROSTER_UPDATE on that same owner for
+        -- OnGroupRosterUpdate. CallbackHandler keeps exactly ONE handler per
+        -- (owner, event), and modules are enabled AFTER the addon, so this
+        -- closure silently REPLACED Core's -- meaning UpdateGroupType never
+        -- ran on a roster change, GroupTypeChanged never fired, and
+        -- OnGroupTypeChanged (which stands the party header down before the
+        -- raid group headers come up) never ran. The raid headers appeared
+        -- anyway via the roster relayout path, so both sets drew at once.
+        -- /reload masked it because the group type is read directly at load.
+        self:RegisterEvent("GROUP_ROSTER_UPDATE", function()
             -- Joining a group gives the range poll something to look at;
             -- leaving one takes it away. Immediate, not on the staggered
             -- retries below -- it touches no secure state.
@@ -2918,7 +2933,13 @@ function PartyFrames:OnEnable()
         -- yet), so we re-apply the layout here to force buttons visible. This is
         -- what makes frames appear immediately on login instead of only after
         -- the first zone change.
-        SquizzFrames:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        -- Also on `self`, and for the same reason as GROUP_ROSTER_UPDATE
+        -- above: Core.lua's OnEnable claims PLAYER_ENTERING_WORLD on the
+        -- SquizzFrames owner for OnPlayerEnteringWorld, so registering here on
+        -- the root replaced it -- which killed RefreshSituation(true) on every
+        -- zone-in, i.e. the group-type/spec resolution that drives profile
+        -- auto-switching. Found alongside the raid-frames bug (2026-08-27).
+        self:RegisterEvent("PLAYER_ENTERING_WORLD", function()
             if not InCombatLockdown() then
                 -- Triple-refresh at increasing delays to catch the secure
                 -- header's asynchronous child spawn, which can take longer on

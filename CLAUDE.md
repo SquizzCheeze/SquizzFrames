@@ -353,6 +353,9 @@ Replaces the name drawn by the `nameText` indicator. Four layers, resolved highe
 
 ## Key Conventions & Gotchas
 
+### Event/Message Owner Collisions
+CallbackHandler keys registrations by **(owner, event)** and keeps exactly **one** handler per pair — a second registration silently REPLACES the first. This applies to `RegisterEvent` as much as `RegisterMessage`. Inside a module, always use `self:RegisterEvent(...)` (the module object is its own owner); `SquizzFrames:RegisterEvent(...)` from within a module puts it on the same owner Core uses and will fight `Core.lua`'s `OnEnable` registrations. Modules are enabled *after* the addon, so the module wins and Core's handler goes dead — with no error. Bit twice on 2026-08-27 (`GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`, both in `PartyFrames.lua`'s `init()`): joining a raid drew the party frames under the raid frames, and zone-in stopped re-resolving spec/group for profile auto-switching. To audit: diff the event names in `Core.lua`'s `self:RegisterEvent` calls against every `SquizzFrames:RegisterEvent` elsewhere.
+
 ### Secure Frame Script Hooking
 - **DO NOT** use `button:SetScript("OnEnter", fn)` or XML `<OnEnter>` on secure buttons — it **replaces** the secure `_onenter` wrap, breaking click-casting.
 - **USE** `button:HookScript("OnEnter", fn)` — runs alongside the secure wrap.
