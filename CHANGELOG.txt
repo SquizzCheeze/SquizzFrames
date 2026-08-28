@@ -2,6 +2,20 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.12 (2026-08-28)
+------------------
+
+Fixed:
+
+- Buff tracking works properly again on cross-faction party members in the
+  open world, and on anyone dead, phased, in a vehicle or across an instance
+  boundary. Blizzard blocked spell-ID filtering for those cases when 12.1
+  launched, so the addon hid Healer HoTs and the cooldown indicators rather
+  than show you an unfiltered list of every buff someone had. They hotfixed it
+  on the 24th, which turned that safeguard into the problem - it was hiding
+  indicators that would now work. It's switched off.
+
+
 V1.11 (2026-08-27)
 ------------------
 

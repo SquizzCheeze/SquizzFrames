@@ -88,6 +88,13 @@ local AURA_MAX_DURATION = 60
 -- The noise floor is a WORKAROUND, so only apply it where it's actually
 -- needed -- it has a serious side effect.
 --
+-- ⚠ EFFECTIVELY RETIRED as of client build 69465 (2026-08-24): Blizzard's gate
+-- no longer shuts for helpful auras on any token we bind, so
+-- NoiseFloorMaxDuration below can't return a cap any more. Everything from
+-- here to SeedGateState is inert on a current client and kept only as the
+-- fallback if that hotfix is reverted -- see ComputeIdentityGateState's own
+-- note for what changed and why it's neutralised there rather than deleted.
+--
 -- Blizzard's filter (AuraContainerUtil.DoesAuraPassCandidateFilters) reads:
 --     -- Max duration filters implicitly always filter out permanent auras.
 --     if auraData.duration > maxDuration or auraData.duration == 0 then
@@ -153,6 +160,40 @@ local GATE_OPEN, GATE_SHUT, GATE_UNKNOWN = "open", "shut", "unknown"
 local function ComputeIdentityGateState(unit)
     if not unit then return GATE_UNKNOWN end
 
+    -- HOTFIXED BY BLIZZARD, build 69465 (2026-08-24), eight builds after 12.1
+    -- shipped. Confirmed from client source, not patch notes:
+    -- Blizzard_AuraContainer/Blizzard_AuraContainerUtil.lua's
+    -- CanApplyIdentityCandidateFilters gained an early-out ABOVE the
+    -- UnitCanAssist tests it previously led with --
+    --
+    --     -- Filtering helpful spells on the active player / any group members
+    --     -- (or their pets) is always allowed. In some edge cases like with
+    --     -- Mind Control, the UnitCanAssist checks below can return false for
+    --     -- group members.
+    --     if auraData.isHelpful and UnitIsPlayerControlledOrGroupMember(unitToken) then
+    --         return true;
+    --     end
+    --
+    -- UnitIsPlayerControlledOrGroupMember is new in the same build and covers
+    -- exactly player/pet/vehicle/partyN/partypetN/raidN/raidpetN -- i.e. every
+    -- token this addon's frames can ever bind. So for HELPFUL auras the gate
+    -- this whole subsystem exists to work around can no longer shut for us.
+    --
+    -- Neutralised HERE, at the single point the gate is read, rather than by
+    -- deleting the machinery below. Three reasons: the noise floor and the
+    -- hide decision both derive from this one reading, so one early-out
+    -- retires both; Healer HoTs' castBy == "me" hide keys off UnitIsVisible
+    -- rather than the gate and is preserved untouched by construction; and if
+    -- the hotfix is ever reverted, restoring the old behaviour is deleting
+    -- this block rather than rebuilding ~150 lines from git history.
+    --
+    -- Guarded on the API existing so a client older than 69465 still falls
+    -- through to the original probe.
+    if UnitIsPlayerControlledOrGroupMember
+        and ReadFlag(UnitIsPlayerControlledOrGroupMember, unit) == true then
+        return GATE_OPEN
+    end
+
     -- UnitIsUnit rather than `unit == "player"`: in raid layouts your own
     -- token is raidN, so a string compare misses your own frame entirely.
     -- It reads secret on rated-PvP maps, in which case this falls through to
@@ -162,7 +203,16 @@ local function ComputeIdentityGateState(unit)
         if ReadFlag(vehicleProbe, "player") == true then return GATE_SHUT end
         -- Cleanly-false only. An unreadable self-assist keeps the historical
         -- self-exemption rather than shutting the gate on your own frame.
-        if ReadFlag(UnitCanAssist, "player", "player") == false then return GATE_SHUT end
+        --
+        -- The two trailing args (canAssistImmunePC, canAssistUninteractable)
+        -- are new in 69465 and both default to FALSE. The engine passes them
+        -- TRUE in its own gate test, with the note "ignore immune/
+        -- uninteractable restrictions otherwise filters won't be applied when
+        -- the player is in a vehicle, teleporting, etc." -- so measuring
+        -- without them asks a different question than the one being answered
+        -- on the other side. Harmless on an older client: extra args to a
+        -- two-arg API are ignored.
+        if ReadFlag(UnitCanAssist, "player", "player", true, true) == false then return GATE_SHUT end
         return GATE_OPEN
     end
 
@@ -176,7 +226,8 @@ local function ComputeIdentityGateState(unit)
     -- buff. Earth Shield (10 min) and Beacon vanishing in combat, reported
     -- 2026-08-18, was exactly this. An unreadable secondary now means "no
     -- opinion", not "maybe bad".
-    local assist = ReadFlag(UnitCanAssist, "player", unit)
+    -- Same two new args as the self branch above, for the same reason.
+    local assist = ReadFlag(UnitCanAssist, "player", unit, true, true)
     if assist == false then return GATE_SHUT end
 
     -- Vetoes: only a DEFINITE negative shuts the gate. nil is ignored.
@@ -3217,8 +3268,15 @@ end
 ------------------------------------------------------------------------
 -- Re-measure Blizzard's identity gate for the three spell-list indicators.
 --
--- Blizzard only honours includeSpellIDs for a HELPFUL aura while
--- UnitCanAssist("player", unitToken) is true, and it tests that PER AURA, at
+-- ⚠ The gate half of this is INERT as of build 69465 (2026-08-24) -- helpful
+-- filtering is now always permitted on group tokens, so the reading can't
+-- move. What this function still does, and what it is now kept for, is the
+-- SyncContainerUnits call: the secure header reassigns unit tokens across
+-- buttons on the very same events, and re-binding the containers to match is
+-- unrelated to the gate and still load-bearing.
+--
+-- Historically: Blizzard only honoured includeSpellIDs for a HELPFUL aura
+-- while UnitCanAssist("player", unitToken) was true, tested PER AURA, at
 -- parse time (Blizzard_AuraContainerUtil.lua):
 --
 --     if auraData.isHelpful and not UnitCanAssist("player", unitToken) then
