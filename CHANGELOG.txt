@@ -2,6 +2,20 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.13 (2026-08-31)
+------------------
+
+Fixed:
+
+- The game no longer stutters every time you leave combat. Click-casting was
+  rebuilding every binding on every frame it manages - your party or raid
+  buttons, all 45 pet frame slots, and any Blizzard or EllesmereUI frames it
+  takes over - each time a fight ended, whether or not anything actually
+  needed rebuilding. It now only does that work when a change was genuinely
+  held back by combat. A half-second retry loop that kept re-trying for the
+  whole fight is gone with it.
+
+
 V1.12 (2026-08-28)
 ------------------
 

@@ -34,6 +34,16 @@ local ClickCasting = SquizzFrames:NewModule("ClickCasting", "AceEvent-3.0")
 local headerFrames = {}
 local applyPending = false  -- coalesces the burst of PartyButtonsWired fires
 
+-- Set when an ApplyToAll was actually requested during combat and had to be
+-- dropped, cleared the moment one completes. PLAYER_REGEN_ENABLED consults it
+-- rather than re-applying unconditionally: a full pass rewrites every attribute
+-- on every frame we know about (~270 SetAttribute calls per frame in
+-- ClearClickCastings alone, across the party/raid buttons, all 45 pet slot
+-- buttons, and every Blizzard/EllesmereUI frame we take over), which is a
+-- visible hitch in a raid -- and it was running on EVERY combat exit whether or
+-- not anything had been deferred.
+local combatApplyPending = false
+
 -----------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------
@@ -1018,11 +1028,15 @@ end
 
 function ClickCasting:ApplyToAll()
     if InCombatLockdown() then
-        -- Can't modify secure attributes in combat; defer until we're out.
-        local self2 = self
-        C_Timer.After(0.5, function() self2:ApplyToAll() end)
+        -- Can't modify secure attributes in combat; flag it and let
+        -- PLAYER_REGEN_ENABLED flush exactly once. This used to re-arm a 0.5s
+        -- C_Timer that re-entered ApplyToAll (and re-deferred) for the whole
+        -- fight; the flag both stops that poll and coalesces any number of
+        -- in-combat requests into a single post-combat pass.
+        combatApplyPending = true
         return
     end
+    combatApplyPending = false
     -- Ensure the combat-state driver exists (creates the wrapFrame).
     EnsureWrapFrame()
 
@@ -1101,10 +1115,14 @@ function ClickCasting:OnInitialize()
         C_Timer.After(3.0, function() self:ApplyToAll() end)
     end)
 
-    -- Re-apply when leaving combat in case a deferred apply was blocked by
-    -- InCombatLockdown during the initial spawn.
+    -- Flush a deferred apply on leaving combat -- ONLY if one was actually
+    -- deferred (see combatApplyPending). Re-applying unconditionally here was
+    -- a per-combat-exit stutter: nothing about leaving combat changes the
+    -- bindings, so with nothing pending there is no work to do.
     self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        self:ApplyToAll()
+        if combatApplyPending then
+            self:ApplyToAll()
+        end
     end)
 
     -- Roster changes, for the FOREIGN frames specifically. Our own buttons are
