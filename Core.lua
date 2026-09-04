@@ -339,6 +339,17 @@ local function EnsurePetFramesDefaults(profile)
             and SquizzFrames.defaults.profile.petFrames.raid
             and F.CopyTable(SquizzFrames.defaults.profile.petFrames.raid) or {}
     end
+    -- profile.petFrames.player (2026-09-04, the standalone player's-own-pet
+    -- frame). Same treatment as .main/.raid above -- every profile saved
+    -- before it existed has a real .petFrames table that simply lacks this
+    -- key, and PetFrames.lua's GetPlayerPetLayout returns it directly, so
+    -- without the backfill the feature reads nil and stays permanently off
+    -- with no way for the options page to turn it on.
+    if not profile.petFrames.player then
+        profile.petFrames.player = SquizzFrames.defaults.profile.petFrames
+            and SquizzFrames.defaults.profile.petFrames.player
+            and F.CopyTable(SquizzFrames.defaults.profile.petFrames.player) or {}
+    end
     -- profile.appearance.petHealthBar (2026-08-05): profile.appearance
     -- itself has existed since before pet frames and is never wholesale-
     -- backfilled (AceDB's own default-table fallback provides it at

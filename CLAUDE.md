@@ -49,7 +49,7 @@ SquizzFrames/
     ├── Nicknames/           # Display-name replacement (private list + group-synced)
     │   ├── Nicknames.lua       # Storage, secret-safe resolution cache, AceComm-free addon-message sync, /sf nick
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API
-    ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group)
+    ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame
     │   ├── PetFrames.lua       # Layout/anchoring/edit mode, roster + unit events, RefreshBorders
     │   └── PetButton.lua       # Secure pet button OnLoad + PetButton_ApplyBorders
     ├── ClickCasting/        # Cell-style click-casting on SecureActionButtonTemplate

@@ -2,6 +2,17 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.14
+-----
+
+Added:
+
+- Your own pet can now have its own standalone frame, positioned wherever you
+  like and kept there in every group state - solo, in a party and in a raid.
+  Turn it on under Pet Frames > My Pet. While it's on your pet is taken out of
+  the Party and Raid pet layouts, so it never shows up twice.
+
+
 V1.13 (2026-08-31)
 ------------------
 

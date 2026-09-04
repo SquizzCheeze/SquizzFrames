@@ -2566,20 +2566,44 @@ local function BuildPetFrameFields(frame)
 
     local yOffset = -10
 
+    -- The standalone player's-own-pet frame shares every accessor on this page
+    -- (they all read GetActivePetFrameLayout, which the toggle repoints), but
+    -- it has no mode, no owner to attach to and no sibling pets to flow
+    -- against -- so the Positioning section collapses to a drag hint and the
+    -- Match Owner options are dropped entirely.
+    local isPlayerPet = activePetLayoutKey == "player"
+
     W.CreateTitledPane(fieldsHost, L["General"] or "General", yOffset)
     yOffset = yOffset - 35
 
-    local cbEnable = W.CreateStyledCheckbox(fieldsHost, L["Enable Pet Frames"] or "Enable Pet Frames", GetPetEnabled, SetPetEnabled)
+    local enableLabel = isPlayerPet
+        and (L["Enable My Pet Frame"] or "Enable My Pet Frame")
+        or (L["Enable Pet Frames"] or "Enable Pet Frames")
+    local cbEnable = W.CreateStyledCheckbox(fieldsHost, enableLabel, GetPetEnabled, SetPetEnabled)
     cbEnable:SetPoint("TOPLEFT", 15, yOffset)
-    yOffset = yOffset - 35
+    yOffset = yOffset - 30
+
+    if isPlayerPet then
+        local note = fieldsHost:CreateFontString(nil, "OVERLAY")
+        note:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        note:SetPoint("TOPLEFT", 15, yOffset)
+        note:SetWidth(340)
+        note:SetJustifyH("LEFT")
+        note:SetTextColor(0.7, 0.7, 0.7, 1)
+        note:SetText(L["Your own pet, on its own frame, in every group state. While this is on your pet is removed from the Party and Raid pet layouts so it can't appear twice."]
+            or "Your own pet, on its own frame, in every group state. While this is on your pet is removed from the Party and Raid pet layouts so it can't appear twice.")
+        yOffset = yOffset - 40
+    end
+    yOffset = yOffset - 5
 
     W.CreateTitledPane(fieldsHost, L["Sizing"] or "Sizing", yOffset)
     yOffset = yOffset - 35
 
     -- Only offered in attached mode: a floating pet group is detached from the
     -- party frames entirely, so there's no owner beside it for the size to
-    -- read as "matching" (ResolvePetSize ignores the settings there too).
-    local attached = GetPetMode() == "attached"
+    -- read as "matching" (ResolvePetSize ignores the settings there too). The
+    -- standalone frame never has an owner at all.
+    local attached = not isPlayerPet and GetPetMode() == "attached"
     if attached then
         local cbMatchW = W.CreateStyledCheckbox(fieldsHost,
             L["Match Owner Width"] or "Match Owner Width",
@@ -2682,6 +2706,20 @@ local function BuildPetFrameFields(frame)
     W.CreateTitledPane(fieldsHost, L["Positioning"] or "Positioning", yOffset)
     yOffset = yOffset - 35
 
+    if isPlayerPet then
+        -- No mode switch: "attached" would mean attaching to your own party
+        -- button, which is the arrangement this frame exists to avoid. It has
+        -- one screen position, dragged in Edit Mode like the floating group.
+        local playerLabel = fieldsHost:CreateFontString(nil, "OVERLAY")
+        playerLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        playerLabel:SetPoint("TOPLEFT", 15, yOffset)
+        playerLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        playerLabel:SetText(L["Drag your pet frame in Edit Mode to position it."]
+            or "Drag your pet frame in Edit Mode to position it.")
+        yOffset = yOffset - 25
+        return
+    end
+
     local modeSwitch = W.CreateStyledSwitch(fieldsHost, 200, 22,
         L["Attached"] or "Attached", L["Floating"] or "Floating",
         GetPetMode, SetPetMode, "attached", "floating")
@@ -2771,6 +2809,12 @@ local function CreatePetFramesPage()
 
     MakeToggleButton("main", L["Party"] or "Party", 15)
     MakeToggleButton("raid", L["Raid"] or "Raid", 110)
+    -- A third sibling rather than a section bolted onto Party/Raid: it edits
+    -- profile.petFrames.player, a peer table of .main/.raid, and this toggle
+    -- already does exactly the "swap which table every accessor reads" job
+    -- that needs. Unlike the other two it is NOT group-scoped (see
+    -- PetFrames_Defaults.lua) -- one position, honoured in every group state.
+    MakeToggleButton("player", L["My Pet"] or "My Pet", 205)
     RefreshToggleVisual()
 
     rebuildPetFields = function() BuildPetFrameFields(frame) end

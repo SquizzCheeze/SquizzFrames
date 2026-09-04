@@ -21,6 +21,7 @@ local PetFrames = SquizzFrames:NewModule("PetFrames", "AceEvent-3.0")
 -- Local state
 local petButtons = {}      -- [petUnit] = button
 local petGroupFrame        -- floating-mode container
+local playerPetFrame       -- standalone player's-own-pet container
 local initialized = false
 local applyingPetLayout = false
 local applyPetLayoutRetryFrame
@@ -54,6 +55,36 @@ local function GetActivePetLayout(prof)
         return prof.petFrames.raid
     end
     return prof.petFrames.main
+end
+
+-- The player's OWN pet, on its own standalone frame. Deliberately NOT
+-- group-scoped (no main/raid split): one position, honoured solo, in a party
+-- and in a raid alike -- the whole point is a pet frame that doesn't move when
+-- your group does. See Defaults/PetFrames_Defaults.lua's `player` table.
+local function GetPlayerPetLayout(prof)
+    prof = prof or GetProfile()
+    return prof and prof.petFrames and prof.petFrames.player
+end
+
+local function PlayerPetFrameEnabled()
+    local layout = GetPlayerPetLayout()
+    return (layout and layout.enabled) == true
+end
+
+-- Which "raidpetN" token is the player's own pet, or nil when not in a raid /
+-- not found. Resolved by GUID rather than UnitIsUnit: that call is on the 12.1
+-- secret-value list (already confirmed to return secrets on rated-PvP maps),
+-- and a secret here would silently fail the equality test and let the pet draw
+-- twice -- exactly the bug this exists to prevent. UnitGUID on a raid token is
+-- a plain string.
+local function GetOwnRaidPetSlot()
+    if not IsInRaid() then return nil end
+    local mine = UnitGUID("player")
+    if type(mine) ~= "string" then return nil end
+    for i = 1, 40 do
+        if UnitGUID("raid" .. i) == mine then return "raidpet" .. i end
+    end
+    return nil
 end
 
 -- The pet button size to actually use.
@@ -105,10 +136,20 @@ end
 local relevantSlots = {}
 local function GetRelevantPetSlots()
     wipe(relevantSlots)
+    local standalone = PlayerPetFrameEnabled()
     if IsInRaid() then
-        for i = 1, 40 do relevantSlots[#relevantSlots + 1] = "raidpet" .. i end
+        -- Your own pet has TWO valid tokens in a raid -- "pet" and the
+        -- "raidpetN" for your own raid index -- so with the standalone frame
+        -- on, the group path must drop yours or the same creature draws
+        -- twice. Solo/party needs no equivalent: party tokens exclude you, so
+        -- "pet" is already the only token for your own pet there.
+        local mine = standalone and GetOwnRaidPetSlot() or nil
+        for i = 1, 40 do
+            local slot = "raidpet" .. i
+            if slot ~= mine then relevantSlots[#relevantSlots + 1] = slot end
+        end
     else
-        relevantSlots[1] = "pet"
+        if not standalone then relevantSlots[#relevantSlots + 1] = "pet" end
         for i = 1, 4 do relevantSlots[#relevantSlots + 1] = "partypet" .. i end
     end
     return relevantSlots
@@ -268,25 +309,30 @@ end
 -- combat lockdown the way partyFrame's are (partyFrame IS a true ancestor
 -- of the secure header) -- only the pet BUTTONS' own SetPoint/SetSize calls
 -- need guarding, which ApplyPetLayout below handles centrally.
-local function CreatePetGroupContainer()
-    if petGroupFrame then return petGroupFrame end
-
-    petGroupFrame = CreateFrame("Frame", "SquizzFramesPetGroupFrame", UIParent, "BackdropTemplate")
+--
+-- Parameterised over its layout table (2026-09-04) so the standalone
+-- player-pet frame can be a second instance rather than a copy: `getLayout`
+-- is called fresh on every read AND on every drag write, so each container
+-- persists its position into its own DB table. Everything below refers to the
+-- `container` local, never to a module upvalue -- capturing petGroupFrame here
+-- would have quietly made both frames drag the group container.
+local function CreatePetContainer(frameName, moverName, getLayout, defaultY)
+    local container = CreateFrame("Frame", frameName, UIParent, "BackdropTemplate")
     local prof = GetProfile()
-    local layout = GetActivePetLayout(prof)
+    local layout = getLayout(prof)
     local anchorX = (layout and layout.anchorX) or 0
-    local anchorY = (layout and layout.anchorY) or -260
+    local anchorY = (layout and layout.anchorY) or defaultY or -260
     local scale = (prof and prof.appearance and prof.appearance.general and prof.appearance.general.scale) or 1.0
-    petGroupFrame:SetScale(scale)
-    petGroupFrame:SetFrameStrata("MEDIUM")
-    petGroupFrame:SetPoint("CENTER", UIParent, "CENTER", anchorX / scale, anchorY / scale)
-    petGroupFrame:SetSize((layout and layout.width or 60) + 6, (layout and layout.height or 24) + 6)
-    petGroupFrame:EnableMouse(false)
+    container:SetScale(scale)
+    container:SetFrameStrata("MEDIUM")
+    container:SetPoint("CENTER", UIParent, "CENTER", anchorX / scale, anchorY / scale)
+    container:SetSize((layout and layout.width or 60) + 6, (layout and layout.height or 24) + 6)
+    container:EnableMouse(false)
 
-    local mover = CreateFrame("Frame", "SquizzFramesPetGroupMover", petGroupFrame)
-    mover:SetAllPoints(petGroupFrame)
-    mover:SetFrameStrata(petGroupFrame:GetFrameStrata())
-    mover:SetFrameLevel(petGroupFrame:GetFrameLevel() + 10)
+    local mover = CreateFrame("Frame", moverName, container)
+    mover:SetAllPoints(container)
+    mover:SetFrameStrata(container:GetFrameStrata())
+    mover:SetFrameLevel(container:GetFrameLevel() + 10)
     mover:EnableMouse(true)
     mover:SetMovable(true)
     -- Deliberately NOT RegisterForDrag -- see the matching comment on
@@ -295,7 +341,7 @@ local function CreatePetGroupContainer()
     -- like the frame refuses to move for the first moment of the drag. Start
     -- on the press instead.
     mover:Hide() -- only shown in edit mode
-    petGroupFrame.mover = mover
+    container.mover = mover
 
     local dragOffsetX, dragOffsetY = 0, 0
     local dragging = false
@@ -306,7 +352,7 @@ local function CreatePetGroupContainer()
         if dragging then return end
         dragging = true
         local p = GetProfile()
-        local layoutDb = GetActivePetLayout(p)
+        local layoutDb = getLayout(p)
         local pScale = UIParent:GetEffectiveScale()
         local startCursorX, startCursorY = GetCursorPosition()
         startCursorX = startCursorX / pScale
@@ -334,9 +380,9 @@ local function CreatePetGroupContainer()
             local sw2, sh2 = GetScreenWidth(), GetScreenHeight()
             dragOffsetX = (cx + cursorOffX) - sw2 / 2
             dragOffsetY = (cy + cursorOffY) - sh2 / 2
-            local frameScale = petGroupFrame:GetScale() or 1
-            petGroupFrame:ClearAllPoints()
-            petGroupFrame:SetPoint("CENTER", UIParent, "CENTER",
+            local frameScale = container:GetScale() or 1
+            container:ClearAllPoints()
+            container:SetPoint("CENTER", UIParent, "CENTER",
                 dragOffsetX / frameScale, dragOffsetY / frameScale)
         end)
     end
@@ -350,17 +396,17 @@ local function CreatePetGroupContainer()
         -- mover precedent (its drag-stop is likewise unguarded), an
         -- accepted existing gap since dragging only happens in edit mode, a
         -- rare/deliberate out-of-combat user action. Also see this
-        -- function's header comment: petGroupFrame isn't actually protected
+        -- function's header comment: the container isn't actually protected
         -- by combat lockdown in the first place, unlike partyFrame.
         local p = GetProfile()
-        local layoutDb = GetActivePetLayout(p)
+        local layoutDb = getLayout(p)
         if layoutDb then
             layoutDb.anchorX = dragOffsetX
             layoutDb.anchorY = dragOffsetY
         end
-        local frameScale = petGroupFrame:GetScale() or 1
-        petGroupFrame:ClearAllPoints()
-        petGroupFrame:SetPoint("CENTER", UIParent, "CENTER",
+        local frameScale = container:GetScale() or 1
+        container:ClearAllPoints()
+        container:SetPoint("CENTER", UIParent, "CENTER",
             dragOffsetX / frameScale, dragOffsetY / frameScale)
     end
 
@@ -376,15 +422,15 @@ local function CreatePetGroupContainer()
     -- Edit mode border (visual only), simplified from PartyFrames.lua's
     -- editFrame -- that one shrink-wraps to the visible BUTTONS' rects
     -- (SizeEditFrameToButtons) because the container can be larger than its
-    -- content. petGroupFrame is always sized to exactly fit its buttons
+    -- content. These containers are always sized to exactly fit their buttons
     -- (see SizePetGroupToButtons below), so the border can just cover the
     -- whole container -- no separate shrink-wrap pass needed.
-    local editFrame = CreateFrame("Frame", nil, petGroupFrame)
+    local editFrame = CreateFrame("Frame", nil, container)
     editFrame:SetFrameStrata("DIALOG")
     editFrame:SetFrameLevel(100)
-    editFrame:SetAllPoints(petGroupFrame)
+    editFrame:SetAllPoints(container)
     editFrame:Hide()
-    petGroupFrame.editFrame = editFrame
+    container.editFrame = editFrame
 
     local function MakeBorder(parent, thickness)
         local tex = parent:CreateTexture(nil, "BACKGROUND")
@@ -406,7 +452,21 @@ local function CreatePetGroupContainer()
     editFrame.borderRight:SetPoint("TOPRIGHT", editFrame, "TOPRIGHT", 0, 0)
     editFrame.borderRight:SetPoint("BOTTOMRIGHT", editFrame, "BOTTOMRIGHT", 0, 0)
 
+    return container
+end
+
+local function CreatePetGroupContainer()
+    if petGroupFrame then return petGroupFrame end
+    petGroupFrame = CreatePetContainer("SquizzFramesPetGroupFrame",
+        "SquizzFramesPetGroupMover", GetActivePetLayout, -260)
     return petGroupFrame
+end
+
+local function CreatePlayerPetContainer()
+    if playerPetFrame then return playerPetFrame end
+    playerPetFrame = CreatePetContainer("SquizzFramesPlayerPetFrame",
+        "SquizzFramesPlayerPetMover", GetPlayerPetLayout, -320)
+    return playerPetFrame
 end
 
 -----------------------------------------------------------------------
@@ -598,6 +658,60 @@ local function SizePetGroupToButtons(layout, bw, bh, visibleCount)
     end
 end
 
+-- The standalone player's-own-pet frame. Exactly one button ("pet"), so there
+-- is no flow layout to run -- it just fills its container.
+--
+-- Sizing/name-text reuse the same helpers the group path uses, so the two
+-- can't visually drift. Note ResolvePetSize is NOT reused: its matchOwnerWidth/
+-- matchOwnerHeight options read the party layout to match an owner frame, and
+-- this frame deliberately has no owner to sit beside.
+local function LayoutPlayerPetFrame(enabled)
+    local button = petButtons["pet"]
+    if not button then return end
+
+    if not enabled then
+        -- Only tear the button down if the group path isn't using it. In
+        -- solo/party with the standalone frame off, "pet" is a normal member
+        -- of the group layout and ApplyPetLayout re-registers it below.
+        if playerPetFrame then playerPetFrame:Hide() end
+        return
+    end
+
+    local layout = GetPlayerPetLayout()
+    if not layout then return end
+    if not playerPetFrame then CreatePlayerPetContainer() end
+
+    local bw = layout.width or 80
+    local bh = layout.height or 30
+
+    -- The container is re-anchored on every pass rather than only at creation:
+    -- CreatePlayerPetContainer reads anchorX/anchorY once, so a profile switch
+    -- (or the position being restored from a different profile) would
+    -- otherwise leave the frame at the old profile's spot until the next drag.
+    local prof = GetProfile()
+    local scale = (prof and prof.appearance and prof.appearance.general
+                   and prof.appearance.general.scale) or 1.0
+    playerPetFrame:SetScale(scale)
+    playerPetFrame:ClearAllPoints()
+    playerPetFrame:SetPoint("CENTER", UIParent, "CENTER",
+        (layout.anchorX or 0) / scale, (layout.anchorY or -320) / scale)
+    playerPetFrame:SetSize(bw + 6, bh + 6)
+
+    RegisterUnitWatch(button)
+    button:ClearAllPoints()
+    button:SetPoint("CENTER", playerPetFrame, "CENTER", 0, 0)
+    button:SetSize(bw, bh)
+    ResizePetButtonBars(button, bw)
+    ApplyPetNameText(button, layout)
+
+    -- Shown unconditionally, not gated on UnitExists("pet"): the container
+    -- draws nothing itself (no backdrop, EnableMouse(false)) so an empty one
+    -- is invisible, and keeping it up means edit mode always has something to
+    -- drag even on a class with no pet or before one is summoned. The BUTTON's
+    -- visibility is RegisterUnitWatch's job.
+    playerPetFrame:Show()
+end
+
 -- The single entry point for (re)positioning every pet button, for whichever
 -- mode/settings are currently active. Guarded exactly like PartyFrames.lua's
 -- ApplyLayout (see that function's own comment for the full "why" -- this
@@ -623,10 +737,7 @@ local function ApplyPetLayout()
 
     local prof = GetProfile()
     local layout = GetActivePetLayout(prof)
-    if not layout then
-        applyingPetLayout = false
-        return
-    end
+    local standalone = PlayerPetFrameEnabled()
 
     local relevantSet = {}
     for _, slot in ipairs(GetRelevantPetSlots()) do relevantSet[slot] = true end
@@ -636,14 +747,24 @@ local function ApplyPetLayout()
     -- + Hide takes them out of RegisterUnitWatch's automatic show/hide
     -- entirely, since a bare :Hide() call would just get silently overridden
     -- the next time that automatic driver re-evaluates.
+    --
+    -- "pet" is spared while the standalone frame owns it -- GetRelevantPetSlots
+    -- deliberately drops it from the group set in that case, so without this
+    -- exemption the standalone frame's only button would be torn down here
+    -- immediately after LayoutPlayerPetFrame set it up.
     for slot, button in pairs(petButtons) do
-        if not relevantSet[slot] then
+        if not relevantSet[slot] and not (standalone and slot == "pet") then
             UnregisterUnitWatch(button)
             button:Hide()
         end
     end
 
-    if not layout.enabled then
+    -- Independent of the group layout entirely, including of `layout` being
+    -- nil or disabled: the standalone frame is its own feature and stays up
+    -- for someone who wants ONLY their own pet framed.
+    LayoutPlayerPetFrame(standalone)
+
+    if not layout or not layout.enabled then
         for slot in pairs(relevantSet) do
             local button = petButtons[slot]
             if button then
@@ -652,27 +773,25 @@ local function ApplyPetLayout()
             end
         end
         if petGroupFrame then petGroupFrame:Hide() end
-        applyingPetLayout = false
-        return
-    end
-
-    -- Re-enable automatic existence-driven show/hide for relevant slots
-    -- (idempotent/safe to call repeatedly on an already-registered button).
-    for slot in pairs(relevantSet) do
-        local button = petButtons[slot]
-        if button then RegisterUnitWatch(button) end
-    end
-
-    local bw, bh = ResolvePetSize(layout)
-
-    if layout.mode == "floating" then
-        if not petGroupFrame then CreatePetGroupContainer() end
-        local visibleCount = LayoutFloatingPets(layout, bw, bh)
-        SizePetGroupToButtons(layout, bw, bh, visibleCount)
-        if petGroupFrame then petGroupFrame:Show() end
     else
-        if petGroupFrame then petGroupFrame:Hide() end
-        LayoutAttachedPets(layout, bw, bh)
+        -- Re-enable automatic existence-driven show/hide for relevant slots
+        -- (idempotent/safe to call repeatedly on an already-registered button).
+        for slot in pairs(relevantSet) do
+            local button = petButtons[slot]
+            if button then RegisterUnitWatch(button) end
+        end
+
+        local bw, bh = ResolvePetSize(layout)
+
+        if layout.mode == "floating" then
+            if not petGroupFrame then CreatePetGroupContainer() end
+            local visibleCount = LayoutFloatingPets(layout, bw, bh)
+            SizePetGroupToButtons(layout, bw, bh, visibleCount)
+            if petGroupFrame then petGroupFrame:Show() end
+        else
+            if petGroupFrame then petGroupFrame:Hide() end
+            LayoutAttachedPets(layout, bw, bh)
+        end
     end
 
     applyingPetLayout = false
@@ -687,6 +806,14 @@ local function ApplyPetLayout()
     if PartyFrames and PartyFrames.RefreshRangePolling then
         PartyFrames.RefreshRangePolling()
     end
+
+    -- Toggling the standalone frame from the options page while Edit Mode is
+    -- already open changes which movers should be draggable, and nothing else
+    -- re-fires EditModeChanged for that -- so the new frame would sit there
+    -- un-draggable until Edit Mode was switched off and on again.
+    if SquizzFrames.editMode then
+        PetFrames:SetEditMode(true)
+    end
 end
 
 -----------------------------------------------------------------------
@@ -694,9 +821,9 @@ end
 -- their owner button, already covered by PartyFrames' own edit mode)
 -----------------------------------------------------------------------
 
-function PetFrames:SetEditMode(enabled)
-    if not petGroupFrame or not petGroupFrame.editFrame then return end
-    local editFrame = petGroupFrame.editFrame
+local function SetContainerEditMode(container, enabled)
+    if not container or not container.editFrame then return end
+    local editFrame = container.editFrame
     local accent = F.GetAccentColor and F.GetAccentColor()
     local function ApplyColor(alpha)
         local c = {0.33, 0.77, 0.99}
@@ -708,15 +835,28 @@ function PetFrames:SetEditMode(enabled)
     end
     if enabled then
         ApplyColor(0.9)
-        if petGroupFrame.mover then
-            petGroupFrame.mover:SetAllPoints(petGroupFrame)
-            petGroupFrame.mover:Show()
+        if container.mover then
+            container.mover:SetAllPoints(container)
+            container.mover:Show()
         end
         editFrame:Show()
     else
         ApplyColor(0.0)
         editFrame:Hide()
-        if petGroupFrame.mover then petGroupFrame.mover:Hide() end
+        if container.mover then container.mover:Hide() end
+    end
+end
+
+function PetFrames:SetEditMode(enabled)
+    SetContainerEditMode(petGroupFrame, enabled)
+    -- Only offer the standalone frame's mover when the feature is on --
+    -- otherwise edit mode shows a draggable box for a frame that never
+    -- appears. Its container is hidden in that state anyway, which already
+    -- hides the mover, but being explicit keeps the two from disagreeing.
+    if PlayerPetFrameEnabled() then
+        SetContainerEditMode(playerPetFrame, enabled)
+    else
+        SetContainerEditMode(playerPetFrame, false)
     end
 end
 
@@ -794,6 +934,7 @@ function PetFrames:OnEnable()
     local function init()
         CreatePetButtons()
         CreatePetGroupContainer()
+        CreatePlayerPetContainer()
         ApplyPetLayout()
         UpdateAllPetButtons()
 
@@ -904,6 +1045,7 @@ function PetFrames:OnDisable()
         button:Hide()
     end
     if petGroupFrame then petGroupFrame:Hide() end
+    if playerPetFrame then playerPetFrame:Hide() end
     initialized = false
 end
 

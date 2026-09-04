@@ -77,4 +77,26 @@ profile.petFrames = {
         growthDirection = "DOWN",
         spacingY = 2,
     },
+    -- The player's OWN pet, on a standalone frame with its own screen
+    -- position, independent of group state. A third sibling of main/raid
+    -- rather than a field inside them precisely because it is NOT
+    -- group-scoped: one setting, honoured solo, in a party and in a raid.
+    --
+    -- Deliberately a much smaller shape than main/raid -- it lays out exactly
+    -- one button, so mode/anchorSide/offsetX/offsetY/orientation/
+    -- growthDirection/spacingY have nothing to act on, and matchOwner* has no
+    -- owner frame to match (your own party button is the "owner", but the
+    -- whole point of this frame is to not sit next to it).
+    --
+    -- When enabled it TAKES OVER the "pet" unit from the group layouts --
+    -- PetFrames.lua's GetRelevantPetSlots drops "pet" (party/solo) and your
+    -- own "raidpetN" (raid) so the same creature can't draw twice.
+    player = {
+        enabled = false,
+        width = 80,
+        height = 30,
+        nameText = DefaultPetNameText(10),
+        anchorX = 0,             -- CENTER->CENTER screen offset, as above
+        anchorY = -320,
+    },
 }
