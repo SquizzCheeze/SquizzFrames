@@ -40,6 +40,7 @@ local NAV_ITEMS = {
     {id = "general",      label = "General"},
     {id = "layout",       label = "Layout"},
     {id = "petFrames",    label = "Pet Frames"},
+    {id = "unitFrames",   label = "Unit Frames"},
     {id = "clickCasting", label = "Click Casting"},
     {id = "indicators",   label = "Indicators"},
     {id = "nicknames",    label = "Nicknames"},
@@ -52,6 +53,7 @@ local pageHeights = {
     ["general"] = 220, -- -30: Edit Mode's button moved to the title bar
     ["layout"] = 1335, -- +115 Copy Between Modes, +70 raid-only Group Growth
     ["petFrames"] = 1090, -- +490 for the Name Text section
+    ["unitFrames"] = 1500, -- 3 text slots x ~260 when all are populated
     ["clickCasting"] = 460,
     ["nicknames"] = 780,
     ["profiles"] = 600,
@@ -2865,6 +2867,25 @@ end
 -- Nicknames Page
 -----------------------------------------------------------------------
 
+-----------------------------------------------------------------------
+-- Unit Frames Page
+-----------------------------------------------------------------------
+
+local function CreateUnitFramesPage()
+    local frame = CreateFrame("Frame", nil, scrollChild)
+    frame:SetAllPoints()
+    frame:Hide()
+    contentFrames["unitFrames"] = frame
+
+    if SquizzFrames.UnitFramesPanel and SquizzFrames.UnitFramesPanel.Build then
+        SquizzFrames.UnitFramesPanel.Build(frame)
+    else
+        local msg = frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
+        msg:SetPoint("CENTER")
+        msg:SetText("Unit Frames module not loaded.")
+    end
+end
+
 local function CreateNicknamesPage()
     local frame = CreateFrame("Frame", nil, scrollChild)
     frame:SetAllPoints()
@@ -2896,6 +2917,7 @@ local function ToggleOptions()
         CreateGeneralPage()
         CreateLayoutPage()
         CreatePetFramesPage()
+        CreateUnitFramesPage()
         CreateClickCastingPage()
         CreateIndicatorsPage()
         CreateNicknamesPage()

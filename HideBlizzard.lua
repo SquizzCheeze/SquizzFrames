@@ -35,9 +35,14 @@ local combatRetryFrame
 
 local function FlushPending()
     local party, raid = pendingApply.party, pendingApply.raid
-    pendingApply.party, pendingApply.raid = nil, nil
+    local unitframes = pendingApply.unitframes
+    pendingApply.party, pendingApply.raid, pendingApply.unitframes = nil, nil, nil
     if party ~= nil then SquizzFrames:HideBlizzardParty() end
     if raid ~= nil then SquizzFrames:HideBlizzardRaid() end
+    -- Every DeferIfInCombat key MUST be drained here. A key set by
+    -- DeferIfInCombat but missing from this function is deferred forever, with
+    -- no error -- the work simply never happens.
+    if unitframes ~= nil then SquizzFrames:HideBlizzardUnitFrames() end
 end
 
 -- Returns true if the caller should BAIL (work was deferred to combat end).
@@ -221,9 +226,58 @@ function SquizzFrames:HideBlizzardRaid()
     ApplyRaidFrames(ShouldHideRaid())
 end
 
+-- Blizzard's standalone unit frames, hidden only while OUR UnitFrames module
+-- is both enabled and set to hide them (2026-09-04). Two separate settings on
+-- purpose: someone positioning our frames for the first time wants to see both
+-- sets side by side, and turning the module off must give Blizzard's back.
+--
+-- Reversible reparent-hide, exactly like the party/raid path above -- never
+-- UnregisterAllEvents, which is what made the old Hide Party/Raid checkbox a
+-- one-way trip (see the hideblizzard-toggle-bugfix history).
+--
+-- PetFrame is deliberately NOT in this list. Our own pet frame is the
+-- PetFrames module's business, it has its own enable setting, and hiding
+-- Blizzard's from here would fight it.
+local BLIZZARD_UNIT_FRAMES = {
+    player = "PlayerFrame",
+    target = "TargetFrame",
+    focus  = "FocusFrame",
+    -- TargetFrameToT/FocusFrameToT are CHILDREN of the two frames above, so
+    -- they disappear with their parent -- listing them separately would
+    -- reparent them out from under a frame that may not be hidden.
+}
+
+local function ShouldHideBlizzardUnitFrames()
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = p and p.unitFrames
+    if not uf or uf.enabled ~= true then return false end
+    return uf.hideBlizzard ~= false
+end
+
+function SquizzFrames:HideBlizzardUnitFrames()
+    if DeferIfInCombat("unitframes") then return end
+    local hide = ShouldHideBlizzardUnitFrames()
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = p and p.unitFrames
+    for unit, globalName in pairs(BLIZZARD_UNIT_FRAMES) do
+        local frame = _G[globalName]
+        if frame then
+            -- Per-frame: hiding Blizzard's target frame while OUR target frame
+            -- is switched off would leave that unit with no frame at all.
+            local ours = hide and uf and uf.frames and uf.frames[unit]
+            if ours and ours.enabled ~= false then
+                HideFrame(frame)
+            else
+                ShowFrame(frame)
+            end
+        end
+    end
+end
+
 function SquizzFrames:HideBlizzard()
     SquizzFrames:HideBlizzardParty()
     SquizzFrames:HideBlizzardRaid()
+    SquizzFrames:HideBlizzardUnitFrames()
 end
 
 -- Re-apply on group-type and profile changes (bug fix 2026-08-07). Nothing

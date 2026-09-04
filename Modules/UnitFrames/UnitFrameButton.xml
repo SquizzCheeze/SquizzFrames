@@ -1,0 +1,101 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+../FrameXML/UI.xsd">
+
+    <!-- SquizzFrames standalone unit frame template (Phase 1).
+
+         Closely modelled on PartyFrames' SquizzFramesUnitButtonTemplate, and
+         deliberately NOT reusing it: that template carries group-only regions
+         (raid target icon, ready-check status text) and its children are sized
+         by the secure group header's own layout pass. These frames own their
+         whole lifecycle instead.
+
+         Inherits the same handler templates for the same reasons: click-
+         casting's SetBindingClicks writes "_onenter"/"_onleave"/"_onmousedown"
+         ATTRIBUTES, which only run on a frame inheriting the matching
+         SecureHandler*Template. Without them mouse binds would work and every
+         keyboard/wheel bind would silently not (the exact half-working state
+         documented in ClickCasting.lua's WrapExternalHover comment).
+
+         Three text slots (left/right/center) rather than fixed name/health
+         FontStrings: every slot's CONTENT is a user setting, so hardcoding
+         which one shows the name would make half the options page a lie. -->
+    <Button name="SquizzFramesUnitFrameTemplate"
+            inherits="BackdropTemplate,SecureUnitButtonTemplate,SecureHandlerEnterLeaveTemplate,SecureHandlerShowHideTemplate,SecureHandlerMouseUpDownTemplate"
+            virtual="true" enableMouse="true">
+        <Size x="180" y="46"/>
+
+        <Attributes>
+            <!-- Swaps the frame to the vehicle's unit while the unit is
+                 driving one; the same attribute the party buttons and
+                 Blizzard's own CompactUnitFrame set. See CLAUDE.md's note on
+                 SecureButton_GetModifiedUnit for what it actually rewrites. -->
+            <Attribute name="toggleForVehicle" type="boolean" value="true"/>
+        </Attributes>
+
+        <Layers>
+            <Layer level="ARTWORK" textureSubLevel="2">
+                <FontString name="$parentLeftText" parentKey="leftText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL">
+                    <FontHeight val="12"/>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+                <FontString name="$parentRightText" parentKey="rightText" font="Fonts\FRIZQT__.TTF" justifyH="RIGHT" outline="NORMAL">
+                    <FontHeight val="12"/>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+                <FontString name="$parentCenterText" parentKey="centerText" font="Fonts\FRIZQT__.TTF" justifyH="CENTER" outline="NORMAL">
+                    <FontHeight val="12"/>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+            </Layer>
+
+            <Layer level="OVERLAY">
+                <!-- Kept for template parity with the party/pet buttons but
+                     never shown: hover is drawn by the real border indicator
+                     (BuiltIn_Update's CreateBorderIndicator), same as those. -->
+                <Texture name="$parentHighlight" parentKey="highlight" setAllPoints="true" file="Interface\Buttons\ButtonHilight-Square" alphaMode="ADD" alpha="0.5" hidden="true"/>
+            </Layer>
+        </Layers>
+
+        <Frames>
+            <!-- Flat MEDIUM strata throughout, matching UnitButton.xml and
+                 PetButton.xml. See PartyFrames.lua's CreatePartyContainer for
+                 why the whole addon settled on a flat scheme, and the
+                 nameplate-strata memory for why raising it is always wrong. -->
+            <StatusBar name="$parentHealthBar" parentKey="healthBar" frameLevel="1" frameStrata="MEDIUM">
+                <Anchors>
+                    <Anchor point="TOPLEFT"/>
+                    <Anchor point="TOPRIGHT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.2" g="0.6" b="0.2" a="1"/>
+            </StatusBar>
+            <StatusBar name="$parentPowerBar" parentKey="powerBar" frameLevel="2" frameStrata="MEDIUM">
+                <Size y="6"/>
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT"/>
+                    <Anchor point="BOTTOMRIGHT"/>
+                </Anchors>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+                <BarColor r="0.2" g="0.4" b="0.8" a="1"/>
+            </StatusBar>
+        </Frames>
+
+        <Scripts>
+            <!-- OnLoad only. OnEnter/OnLeave are attached with HookScript from
+                 Lua, never SetScript or an XML OnEnter tag; either would
+                 REPLACE the secure "_onenter" wrap and silently break
+                 click-casting. Same rule as UnitButton.xml/PetButton.xml. -->
+            <OnLoad function="SquizzFramesUnitFrame_OnLoad"/>
+        </Scripts>
+    </Button>
+
+</Ui>

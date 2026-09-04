@@ -1023,6 +1023,15 @@ local function CollectButtons()
             tinsert(buttons, button)
         end)
     end
+    -- Standalone unit frames (2026-09-04): same accessor contract again --
+    -- UnitFrames deliberately exposes IterateButtons/FindButtonByUnit with the
+    -- identical shape so nothing here needs to special-case it.
+    local UnitFrames = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
+    if UnitFrames and UnitFrames.IterateButtons then
+        UnitFrames:IterateButtons(function(button)
+            tinsert(buttons, button)
+        end)
+    end
     return buttons
 end
 

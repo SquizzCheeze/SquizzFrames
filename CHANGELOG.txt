@@ -12,6 +12,27 @@ Added:
   Turn it on under Pet Frames > My Pet. While it's on your pet is taken out of
   the Party and Raid pet layouts, so it never shows up twice.
 
+- Unit Frames (new): player, target, target of target, focus and focus target,
+  each independently enabled, sized and positioned, with a health bar, an
+  optional power bar and three configurable text slots (left, right, centre).
+  Off by default. Turning it on hides Blizzard's matching frames, and turning
+  it back off gives them back. Find it under Unit Frames in the options.
+
+  Text slots can show name, health, health percent, health and percent,
+  health/max, power, power percent, level, or level and class. Health bars
+  colour by class for players and by reaction for NPCs.
+
+  Bar texture and power bar colour come from the same Layout > Appearance
+  settings your party frames already use, so everything matches without a
+  second set of controls to keep in sync.
+
+  There's also an optional "Mirror Player and Target": drag either frame in
+  Edit Mode and the other follows to the opposite side of the screen. Off by
+  default, so an asymmetric layout you set up on purpose stays that way.
+
+  Cast bars, portraits, boss frames, auras and arena frames are not in this
+  first version - they're coming in later passes.
+
 
 V1.13 (2026-08-31)
 ------------------

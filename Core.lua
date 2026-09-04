@@ -324,6 +324,31 @@ end
 -- own backfill (see the OnInitialize/RefreshProfile call sites below), and
 -- the same shared-function reasoning as EnsureIndicatorLists just below.
 local function EnsurePetFramesDefaults(profile)
+    -- profile.unitFrames (2026-09-04, the standalone unit frames module).
+    -- ABOVE the early return below, deliberately: that return fires whenever
+    -- petFrames is missing entirely, and anything placed after it is silently
+    -- skipped for exactly the profiles most likely to need backfilling.
+    --
+    -- Belt-and-braces rather than load-bearing -- ProfileStore.lua's
+    -- ApplyActiveProfile already runs DeepFillDefaults over every profile it
+    -- activates, which is what actually materialises this tree. Kept for the
+    -- same reason the pet backfill below is: it costs nothing and it does not
+    -- depend on that remaining true.
+    if not profile.unitFrames then
+        profile.unitFrames = SquizzFrames.defaults.profile.unitFrames
+            and F.CopyTable(SquizzFrames.defaults.profile.unitFrames) or {}
+    elseif SquizzFrames.defaults.profile.unitFrames then
+        local defFrames = SquizzFrames.defaults.profile.unitFrames.frames
+        if defFrames then
+            profile.unitFrames.frames = profile.unitFrames.frames or {}
+            for unit, defTable in pairs(defFrames) do
+                if not profile.unitFrames.frames[unit] then
+                    profile.unitFrames.frames[unit] = F.CopyTable(defTable)
+                end
+            end
+        end
+    end
+
     if not profile.petFrames then
         profile.petFrames = SquizzFrames.defaults.profile.petFrames
             and F.CopyTable(SquizzFrames.defaults.profile.petFrames) or {}
