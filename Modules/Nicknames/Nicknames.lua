@@ -341,6 +341,17 @@ end
 local function RefreshAllNames()
     wipe(resolveCache)
 
+    -- Standalone unit frames (player/target/focus/boss/...). They are NOT part
+    -- of the indicator system, so there is no _sfNameUpdater to call -- they
+    -- render names through their own text-slot pass instead, and re-running it
+    -- is what picks a changed nickname up. Done first, and independently of
+    -- PartyFrames existing, because the two modules are unrelated: an early
+    -- return below must not skip this.
+    local UnitFrames = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
+    if UnitFrames and UnitFrames.RefreshTexts then
+        UnitFrames.RefreshTexts()
+    end
+
     local PartyFrames = GetPartyFrames()
     if not PartyFrames or not PartyFrames.IterateButtons then return end
 

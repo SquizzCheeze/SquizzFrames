@@ -30,8 +30,55 @@ Added:
   Edit Mode and the other follows to the opposite side of the screen. Off by
   default, so an asymmetric layout you set up on purpose stays that way.
 
-  Cast bars, portraits, boss frames, auras and arena frames are not in this
-  first version - they're coming in later passes.
+- Cast bars for the player, target and focus frames, each moved and resized
+  independently. A cast bar can sit on its own frame, attach to another frame
+  on screen and follow it wherever it goes, or float free and be dragged
+  anywhere in Edit Mode.
+
+  Every cast bar shows a handle in Edit Mode whether or not anything is
+  casting, so you can see exactly where it will appear. Free ones are orange
+  and draggable; attached ones are grey and just show you the position, since
+  they follow whatever they're anchored to.
+
+  The width can follow the frame it belongs to, be set by hand, or match
+  another frame on screen - including the Cooldown Manager's Essential and
+  Utility rows and its tracked-buff bars. Matching tracks live, so a CDM row
+  that grows or shrinks takes the cast bar with it.
+
+  The spell icon sits inside the bar and counts toward its width, so matching
+  the width to another frame lines the outer edges up exactly.
+
+  Options for icon, spell name, cast timer, bar colour, class colouring, and
+  the tint used for casts you can't interrupt. Blizzard's own player cast bar
+  can be hidden from the same page - only ever while yours is switched on, so
+  you can't end up with none at all.
+
+- Boss frames, up to the five the game supports. They share one set of
+  settings and stack in whichever direction you choose, at whatever spacing.
+  Drag the first one in Edit Mode to move the whole stack; the rest show you
+  where they'll land, so you can lay them out without being in a fight.
+
+- Portraits on any frame, in three styles: the flat 2D portrait, a live 3D
+  model, or the class icon. Each can sit on either side, inside the frame or
+  beside it, with its own size, offsets, and a zoom control for 3D.
+
+  2D portraits and class icons can be square or round - square by default.
+
+  The 3D model option falls back to the 2D portrait automatically for any unit
+  whose model the game won't load - most mobs, and anything in instanced
+  content, where 12.1 keeps unit identities hidden from addons. You get a face
+  either way instead of an empty box.
+
+- Nicknames now show on the unit frames as well, including your own player
+  frame, with a per-frame switch to turn them off. Purely cosmetic and purely
+  local - it changes nothing anybody else sees.
+
+- The Unit Frames options page is split into sections - General, Frame,
+  Sizing, Colors, Text, Portrait, Cast Bar, Position - so you're not scrolling
+  a single long list to find one setting. The unit tabs run along the top and
+  the sections down the left, and both stay put while the settings scroll.
+
+  Auras and arena frames are still to come.
 
 
 V1.13 (2026-08-31)

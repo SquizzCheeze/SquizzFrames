@@ -6,11 +6,11 @@
     direction, sorting, spacing, per-subgroup headers) mean anything to a frame
     that shows exactly one permanently-assigned unit.
 
-    PHASE 1 SCOPE. Cast bars, boss frames, portraits, auras and arena frames
-    are Phase 2/3; their settings are deliberately absent rather than present
-    and ignored -- a live control that silently does nothing is the exact
-    failure this codebase keeps getting bitten by (see PetFrames' options page
-    hiding its Width slider when Match Owner Width is on).
+    Phase 2 added cast bars. Auras and arena frames remain Phase 3; their
+    settings are deliberately absent rather than present and ignored -- a live
+    control that silently does nothing is the exact failure this codebase keeps
+    getting bitten by (see PetFrames' options page hiding its Width slider when
+    Match Owner Width is on).
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
@@ -37,7 +37,9 @@ SquizzFrames.UNITFRAME_TEXT_TOKENS = {
     "healthPercent",
     "healthBoth",      -- "1.2M | 84%"
     "healthMax",       -- "1.2M / 1.4M"
-    "healthDeficit",   -- "-220k", blank at full
+    -- No "healthDeficit": max minus current is ARITHMETIC on a secret value,
+    -- which throws in combat, and there is no C-level API that returns it.
+    -- See UnitFrames.lua's header.
     "power",
     "powerPercent",
     "level",
@@ -82,10 +84,89 @@ local function DefaultFrame(opts)
 
         font = {"Friz QT__", 12, "OUTLINE", true},
 
+        -- Show nicknames in the "name" text token instead of the real name.
+        -- Purely cosmetic and entirely local -- it changes nothing anybody
+        -- else sees, and it works on your own player frame too (Nicknames'
+        -- Resolve matches on name/realm, not on unit token).
+        useNicknames = true,
+
         -- Out-of-combat fade. Deliberately per-frame: a player frame you want
         -- to disappear when idle is a common ask, a target frame is not.
         fadeOutOfCombat = false,
         fadeAlpha = 0.35,
+
+        -- Portrait (Phase 2). size 0 means "match the frame's height", so a
+        -- resize carries the portrait with it instead of leaving a mismatch.
+        portrait = {
+            enabled = false,
+            -- "3d" automatically falls back to the 2D portrait for any unit
+            -- whose model will not load. On 12.1 SetUnit is documented
+            -- RequiresDeclassifiedUnitIdentity and returns a success bool, so
+            -- Portrait.lua asks rather than guesses -- see its Update.
+            style = "2d",        -- "2d" | "3d" | "class"
+            -- Square by default: the round look is the DEFAULT UI's mask, not
+            -- something inherent to the portrait, and the class icons have
+            -- square atlas art that the circular sheet cannot produce.
+            shape = "square",    -- "square" | "circle" (2d and class only)
+            side = "LEFT",
+            inside = false,      -- true overlaps the bar; false sits beside it
+            size = 0,
+            offsetX = 0,
+            offsetY = 0,
+            zoom = 1,            -- 3d only: camera distance scale
+            borderColor = {0, 0, 0, 0},
+        },
+
+        -- Cast bar (Phase 2). Per-frame rather than shared: you almost
+        -- certainly want a bigger, more prominent bar on your target than on
+        -- a target-of-target, and some frames want none at all.
+        --
+        -- width 0 means "match the frame's width", so resizing the frame
+        -- carries the bar with it instead of leaving a mismatched stub.
+        castBar = {
+            enabled = opts.castBar == true,
+
+            -- POSITION, one of three modes:
+            --   "frame"  ride this unit frame, above or below it
+            --   "anchor" ride ANOTHER frame (a CDM row, another unit frame),
+            --            following it automatically wherever it moves --
+            --            SetPoint to a live frame tracks it for free
+            --   "free"   own screen position, dragged in Edit Mode
+            positionMode = "frame",
+            anchor = "BOTTOM",       -- "frame" mode: BOTTOM | TOP
+            attachTo = "EssentialCooldownViewer", -- "anchor" mode target
+            attachSide = "BOTTOM",   -- "anchor" mode: which side of the target
+            offsetX = 0,             -- used by "frame" AND "anchor"
+            offsetY = 0,
+            anchorX = 0,             -- "free" only: pixels from UIParent centre
+            anchorY = -300,
+
+            -- SIZE. widthMode decides which of the next two fields matters:
+            --   "frame"  follow the unit frame's own width
+            --   "custom" use `width`
+            --   "match"  track another on-screen frame's width, live
+            widthMode = "frame",
+            width = 180,
+            -- Curated targets only (see CastBar.MATCH_TARGETS) rather than an
+            -- arbitrary global name: a typo'd frame name would silently mean
+            -- "no match" with nothing to explain why.
+            matchFrame = "EssentialCooldownViewer",
+            height = 16,
+
+            showIcon = true,
+            showName = true,
+            showTime = true,
+            fontSize = 11,
+
+            -- Class colour of the CASTING unit, falling back to `color` when
+            -- the unit is an NPC or its class is secret.
+            classColor = false,
+            color = {0.9, 0.7, 0.1, 1},
+            -- Drawn as a TINT OVER the bar, not as a replacement colour: the
+            -- uninterruptible flag is secret on 12.1 and cannot be branched
+            -- on, only fed to SetAlphaFromBoolean. See CastBar.lua's header.
+            uninterruptibleColor = {0.6, 0.6, 0.6, 0.55},
+        },
     }
 end
 
@@ -111,15 +192,24 @@ profile.unitFrames = {
     -- (HideBlizzard.lua's reparent hide, not UnregisterAllEvents).
     hideBlizzard = true,
 
+    -- Blizzard's PLAYER cast bar, on its own switch rather than folded into
+    -- hideBlizzard: replacing the cast bar while keeping Blizzard's unit
+    -- frames (or the reverse) is a perfectly ordinary thing to want.
+    --
+    -- Additionally gated at apply time on the player frame's OWN cast bar
+    -- being enabled -- see HideBlizzard.lua -- so this can never leave you
+    -- with no cast bar at all.
+    hideBlizzardCastBar = true,
+
     frames = {
-        player       = DefaultFrame{anchorX = -260, anchorY = -180,
+        player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,
                                     rightText = "healthBoth"},
-        target       = DefaultFrame{anchorX =  260, anchorY = -180,
+        target       = DefaultFrame{anchorX =  260, anchorY = -180, castBar = true,
                                     rightText = "healthBoth"},
         targettarget = DefaultFrame{anchorX =  430, anchorY = -140,
                                     width = 110, height = 26, powerHeight = 0,
                                     leftText = "name", rightText = "healthPercent"},
-        focus        = DefaultFrame{anchorX = -260, anchorY = -280,
+        focus        = DefaultFrame{anchorX = -260, anchorY = -280, castBar = true,
                                     width = 150, height = 34,
                                     rightText = "healthPercent"},
         focustarget  = DefaultFrame{enabled = false,
@@ -127,4 +217,24 @@ profile.unitFrames = {
                                     width = 110, height = 26, powerHeight = 0,
                                     leftText = "name", rightText = "healthPercent"},
     },
+
+    -- BOSS FRAMES. ONE settings table shared by boss1..MAX_BOSS_FRAMES rather
+    -- than five: they are a stack of identical frames, and five independent
+    -- copies would mean five sets of controls that must be kept in sync by
+    -- hand for the layout to look right.
+    --
+    -- anchorX/anchorY place the FIRST frame; the rest follow it along
+    -- growthDirection, spacing pixels apart. Same DefaultFrame shape as the
+    -- single units, so every text/colour/cast bar/portrait option applies
+    -- identically and the options page reuses the same builder.
+    boss = (function()
+        local t = DefaultFrame{enabled = false,
+                               anchorX = 380, anchorY = 120,
+                               width = 170, height = 34, powerHeight = 4,
+                               leftText = "name", rightText = "healthBoth",
+                               castBar = true}
+        t.spacing = 26
+        t.growthDirection = "DOWN"   -- DOWN | UP | RIGHT | LEFT
+        return t
+    end)(),
 }

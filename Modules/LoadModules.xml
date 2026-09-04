@@ -10,6 +10,11 @@
          Loaded before ClickCasting so CollectButtons can see them on the very
          first ApplyToAll rather than waiting for a later re-apply. -->
     <Include file="UnitFrames/UnitFrameButton.xml"/>
+    <!-- Before UnitFrames.lua: it reads SquizzFrames.UnitFrameCastBar at
+         runtime rather than load time, so order is not strictly required, but
+         keeping the dependency pointing one way stays easier to reason about. -->
+    <Script file="UnitFrames/CastBar.lua"/>
+    <Script file="UnitFrames/Portrait.lua"/>
     <Script file="UnitFrames/UnitFrames.lua"/>
     <!-- Shell over the module + Options/Widgets.lua (already loaded by the
          .toc at this point), same arrangement as NicknamesPanel. -->

@@ -35,14 +35,16 @@ local combatRetryFrame
 
 local function FlushPending()
     local party, raid = pendingApply.party, pendingApply.raid
-    local unitframes = pendingApply.unitframes
-    pendingApply.party, pendingApply.raid, pendingApply.unitframes = nil, nil, nil
+    local unitframes, castbar = pendingApply.unitframes, pendingApply.castbar
+    pendingApply.party, pendingApply.raid = nil, nil
+    pendingApply.unitframes, pendingApply.castbar = nil, nil
     if party ~= nil then SquizzFrames:HideBlizzardParty() end
     if raid ~= nil then SquizzFrames:HideBlizzardRaid() end
     -- Every DeferIfInCombat key MUST be drained here. A key set by
     -- DeferIfInCombat but missing from this function is deferred forever, with
     -- no error -- the work simply never happens.
     if unitframes ~= nil then SquizzFrames:HideBlizzardUnitFrames() end
+    if castbar ~= nil then SquizzFrames:HideBlizzardCastBar() end
 end
 
 -- Returns true if the caller should BAIL (work was deferred to combat end).
@@ -254,6 +256,39 @@ local function ShouldHideBlizzardUnitFrames()
     return uf.hideBlizzard ~= false
 end
 
+-- Blizzard's PLAYER cast bar, hidden on its own setting rather than with the
+-- unit frames: a cast bar is the one piece people commonly want replaced while
+-- keeping Blizzard's frames, or vice versa.
+--
+-- PlayerCastingBarFrame is the modern global; CastingBarFrame is the legacy
+-- name kept as an alias on some builds. Both are reparent-hidden if present,
+-- and hiding one that is already the same object is harmless.
+--
+-- PetCastingBarFrame is deliberately NOT touched: nothing in this addon draws
+-- a replacement for it yet, so hiding it would just lose information.
+local BLIZZARD_CASTBARS = {"PlayerCastingBarFrame", "CastingBarFrame"}
+
+function SquizzFrames:HideBlizzardCastBar()
+    if DeferIfInCombat("castbar") then return end
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = p and p.unitFrames
+    -- Gated on the module being on AND the player's own cast bar being
+    -- enabled: hiding Blizzard's while we draw nothing in its place would
+    -- leave you with no cast bar at all.
+    local playerCast = uf and uf.frames and uf.frames.player and uf.frames.player.castBar
+    local hide = uf and uf.enabled == true and uf.hideBlizzardCastBar == true
+        and playerCast and playerCast.enabled == true
+
+    local seen = {}
+    for _, name in ipairs(BLIZZARD_CASTBARS) do
+        local frame = _G[name]
+        if frame and not seen[frame] then
+            seen[frame] = true
+            if hide then HideFrame(frame) else ShowFrame(frame) end
+        end
+    end
+end
+
 function SquizzFrames:HideBlizzardUnitFrames()
     if DeferIfInCombat("unitframes") then return end
     local hide = ShouldHideBlizzardUnitFrames()
@@ -278,6 +313,7 @@ function SquizzFrames:HideBlizzard()
     SquizzFrames:HideBlizzardParty()
     SquizzFrames:HideBlizzardRaid()
     SquizzFrames:HideBlizzardUnitFrames()
+    SquizzFrames:HideBlizzardCastBar()
 end
 
 -- Re-apply on group-type and profile changes (bug fix 2026-08-07). Nothing

@@ -1,7 +1,10 @@
---[[ SquizzFrames UnitFrames Module (Phase 1)
+--[[ SquizzFrames UnitFrames Module
 
     Standalone single-unit frames: player, target, targettarget, focus,
-    focustarget. Boss frames, cast bars, portraits and auras are Phase 2/3.
+    focustarget. Cast bars live in CastBar.lua (a separate file: the
+    UNIT_SPELLCAST_* subsystem and its secret-value handling are involved
+    enough to stand on their own). Boss frames, portraits, auras and arena
+    frames are still to come.
 
     WHY THIS IS A SEPARATE MODULE FROM PartyFrames:
     PartyFrames is built entirely around SecureGroupHeaderTemplate, which does
@@ -42,15 +45,68 @@ local UnitFrames = SquizzFrames:NewModule("UnitFrames", "AceEvent-3.0")
 -- Local state
 local frames = {}          -- [unitToken] = frame
 local movers = {}          -- [unitToken] = non-secure drag frame
+local castBars = {}        -- [unitToken] = cast bar (CastBar.lua)
+-- Forward declaration: CreateFrames and the cast bar movers both call this,
+-- and both are defined above it. Without the declaration here they would
+-- capture a nil global instead of the local.
+local ApplyLayout
 local initialized = false
 local applyingLayout = false
 local applyRetryFrame
 local totPoller
+local anchorRetries = 0    -- see the cast bar anchor retry in ApplyLayout
 
 -- Every unit this module spawns, in creation order. The token IS the settings
 -- key (profile.unitFrames.frames[token]) and the frame's "unit" attribute --
 -- one string, no mapping table to keep in sync.
 local UNITS = {"player", "target", "targettarget", "focus", "focustarget"}
+
+-- Boss frames. Read from the global rather than hardcoded to 5: it is
+-- Blizzard's own count and has changed before.
+local BOSS_COUNT = _G.MAX_BOSS_FRAMES or 5
+local BOSS_UNITS = {}
+for i = 1, BOSS_COUNT do BOSS_UNITS[i] = "boss" .. i end
+
+-- Everything this module spawns. Boss frames differ from the five singles in
+-- exactly two ways -- they SHARE one settings table, and they stack -- so they
+-- ride the same creation, update, click-cast and edit-mode paths and only
+-- diverge where those two facts matter.
+local ALL_UNITS = {}
+for _, u in ipairs(UNITS) do ALL_UNITS[#ALL_UNITS + 1] = u end
+for _, u in ipairs(BOSS_UNITS) do ALL_UNITS[#ALL_UNITS + 1] = u end
+
+local function IsBossUnit(unit)
+    return unit and unit:match("^boss%d+$") ~= nil
+end
+
+-- 1-based position of a boss frame in the stack, or nil.
+local function BossIndex(unit)
+    local n = unit and unit:match("^boss(%d+)$")
+    return n and tonumber(n) or nil
+end
+
+-- Where boss frame `idx` sits relative to the stack's anchor (boss1), in raw
+-- pixels. Computed from the index rather than by chaining each frame to the
+-- previous one, so an encounter that drops a middle boss cannot collapse the
+-- spacing of the ones after it.
+--
+-- Shared by ApplyLayout and the edit-mode drag. It used to live inline in
+-- ApplyLayout only, which is why dragging boss1 moved boss1 alone and the
+-- rest of the stack did not catch up until the next layout pass (a reload).
+local function BossOffset(t, idx)
+    if not t or not idx or idx <= 1 then return 0, 0 end
+    local w = t.width or 170
+    local h = t.height or 34
+    local step = t.spacing or 26
+    local dir = t.growthDirection or "DOWN"
+    local n = idx - 1
+    if dir == "UP" then return 0, n * (h + step) end
+    if dir == "RIGHT" then return n * (w + step), 0 end
+    if dir == "LEFT" then return -n * (w + step), 0 end
+    return 0, -n * (h + step) -- DOWN
+end
+
+local portraits = {}       -- [unitToken] = portrait holder (Portrait.lua)
 
 -- Which units need a target-of-target style refresh. UNIT_TARGET does fire for
 -- "target"/"focus" when their target changes, but it is not reliable for every
@@ -68,9 +124,13 @@ local function GetConfig()
     return prof and prof.unitFrames
 end
 
+-- Boss frames all read ONE shared table (cfg.boss), which is what makes the
+-- stack look uniform without five sets of controls to keep in sync.
 local function GetFrameConfig(unit)
     local cfg = GetConfig()
-    return cfg and cfg.frames and cfg.frames[unit]
+    if not cfg then return nil end
+    if IsBossUnit(unit) then return cfg.boss end
+    return cfg.frames and cfg.frames[unit]
 end
 
 -- The health/power bar texture is the SHARED Appearance setting
@@ -188,13 +248,25 @@ local function FormatToken(unit, token)
     if not unit or not UnitExists(unit) then return nil end
 
     if token == "name" then
-        -- Nicknames first, exactly as the party nameText indicator does.
-        -- N:Resolve returns a plain string or nil and the two never blend --
-        -- see Nicknames.lua's header for why `nickname or name` is a crash.
-        local N = SquizzFrames.modules and SquizzFrames.modules["Nicknames"]
-        if N and N.Resolve then
-            local nick = N.Resolve(unit)
-            if nick then return nick end
+        -- Nicknames, exactly as the party nameText indicator does. N:Resolve
+        -- returns a plain string or nil and the two never blend -- see
+        -- Nicknames.lua's header for why `nickname or name` is a crash.
+        --
+        -- Resolve is unit-agnostic (it matches on name/realm, not on token),
+        -- so this works for "player" too: a nickname you have set for yourself
+        -- shows on your own frame. Purely cosmetic and local -- nothing about
+        -- this changes what anybody else sees.
+        local t = GetFrameConfig(unit)
+        if not t or t.useNicknames ~= false then
+            -- COLON call. N:Resolve(unit) is N.Resolve(N, unit); writing
+            -- N.Resolve(unit) passes the token as `self`, leaves `unit` nil,
+            -- and the function's own nil-guard then returns nil every single
+            -- time -- a nickname that silently never appears.
+            local N = SquizzFrames.modules and SquizzFrames.modules["Nicknames"]
+            if N and N.Resolve then
+                local nick = N:Resolve(unit)
+                if nick then return nick end
+            end
         end
         return UnitName(unit)
 
@@ -396,6 +468,12 @@ local function UpdateFrame(frame)
     UpdateHealth(frame)
     UpdatePower(frame)
     UpdateTexts(frame)
+
+    local P = SquizzFrames.UnitFramePortrait
+    local holder = portraits[frame.unit]
+    if P and holder then
+        P.Update(holder, frame.unit, GetFrameConfig(frame.unit))
+    end
 end
 
 local function UpdateAll()
@@ -487,7 +565,7 @@ end
 -- module is immune to the AuraContainer rebinding problem.
 local function CreateFrames()
     if next(frames) then return end
-    for _, unit in ipairs(UNITS) do
+    for _, unit in ipairs(ALL_UNITS) do
         local frameName = "SquizzFramesUnitFrame" .. unit:gsub("^%l", string.upper)
         local frame = CreateFrame("Button", frameName, UIParent, "SquizzFramesUnitFrameTemplate")
         frame:SetAttribute("unit", unit)
@@ -499,6 +577,35 @@ local function CreateFrames()
         frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         frame:Hide()
         frames[unit] = frame
+
+        -- Portrait and cast bar are both created for every unit even when
+        -- disabled: they are plain (non-secure) frames, so they cost nothing
+        -- while hidden, and creating them lazily would mean creating a frame
+        -- mid-combat the first time somebody enabled one.
+        local P = SquizzFrames.UnitFramePortrait
+        if P and P.Create then
+            portraits[unit] = P.Create(frame, unit)
+            -- PlayerModel widgets DROP their model while hidden, and these
+            -- frames hide constantly (no target, loading screens, a boss
+            -- despawning). Nothing else fires on the way back -- the unit
+            -- token and its GUID are both unchanged -- so the re-show itself
+            -- has to be the trigger, or a 3D portrait comes back empty and
+            -- stays that way. 2D textures survive Hide/Show and do not need
+            -- this, but re-running the whole update is cheap and keeps one
+            -- path. HookScript, never SetScript: these are secure frames.
+            frame:HookScript("OnShow", function(f) UpdateFrame(f) end)
+        end
+
+        local CB = SquizzFrames.UnitFrameCastBar
+        if CB and CB.Create then
+            castBars[unit] = CB.Create(frame, unit)
+            CB.CreateMover(castBars[unit], unit,
+                function()
+                    local t = GetFrameConfig(unit)
+                    return t and t.castBar
+                end,
+                function() ApplyLayout() end)
+        end
     end
 end
 
@@ -570,6 +677,25 @@ local function CreateMover(unit)
                 unitFrame:ClearAllPoints()
                 unitFrame:SetPoint("CENTER", UIParent, "CENTER", dragX / fs, dragY / fs)
 
+                -- Boss stack: dragging boss1 carries 2..N with it. Without
+                -- this only the dragged frame moved and the rest stayed put
+                -- until the next full layout pass, which in practice meant a
+                -- reload -- they were never actually mispositioned, they just
+                -- had not been told yet.
+                if BossIndex(unit) then
+                    local bt = GetFrameConfig(unit)
+                    for _, bu in ipairs(BOSS_UNITS) do
+                        local bf = frames[bu]
+                        if bf and bu ~= unit then
+                            local bdx, bdy = BossOffset(bt, BossIndex(bu))
+                            local bs = bf:GetScale() or 1
+                            bf:ClearAllPoints()
+                            bf:SetPoint("CENTER", UIParent, "CENTER",
+                                (dragX + bdx) / bs, (dragY + bdy) / bs)
+                        end
+                    end
+                end
+
                 -- Mirrored partner moves LIVE alongside the drag, not just on
                 -- release: watching only one frame move and then seeing the
                 -- other jump at the end makes the feature feel broken.
@@ -622,15 +748,35 @@ local function CreateMover(unit)
 end
 
 function UnitFrames:SetEditMode(enabled)
-    for _, unit in ipairs(UNITS) do
+    local CB = SquizzFrames.UnitFrameCastBar
+    for _, unit in ipairs(ALL_UNITS) do
         local mover = movers[unit] or (frames[unit] and CreateMover(unit))
         if mover then
             if enabled and FrameEnabled(unit) then
+                -- SetAllPoints works on a HIDDEN frame -- it still has a valid
+                -- rect -- which is what lets boss frames be positioned outside
+                -- an encounter, when the units do not exist and the frames are
+                -- therefore invisible.
                 mover:SetAllPoints(frames[unit])
+                -- Only the FIRST boss frame is draggable. The rest are placed
+                -- by index off the shared anchor, so dragging one would apply
+                -- boss1's maths to a frame that is not at boss1's position and
+                -- make the whole stack jump. They stay as previews so you can
+                -- still see where the stack lands.
+                local idx = BossIndex(unit)
+                mover:EnableMouse(idx == nil or idx == 1)
                 mover:Show()
             else
                 mover:Hide()
             end
+        end
+        -- Detached cast bars get their own handle. CastBar.SetEditMode does
+        -- the free/enabled check itself, so a frame-anchored bar (which has no
+        -- position of its own) never grows a handle that does nothing.
+        local bar = castBars[unit]
+        if CB and bar then
+            local t = GetFrameConfig(unit)
+            CB.SetEditMode(bar, enabled and FrameEnabled(unit), t and t.castBar)
         end
     end
 end
@@ -642,10 +788,14 @@ end
 -- Font + per-slot anchoring. Declared before ApplyLayout (its only caller) so
 -- it stays a file-local: as a global it would resolve fine at call time but
 -- would also be reachable, and overwritable, from every other addon.
-local function ApplyFrameFont(frame, t)
+-- `inset` is the width an INSIDE portrait occupies, and `portraitSide` which
+-- edge it sits on. Text on that side is pushed clear of it; text on the other
+-- side is untouched. Both are 0/ignored when there is no inside portrait.
+local function ApplyFrameFont(frame, t, inset, portraitSide)
     local fontFile = (F.ResolveFontFile and F.ResolveFontFile(t.font and t.font[1]))
         or "Fonts\\FRIZQT__.TTF"
     local outline = (t.font and t.font[3]) or "OUTLINE"
+    inset = inset or 0
 
     local slots = {
         leftText   = "LEFT",
@@ -663,7 +813,13 @@ local function ApplyFrameFont(frame, t)
             -- noticeably low. This keeps text optically centred on the health
             -- bar regardless of the power bar's height.
             local anchorTo = frame.healthBar or frame
-            fs:SetPoint(point, anchorTo, point, cfg.x or 0, cfg.y or 0)
+            local x = cfg.x or 0
+            if inset > 0 and point == portraitSide then
+                -- Push away from the portrait, whichever edge it is on. RIGHT
+                -- offsets run negative, hence the sign flip.
+                x = x + ((point == "RIGHT") and -inset or inset)
+            end
+            fs:SetPoint(point, anchorTo, point, x, cfg.y or 0)
         end
     end
 end
@@ -672,7 +828,7 @@ end
 -- ApplyPetLayout: these are secure frames carrying a "unit" attribute, so
 -- SetPoint/SetSize on them is protected once combat starts, and a
 -- schedule-time-only check misses combat beginning before a deferred call runs.
-local function ApplyLayout()
+function ApplyLayout()
     if applyingLayout then return end
     if InCombatLockdown() then
         if not applyRetryFrame then
@@ -708,7 +864,7 @@ local function ApplyLayout()
         end
     end
 
-    for _, unit in ipairs(UNITS) do
+    for _, unit in ipairs(ALL_UNITS) do
         local frame = frames[unit]
         local t = GetFrameConfig(unit)
         if frame and t then
@@ -731,8 +887,12 @@ local function ApplyLayout()
                 frame:SetScale(scale)
                 frame:SetSize(w, h)
                 frame:ClearAllPoints()
+
+                -- The stack: anchorX/anchorY place boss1 and every later frame
+                -- steps off it (BossOffset). Returns 0,0 for everything else.
+                local dx, dy = BossOffset(t, BossIndex(unit))
                 frame:SetPoint("CENTER", UIParent, "CENTER",
-                    (t.anchorX or 0) / scale, (t.anchorY or 0) / scale)
+                    ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
 
                 -- The health bar is anchored TOP-LEFT/RIGHT in XML and given
                 -- its height here, so the power bar (anchored to the bottom)
@@ -750,13 +910,55 @@ local function ApplyLayout()
                     end
                 end
 
-                ApplyFrameFont(frame, t)
+                -- Portrait before the font pass: an INSIDE portrait eats into
+                -- the space the text has, and ApplyFrameFont needs that inset.
+                local P = SquizzFrames.UnitFramePortrait
+                local inset = 0
+                if P and portraits[unit] then
+                    inset = P.ApplySettings(portraits[unit], frame, t) or 0
+                end
+
+                local pside = (t.portrait and t.portrait.side) or "LEFT"
+                ApplyFrameFont(frame, t, inset, pside)
                 RegisterUnitWatch(frame)
+            end
+
+            -- Cast bar settings are applied for DISABLED frames too, so its
+            -- own enabled=false path runs and hides a bar left over from
+            -- before the frame was switched off.
+            local CB = SquizzFrames.UnitFrameCastBar
+            local bar = castBars[unit]
+            if CB and bar then
+                if FrameEnabled(unit) then
+                    CB.ApplySettings(bar, frame, t, GetBarTexture())
+                    -- Re-derive immediately: enabling a bar mid-cast, or a
+                    -- settings change during one, should show the cast in
+                    -- progress rather than waiting for the next one.
+                    if t.castBar and t.castBar.enabled then
+                        CB.StartCast(bar, unit)
+                    end
+                else
+                    CB.ApplySettings(bar, frame, {castBar = {enabled = false}})
+                end
             end
         end
     end
 
     applyingLayout = false
+
+    -- A cast bar asked to anchor to a frame that does not exist yet -- the
+    -- Cooldown Manager viewers are load-on-demand, so the global is genuinely
+    -- nil until Blizzard_CooldownViewer loads. Retry a few times rather than
+    -- leaving the bar on its fallback for the session; the counter stops this
+    -- becoming a permanent 2s poll when the target simply never appears.
+    local CBmod = SquizzFrames.UnitFrameCastBar
+    if CBmod and CBmod.anchorRetryWanted then
+        CBmod.anchorRetryWanted = false
+        anchorRetries = (anchorRetries or 0) + 1
+        if anchorRetries <= 5 then
+            C_Timer.After(2, function() ApplyLayout() end)
+        end
+    end
 
     if SquizzFrames.editMode then
         UnitFrames:SetEditMode(true)
@@ -824,6 +1026,18 @@ end
 
 function UnitFrames.ApplyLayout()
     ApplyLayout()
+end
+
+-- Re-render every frame's text slots. Called by Nicknames.RefreshAllNames --
+-- these frames are outside the indicator system, so they have no
+-- _sfNameUpdater closure for it to invoke; re-running the text pass is the
+-- equivalent.
+function UnitFrames.RefreshTexts()
+    for _, frame in pairs(frames) do
+        if frame.unit and UnitExists(frame.unit) then
+            UpdateTexts(frame)
+        end
+    end
 end
 
 function UnitFrames.HasVisibleFrames()
@@ -903,14 +1117,32 @@ function UnitFrames:OnEnable()
         -- frames on its own; what it does not do is refresh the contents when
         -- the token now points at somebody else, which is exactly what these
         -- three events mean.
+        -- A token pointing at somebody new means the cast bar must be
+        -- re-derived from scratch, not just left alone: the previous unit's
+        -- cast has to clear, and the new one's cast (already in progress, so
+        -- no START event is coming) has to appear.
+        local function RederiveCast(unit)
+            local CB = SquizzFrames.UnitFrameCastBar
+            local bar = castBars[unit]
+            if not (CB and bar and FrameEnabled(unit)) then return end
+            local t = GetFrameConfig(unit)
+            if t and t.castBar and t.castBar.enabled then
+                CB.StartCast(bar, unit)
+            end
+        end
+
         self:RegisterEvent("PLAYER_TARGET_CHANGED", function()
             local f = frames.target;       if f then UpdateFrame(f) end
             local d = frames.targettarget; if d then UpdateFrame(d) end
+            RederiveCast("target")
+            RederiveCast("targettarget")
             EnsureTotPoller()
         end)
         self:RegisterEvent("PLAYER_FOCUS_CHANGED", function()
             local f = frames.focus;       if f then UpdateFrame(f) end
             local d = frames.focustarget; if d then UpdateFrame(d) end
+            RederiveCast("focus")
+            RederiveCast("focustarget")
             EnsureTotPoller()
         end)
         -- Fires on the OWNER token when that unit's target changes, which is
@@ -930,6 +1162,72 @@ function UnitFrames:OnEnable()
         -- without any unit event firing for them.
         self:RegisterEvent("UNIT_ENTERED_VEHICLE", onUnitEvent)
         self:RegisterEvent("UNIT_EXITED_VEHICLE", onUnitEvent)
+
+        -- Portraits. UNIT_PORTRAIT_UPDATE covers the 2D texture going stale;
+        -- UNIT_MODEL_CHANGED is what a 3D portrait needs when the unit's model
+        -- is swapped (shapeshift, transformation) under an unchanged token.
+        self:RegisterEvent("UNIT_PORTRAIT_UPDATE", onUnitEvent)
+        self:RegisterEvent("UNIT_MODEL_CHANGED", onUnitEvent)
+        -- No unit argument: it means "portrait art that was not resolvable
+        -- before now is". Without it, a portrait that failed the availability
+        -- gate (unit not yet streamed) keeps its question-mark fallback until
+        -- some unrelated event happens to refresh the frame.
+        self:RegisterEvent("PORTRAITS_UPDATED", function()
+            for _, frame in pairs(frames) do
+                if frame.unit and UnitExists(frame.unit) then UpdateFrame(frame) end
+            end
+        end)
+
+        -- Boss frames. RegisterUnitWatch drives show/hide off UnitExists, but
+        -- it does not refresh CONTENTS when an encounter swaps which NPC is
+        -- behind bossN -- that is what these two are for.
+        -- UNIT_TARGETABLE_CHANGED additionally fires for a boss phasing out
+        -- and back in mid-encounter, where the token never stops existing.
+        local function RefreshBossFrames()
+            for _, unit in ipairs(BOSS_UNITS) do
+                local f = frames[unit]
+                if f and FrameEnabled(unit) then UpdateFrame(f) end
+            end
+        end
+        self:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", RefreshBossFrames)
+        self:RegisterEvent("UNIT_TARGETABLE_CHANGED", function(_, unit)
+            if IsBossUnit(unit) then
+                local f = frames[unit]
+                if f then UpdateFrame(f) end
+            end
+        end)
+
+        -- Cast bars. One handler for the whole UNIT_SPELLCAST_* family,
+        -- dispatched by unit and delegated to CastBar's own event mapping so
+        -- the event-to-action table lives next to the functions it drives.
+        --
+        -- arg2 is the castID/castGUID on every one of these events; CastBar
+        -- uses it to ignore a stale stop for a cast that already ended.
+        local CB = SquizzFrames.UnitFrameCastBar
+        if CB then
+            -- Deliberately does NOT forward the event's cast identifier: its
+            -- argument position differs per event in this family, so there is
+            -- no single arg to pass. CastBar re-derives from the API instead
+            -- -- see the comment above CastBar.StopCast.
+            local function onCastEvent(event, unit)
+                local bar = unit and castBars[unit]
+                if not bar then return end
+                if not FrameEnabled(unit) then return end
+                local t = GetFrameConfig(unit)
+                if not (t and t.castBar and t.castBar.enabled) then return end
+                CB.HandleEvent(bar, unit, event)
+            end
+            for _, event in ipairs(CB.EVENTS) do
+                self:RegisterEvent(event, onCastEvent)
+            end
+
+            -- A frame tracked for width matching (the CDM viewers above all)
+            -- resizes itself as its contents change, so re-run the layout when
+            -- it does. Coalesced through ApplyLayout, which is idempotent.
+            CB.SetMatchResizeCallback(function()
+                if not applyingLayout then ApplyLayout() end
+            end)
+        end
 
         EnsureTotPoller()
 
