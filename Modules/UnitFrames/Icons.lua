@@ -2,9 +2,13 @@
 
     Small state icons on the standalone unit frames:
 
-      "combat"  the crossed-swords in-combat marker (Player frame only -- see
-                the note on the options page below)
+      "combat"  the crossed-swords in-combat marker
       "leader"  the group leader crown, falling back to the assistant badge
+
+    Both are offered on the PLAYER frame only. That restriction lives in
+    UnitFramesPanel.lua's SecIcons, NOT here: nothing below is
+    player-specific, so widening it later is deleting one check on the options
+    page rather than writing new code.
 
     Both share one shape -- enabled / anchor / offsetX / offsetY / size /
     color -- so one factory serves them and a third icon costs a table entry

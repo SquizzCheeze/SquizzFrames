@@ -1104,18 +1104,31 @@ local function BuildIconGroup(host, y, key, label, note)
     return y
 end
 
+-- BOTH icons are the PLAYER frame's, by request. They are not built as
+-- hidden-but-present controls on the other tabs: an option that exists in the
+-- saved data with no way to reach it is the "live control that silently does
+-- nothing" failure in reverse.
+--
+-- Nothing in Icons.lua is player-specific -- it reads UnitAffectingCombat and
+-- UnitIsGroupLeader on whatever unit it is given -- so widening this later is
+-- deleting the activeUnit check, not writing new code. The restriction lives
+-- here on purpose rather than in the engine.
 local function SecIcons(host, y, cfg, t)
-    -- Combat icon on the PLAYER tab only, by request. It is not built as a
-    -- hidden-but-present control on the other tabs: an option that exists in
-    -- the saved data but has no way to reach it is the "live control that
-    -- silently does nothing" failure in reverse, and the renderer would
-    -- happily honour it if a profile ever acquired one by hand.
-    if activeUnit == "player" then
-        y = BuildIconGroup(host, y, "combatIcon",
-            L["Combat Icon"] or "Combat Icon",
-            L["CombatIconNote"]
-                or "The crossed-swords marker, shown while you are in combat.")
+    if activeUnit ~= "player" then
+        local fs = host:CreateFontString(nil, "OVERLAY")
+        fs:SetFontObject("GameFontDisableSmall")
+        fs:SetPoint("TOPLEFT", 15, y - 10)
+        fs:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetText(L["IconsPlayerOnlyNote"]
+            or "The combat and leader icons are on the Player frame only. Switch to the Player tab to set them up.")
+        return y - 40
     end
+
+    y = BuildIconGroup(host, y, "combatIcon",
+        L["Combat Icon"] or "Combat Icon",
+        L["CombatIconNote"]
+            or "The crossed-swords marker, shown while you are in combat.")
 
     y = BuildIconGroup(host, y, "leaderIcon",
         L["Leader Icon"] or "Leader Icon",

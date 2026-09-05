@@ -126,3 +126,5 @@ L["Fill From Right"] = "Fill From Right"
 L["Heal Absorb"] = "Heal Absorb"
 L["HealAbsorbNote"] = "Healing that will be swallowed before it lands, measured against current health."
 L["Color"] = "Color"
+
+L["IconsPlayerOnlyNote"] = "The combat and leader icons are on the Player frame only. Switch to the Player tab to set them up."

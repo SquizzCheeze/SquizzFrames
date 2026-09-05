@@ -149,10 +149,12 @@ local function DefaultFrame(opts)
         -- State icons (Icons.lua). Same shape as each other so one factory and
         -- one block of options serve both.
         --
-        -- The combat icon is offered on the PLAYER frame only, by request. The
-        -- renderer reads UnitAffectingCombat(unit) rather than
-        -- InCombatLockdown(), so it is already correct for any unit if that
-        -- ever changes -- the restriction lives in the options page, not here.
+        -- Both are offered on the PLAYER frame only, by request -- the options
+        -- page enforces that (SecIcons), not this table and not the renderer.
+        -- Icons.lua reads UnitAffectingCombat(unit) and UnitIsGroupLeader(unit)
+        -- on whatever unit it is handed, so these keys stay on every frame:
+        -- widening the feature later is deleting one check on the options
+        -- page, and a profile that already carries the keys costs nothing.
         combatIcon = {enabled = false, anchor = "TOPRIGHT", x = 0, y = 0,
                       size = 18, color = {1, 1, 1, 1}},
         leaderIcon = {enabled = false, anchor = "TOPLEFT", x = 0, y = 0,
