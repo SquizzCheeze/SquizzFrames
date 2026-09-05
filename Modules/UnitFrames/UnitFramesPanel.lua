@@ -1257,6 +1257,302 @@ local function SecAbsorbs(host, y, cfg, t)
     return y
 end
 
+-- The resource bar. Module-wide rather than per-unit (it is always the
+-- player's own resources), so its accessors read profile.unitFrames.resourceBar
+-- directly instead of going through GetUnitConfig.
+local function ResourceGetters()
+    local function Cfg()
+        local cfg = GetConfig()
+        if not cfg then return nil end
+        cfg.resourceBar = cfg.resourceBar or {}
+        return cfg.resourceBar
+    end
+    local function Read(field, fallback)
+        local c = GetConfig()
+        local v = c and c.resourceBar and c.resourceBar[field]
+        if v == nil then return fallback end
+        return v
+    end
+    local function Write(field, v)
+        local c = Cfg()
+        if not c then return end
+        c[field] = v
+        Changed()
+    end
+    return {
+        Read = Read,
+        Write = Write,
+        bool = function(field, fallback)
+            return function() return Read(field, fallback) == true end
+        end,
+        -- Rebuilding setter, for the switches that add or remove controls
+        -- below them. Kept separate so a plain slider never rebuilds the page
+        -- mid-drag.
+        setBoolRebuild = function(field)
+            return function(v) Write(field, v); if rebuildFields then rebuildFields() end end
+        end,
+        setBool = function(field)
+            return function(v) Write(field, v) end
+        end,
+        -- Generic: these carry strings (a dropdown value) as often as
+        -- numbers, hence the neutral names.
+        get = function(field, fallback)
+            return function() return Read(field, fallback) end
+        end,
+        set = function(field)
+            return function(v) Write(field, v) end
+        end,
+        colorGet = function(field, dr, dg, db, da)
+            return function()
+                local c = Read(field, nil)
+                if type(c) ~= "table" then return dr, dg, db, da end
+                return c[1] or dr, c[2] or dg, c[3] or db, c[4] or da
+            end
+        end,
+        colorSet = function(field)
+            return function(r, g, b, a) Write(field, {r, g, b, a}) end
+        end,
+    }
+end
+
+local COLOR_MODE_ITEMS = {
+    {value = "auto",   text = L["Automatic"] or "Automatic"},
+    {value = "class",  text = L["Class Color"] or "Class Color"},
+    {value = "custom", text = L["Custom"] or "Custom"},
+}
+
+local POWER_TEXT_ITEMS = {
+    {value = "power",        text = L["Power"] or "Power"},
+    {value = "powerPercent", text = L["Power %"] or "Power %"},
+}
+
+local function SecResource(host, y, cfg, t)
+    local R = ResourceGetters()
+
+    W.CreateTitledPane(host, L["Resource Bar"] or "Resource Bar", y)
+    y = y - 35
+
+    local cbOn = W.CreateStyledCheckbox(host, L["Enable Resource Bar"] or "Enable Resource Bar",
+        R.bool("enabled", false), R.setBoolRebuild("enabled"))
+    cbOn:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local note = host:CreateFontString(nil, "OVERLAY")
+    note:SetFontObject("GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", 32, y)
+    note:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    note:SetJustifyH("LEFT")
+    note:SetText(L["ResourceBarNote"]
+        or "Your power bar plus your class's secondary resource - Holy Power, Combo Points, Chi, Soul Shards, Arcane Charges, Essence or Runes. Works whether or not the unit frames above are switched on. Drag it in Edit Mode.")
+    y = y - 46
+
+    if not R.Read("enabled", false) then return y end
+
+    -- Position. Shares the cast bar's curated frame list and side vocabulary
+    -- so "anchor to the Essential Cooldowns row" means the same thing and
+    -- reads the same way in both places.
+    local CB = SquizzFrames.UnitFrameCastBar
+    local POSITION_ITEMS = {
+        {value = "free",   text = L["Free (drag it)"] or "Free (drag it)"},
+        {value = "anchor", text = L["Anchored to a Frame"] or "Anchored to a Frame"},
+    }
+
+    local ddPos = W.CreateStyledDropdown(host, 200, 40, L["Position"] or "Position",
+        POSITION_ITEMS, R.get("positionMode", "free"),
+        function(v) R.Write("positionMode", v); if rebuildFields then rebuildFields() end end)
+    ddPos:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    if R.Read("positionMode", "free") == "anchor" and CB then
+        local ddTo = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
+            CB.MATCH_TARGETS, R.get("attachTo", "EssentialCooldownViewer"),
+            R.set("attachTo"))
+        ddTo:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local ddSide = W.CreateStyledDropdown(host, 200, 40, L["Side"] or "Side",
+            CB.ATTACH_SIDES, R.get("attachSide", "BOTTOM"), R.set("attachSide"))
+        ddSide:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sOX = W.CreateStyledSlider(host, 200, -300, 300, 1, L["Offset X"] or "Offset X",
+            R.get("offsetX", 0), R.set("offsetX"))
+        sOX:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sOY = W.CreateStyledSlider(host, 200, -300, 300, 1, L["Offset Y"] or "Offset Y",
+            R.get("offsetY", 0), R.set("offsetY"))
+        sOY:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
+    -- Width
+    local WIDTH_ITEMS = {
+        {value = "custom", text = L["Custom"] or "Custom"},
+        {value = "match",  text = L["Match a Frame"] or "Match a Frame"},
+    }
+
+    local ddWidth = W.CreateStyledDropdown(host, 200, 40, L["Width"] or "Width",
+        WIDTH_ITEMS, R.get("widthMode", "custom"),
+        function(v) R.Write("widthMode", v); if rebuildFields then rebuildFields() end end)
+    ddWidth:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    if R.Read("widthMode", "custom") == "match" and CB then
+        local ddMatch = W.CreateStyledDropdown(host, 200, 40, L["Match Width Of"] or "Match Width Of",
+            CB.MATCH_TARGETS, R.get("matchFrame", "EssentialCooldownViewer"),
+            R.set("matchFrame"))
+        ddMatch:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    else
+        local sWidth = W.CreateStyledSlider(host, 200, 60, 600, 1, L["Width"] or "Width",
+            R.get("width", 220), R.set("width"))
+        sWidth:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+    end
+
+    local sScale = W.CreateStyledSlider(host, 200, 0.5, 2, 0.05, L["Scale"] or "Scale",
+        R.get("scale", 1), R.set("scale"))
+    sScale:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    -- Power bar
+    W.CreateTitledPane(host, L["Power Bar"] or "Power Bar", y)
+    y = y - 35
+
+    local cbPower = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        R.bool("showPower", true), R.setBoolRebuild("showPower"))
+    cbPower:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
+    if R.Read("showPower", true) then
+        local sH = W.CreateStyledSlider(host, 200, 2, 60, 1, L["Height"] or "Height",
+            R.get("powerHeight", 16), R.set("powerHeight"))
+        sH:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local ddColor = W.CreateStyledDropdown(host, 200, 40, L["Color"] or "Color",
+            COLOR_MODE_ITEMS, R.get("powerColorMode", "auto"),
+            function(v) R.Write("powerColorMode", v); if rebuildFields then rebuildFields() end end)
+        ddColor:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        if R.Read("powerColorMode", "auto") == "custom" then
+            local cp = W.CreateColorPicker(host, L["Custom Color"] or "Custom Color",
+                R.colorGet("powerColor", 0.2, 0.4, 0.8, 1), R.colorSet("powerColor"))
+            cp:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 36
+        end
+
+        local cbText = W.CreateStyledCheckbox(host, L["Show Text"] or "Show Text",
+            R.bool("showPowerText", true), R.setBoolRebuild("showPowerText"))
+        cbText:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+
+        if R.Read("showPowerText", true) then
+            local ddFmt = W.CreateStyledDropdown(host, 200, 40, L["Format"] or "Format",
+                POWER_TEXT_ITEMS, R.get("textFormat", "power"), R.set("textFormat"))
+            ddFmt:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local ddAnchor = W.CreateStyledDropdown(host, 200, 40, L["Anchor"] or "Anchor",
+                AnchorItems(), R.get("textAnchor", "CENTER"), R.set("textAnchor"))
+            ddAnchor:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local sTX = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset X"] or "Offset X",
+                R.get("textX", 0), R.set("textX"))
+            sTX:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local sTY = W.CreateStyledSlider(host, 200, -50, 50, 1, L["Offset Y"] or "Offset Y",
+                R.get("textY", 0), R.set("textY"))
+            sTY:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local sFont = W.CreateStyledSlider(host, 200, 6, 24, 1, L["Size"] or "Size",
+                R.get("fontSize", 12), R.set("fontSize"))
+            sFont:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local cpText = W.CreateColorPicker(host, L["Text Color"] or "Text Color",
+                R.colorGet("textColor", 1, 1, 1, 1), R.colorSet("textColor"))
+            cpText:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 42
+        end
+    end
+
+    -- Point row
+    W.CreateTitledPane(host, L["Resource Points"] or "Resource Points", y)
+    y = y - 35
+
+    local cbPoints = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        R.bool("showPoints", true), R.setBoolRebuild("showPoints"))
+    cbPoints:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    -- Names the resource this character will actually get, so it is obvious
+    -- when a class simply has none rather than looking like a broken setting.
+    local RB = SquizzFrames.ResourceBar
+    local resName = RB and RB.ResolveSecondary and select(1, RB.ResolveSecondary())
+    local pointNote = host:CreateFontString(nil, "OVERLAY")
+    pointNote:SetFontObject("GameFontDisableSmall")
+    pointNote:SetPoint("TOPLEFT", 32, y)
+    pointNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    pointNote:SetJustifyH("LEFT")
+    if resName then
+        pointNote:SetText((L["ResourcePointsFound"] or "This specialization uses: %s")
+            :format(resName))
+    else
+        pointNote:SetText(L["ResourcePointsNone"]
+            or "This specialization has no secondary resource, so no points are drawn.")
+    end
+    y = y - 34
+
+    if R.Read("showPoints", true) then
+        local sPH = W.CreateStyledSlider(host, 200, 2, 40, 1, L["Height"] or "Height",
+            R.get("pointHeight", 8), R.set("pointHeight"))
+        sPH:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sSpace = W.CreateStyledSlider(host, 200, 0, 20, 1, L["Spacing"] or "Spacing",
+            R.get("pointSpacing", 2), R.set("pointSpacing"))
+        sSpace:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sGap = W.CreateStyledSlider(host, 200, 0, 20, 1, L["Gap"] or "Gap",
+            R.get("gap", 2), R.set("gap"))
+        sGap:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local cbAbove = W.CreateStyledCheckbox(host, L["Points Above Bar"] or "Points Above Bar",
+            R.bool("pointsAbove", true), R.setBool("pointsAbove"))
+        cbAbove:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+
+        local ddPColor = W.CreateStyledDropdown(host, 200, 40, L["Color"] or "Color",
+            COLOR_MODE_ITEMS, R.get("pointColorMode", "auto"),
+            function(v) R.Write("pointColorMode", v); if rebuildFields then rebuildFields() end end)
+        ddPColor:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        if R.Read("pointColorMode", "auto") == "custom" then
+            local cp = W.CreateColorPicker(host, L["Custom Color"] or "Custom Color",
+                R.colorGet("pointColor", 1, 0.85, 0.3, 1), R.colorSet("pointColor"))
+            cp:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 36
+        end
+
+        local cpEmpty = W.CreateColorPicker(host, L["Empty Color"] or "Empty Color",
+            R.colorGet("pointEmptyColor", 0.15, 0.15, 0.15, 0.8),
+            R.colorSet("pointEmptyColor"))
+        cpEmpty:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 42
+    end
+
+    return y
+end
+
 -----------------------------------------------------------------------
 -- Section registry + dispatch
 -----------------------------------------------------------------------
@@ -1274,6 +1570,9 @@ local SECTIONS = {
     {key = "auras",    label = L["Auras"] or "Auras",       build = SecAuras},
     {key = "icons",    label = L["Icons"] or "Icons",       build = SecIcons},
     {key = "absorbs",  label = L["Absorbs"] or "Absorbs",   build = SecAbsorbs},
+    -- Module-wide, not per-unit: it is always the player's own resources. It
+    -- reads the same settings whichever unit tab happens to be selected.
+    {key = "resource", label = L["Resources"] or "Resources", build = SecResource},
     {key = "position", label = L["Position"] or "Position", build = SecPosition},
 }
 

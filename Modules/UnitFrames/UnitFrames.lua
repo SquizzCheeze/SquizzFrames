@@ -869,6 +869,11 @@ function UnitFrames:SetEditMode(enabled)
             CB.SetEditMode(bar, enabled and FrameEnabled(unit), t and t.castBar)
         end
     end
+
+    -- Outside the loop, and NOT gated on FrameEnabled: the resource bar has
+    -- its own enable and works with the unit frames switched off entirely.
+    local RB = SquizzFrames.ResourceBar
+    if RB and RB.SetEditMode then RB.SetEditMode(enabled) end
 end
 
 -----------------------------------------------------------------------
@@ -1051,7 +1056,28 @@ function ApplyLayout()
 
     applyingLayout = false
 
-    -- A cast bar asked to anchor to a frame that does not exist yet -- the
+    -- The resource bar. Applied here so a settings edit reaches it through the
+    -- same UnitFramesChanged -> ApplyLayout path as everything else, but
+    -- OUTSIDE the per-unit loop and gated only on its own `enabled` -- it is
+    -- deliberately usable with the unit frames themselves switched off. See
+    -- ResourceBar.lua's header.
+    --
+    -- BEFORE the anchor-retry check below, not after: it shares the cast bar's
+    -- anchorRetryWanted flag (it can target the same load-on-demand CDM
+    -- viewers), so applying it afterwards would leave its request sitting
+    -- unread until some unrelated edit triggered the next layout pass.
+    local RB = SquizzFrames.ResourceBar
+    if RB then
+        if not RB.bar then
+            RB.Create()
+            RB.CreateMover()
+        end
+        local prof2 = GetProfile()
+        local rcfg = prof2 and prof2.unitFrames and prof2.unitFrames.resourceBar
+        RB.ApplySettings(rcfg, GetBarTexture())
+    end
+
+    -- A bar asked to anchor to a frame that does not exist yet -- the
     -- Cooldown Manager viewers are load-on-demand, so the global is genuinely
     -- nil until Blizzard_CooldownViewer loads. Retry a few times rather than
     -- leaving the bar on its fallback for the session; the counter stops this

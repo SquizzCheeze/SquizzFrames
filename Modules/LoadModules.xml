@@ -21,6 +21,10 @@
     <Script file="UnitFrames/Auras.lua"/>
     <Script file="UnitFrames/Icons.lua"/>
     <Script file="UnitFrames/Absorbs.lua"/>
+    <!-- Standalone player resource bar. Reads its settings out of
+         profile.unitFrames but is NOT gated on that module being enabled --
+         see its header. -->
+    <Script file="UnitFrames/ResourceBar.lua"/>
     <!-- Options-page mock. Reads UnitFrames.FormatToken/ResolveHealthColor at
          runtime so the preview cannot drift from what the real frames draw. -->
     <Script file="UnitFrames/Preview.lua"/>

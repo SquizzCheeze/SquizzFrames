@@ -116,6 +116,29 @@ local ATTACH_POINTS = {
 -- retry rather than leaving the bar stranded on its fallback forever.
 CastBar.anchorRetryWanted = false
 
+-- Shared with ResourceBar.lua, which offers the same "anchor to a frame" and
+-- "match a frame's width" options. Exported rather than copied: the CDM
+-- viewers' load-on-demand behaviour, the resize hook that must be installed
+-- exactly once per frame, and the zero-width guard are all easy to get subtly
+-- wrong twice. MATCH_TARGETS and ATTACH_SIDES are already public for the same
+-- reason (the options page builds its dropdowns from them).
+function CastBar.AttachPoints(side)
+    return ATTACH_POINTS[side or "BOTTOM"] or ATTACH_POINTS.BOTTOM
+end
+
+-- Width of a tracked frame, or nil when it cannot be used yet. Installs the
+-- live-resize hook as a side effect, so callers get CDM viewers that resize
+-- with the player's tracked cooldowns for free.
+function CastBar.MatchedWidth(matchFrame)
+    local target = matchFrame and _G[matchFrame]
+    if target and target.GetWidth then
+        EnsureMatchHook(target)
+        local w = target:GetWidth()
+        if w and w > 1 then return w end
+    end
+    return nil
+end
+
 -- Resolve the configured width, or nil to fall back to the caller's default.
 local function ResolveWidth(cfg, frameWidth)
     local mode = cfg.widthMode or "frame"

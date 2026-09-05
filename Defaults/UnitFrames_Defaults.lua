@@ -337,6 +337,86 @@ profile.unitFrames = {
     -- MigrateHideBlizzardSwitches in Core.lua strips the two dead keys off
     -- existing profiles.
 
+    -- THE RESOURCE BAR (ResourceBar.lua). A standalone movable bar for the
+    -- player's own power plus their class's secondary resource -- Holy Power,
+    -- Combo Points, Chi, Soul Shards, Arcane Charges, Essence, Runes.
+    --
+    -- Lives here beside `frames` rather than inside player's own table, and
+    -- reads its `enabled` INDEPENDENTLY of unitFrames.enabled: wanting a Holy
+    -- Power display is not the same as wanting a replacement player frame, and
+    -- making one require the other would be a hidden dependency with no error
+    -- message. See ResourceBar.lua's header.
+    --
+    -- Which secondary resource appears is worked out per class and spec, and
+    -- then only drawn when the game currently reports one (a Feral druid's
+    -- combo points come and go with cat form on their own). There is no manual
+    -- override because there is nothing sensible to override it TO -- a
+    -- Warrior has no secondary resource to pick.
+    resourceBar = {
+        enabled = false,
+
+        -- POSITION. "free" is its own screen position, dragged in Edit Mode;
+        -- "anchor" rides another frame and follows it around. attachTo is a
+        -- global frame name from CastBar.MATCH_TARGETS (a curated list, not
+        -- free text -- a typo would silently resolve to nothing on screen with
+        -- no way to tell why), and attachSide is one of its ATTACH_SIDES.
+        positionMode = "free",       -- "free" | "anchor"
+        attachTo = "EssentialCooldownViewer",
+        attachSide = "BOTTOM",
+        offsetX = 0,
+        offsetY = 0,
+
+        -- Raw pixels from UIParent centre, divided by scale at apply time --
+        -- the same convention as every other saved position in the addon.
+        -- Still used as the fallback when an anchor target has not loaded yet,
+        -- so the bar is somewhere findable rather than pinned to screen centre.
+        anchorX = 0,
+        anchorY = -260,
+
+        -- WIDTH. "match" tracks another frame's width live, sharing the cast
+        -- bar's implementation -- the Cooldown Manager rows are the point of
+        -- it, and they resize themselves as your tracked cooldowns change.
+        widthMode = "custom",        -- "custom" | "match"
+        matchFrame = "EssentialCooldownViewer",
+        width = 220,
+        scale = 1,
+
+        -- Primary power bar. showPower false, or powerHeight 0, drops it and
+        -- leaves a bare point row -- which is a perfectly reasonable thing to
+        -- want next to a class that already shows mana somewhere else.
+        showPower = true,
+        powerHeight = 16,
+        powerColorMode = "auto",     -- "auto" (power type) | "class" | "custom"
+        powerColor = {0.2, 0.4, 0.8, 1},
+
+        -- Point row for the secondary resource.
+        showPoints = true,
+        pointHeight = 8,
+        pointSpacing = 2,
+        -- Which row owns the TOP edge. Points above reads more naturally for
+        -- a builder/spender (they are what you are watching), so it is the
+        -- default.
+        pointsAbove = true,
+        pointColorMode = "auto",     -- "auto" (per resource) | "class" | "custom"
+        pointColor = {1, 0.85, 0.3, 1},
+        pointEmptyColor = {0.15, 0.15, 0.15, 0.8},
+
+        -- Gap between the two rows, when both are shown.
+        gap = 2,
+
+        -- Power text. textFormat is a UnitFrames text token, rendered through
+        -- that module's own FormatToken so the secret-value handling lives in
+        -- one place -- "power", "powerPercent".
+        showPowerText = true,
+        textFormat = "power",
+        textAnchor = "CENTER",
+        textX = 0,
+        textY = 0,
+        textColor = {1, 1, 1, 1},
+        font = {"Friz QT__", 12, "OUTLINE", true},
+        fontSize = 12,
+    },
+
     frames = {
         player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,
                                     healthFormat = "healthBoth"},

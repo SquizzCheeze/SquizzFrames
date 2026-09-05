@@ -53,6 +53,7 @@ SquizzFrames/
     │   ├── UnitFrames.lua      # Engine: fixed-token frames, health/power/4 text elements (name/health/power/level), movers, derived-unit poll
     │   ├── Icons.lua           # Combat + leader state icons (anchor/offset/size/tint), secret-safe booleans
     │   ├── Absorbs.lua         # Shield + heal-absorb health-bar overlays; values go straight to SetValue, never touched in Lua
+    │   ├── ResourceBar.lua     # Standalone movable player power + secondary-resource points; NOT gated on unitFrames.enabled
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames
     ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame
