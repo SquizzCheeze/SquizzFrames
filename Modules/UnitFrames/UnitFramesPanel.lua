@@ -1260,16 +1260,27 @@ end
 -- The resource bar. Module-wide rather than per-unit (it is always the
 -- player's own resources), so its accessors read profile.unitFrames.resourceBar
 -- directly instead of going through GetUnitConfig.
-local function ResourceGetters()
+-- `sub` addresses a nested table (border), so one generator serves both the
+-- flat settings and the grouped ones.
+local function ResourceGetters(sub)
     local function Cfg()
         local cfg = GetConfig()
         if not cfg then return nil end
         cfg.resourceBar = cfg.resourceBar or {}
-        return cfg.resourceBar
+        local t = cfg.resourceBar
+        if sub then
+            t[sub] = t[sub] or {}
+            t = t[sub]
+        end
+        return t
     end
+    -- Deliberately does NOT go through Cfg: that materialises missing tables,
+    -- and merely OPENING the options page should not write to the profile.
     local function Read(field, fallback)
         local c = GetConfig()
-        local v = c and c.resourceBar and c.resourceBar[field]
+        local t = c and c.resourceBar
+        if sub then t = t and t[sub] end
+        local v = t and t[field]
         if v == nil then return fallback end
         return v
     end
@@ -1547,6 +1558,45 @@ local function SecResource(host, y, cfg, t)
             R.colorGet("pointEmptyColor", 0.15, 0.15, 0.15, 0.8),
             R.colorSet("pointEmptyColor"))
         cpEmpty:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 42
+    end
+
+    -- Border
+    local B = ResourceGetters("border")
+
+    W.CreateTitledPane(host, L["Border"] or "Border", y)
+    y = y - 35
+
+    local cbBorder = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        B.bool("enabled", false), B.setBoolRebuild("enabled"))
+    cbBorder:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local borderNote = host:CreateFontString(nil, "OVERLAY")
+    borderNote:SetFontObject("GameFontDisableSmall")
+    borderNote:SetPoint("TOPLEFT", 32, y)
+    borderNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    borderNote:SetJustifyH("LEFT")
+    borderNote:SetText(L["ResourceBorderNote"]
+        or "Outlines the whole bar, both rows together. Set the row Gap to 0 if you want it tight around them.")
+    y = y - 34
+
+    if B.Read("enabled", false) then
+        local sThick = W.CreateStyledSlider(host, 200, 1, 8, 1,
+            L["Thickness"] or "Thickness",
+            B.get("thickness", 1), B.set("thickness"))
+        sThick:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sPad = W.CreateStyledSlider(host, 200, 0, 20, 1,
+            L["Padding"] or "Padding",
+            B.get("padding", 0), B.set("padding"))
+        sPad:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local cpBorder = W.CreateColorPicker(host, L["Color"] or "Color",
+            B.colorGet("color", 0, 0, 0, 1), B.colorSet("color"))
+        cpBorder:SetPoint("TOPLEFT", 15, y - 6)
         y = y - 42
     end
 

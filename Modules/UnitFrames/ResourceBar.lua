@@ -189,6 +189,22 @@ function ResourceBar.Create()
         bar.points[i] = pip
     end
 
+    -- Border, LAST so it draws above the power bar and the point row (same
+    -- frame level, and same-level siblings resolve by creation order), but
+    -- below textHost at +5 so the power text still reads over it.
+    --
+    -- Reuses BuiltIn_Update.lua's CreateBorderIndicator, the same factory the
+    -- pet buttons borrow rather than rolling their own -- it is exported for
+    -- exactly this. It is resolved at RUNTIME, not load time: that file loads
+    -- after this one (see LoadModules.xml), and Create only ever runs from
+    -- OnEnable, long after everything is in memory.
+    local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
+    if BU and BU.CreateBorderIndicator then
+        local border = BU.CreateBorderIndicator(bar, "Border")
+        border:SetFrameLevel(bar:GetFrameLevel() + 4)
+        bar.border = border
+    end
+
     ResourceBar.bar = bar
     return bar
 end
@@ -333,6 +349,28 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         end
     else
         for i = 1, MAX_POINTS do bar.points[i]:Hide() end
+    end
+
+    -- Border. Wraps the WHOLE bar, power row and point row together, rather
+    -- than one box per row: two boxes with a gap between them is a different
+    -- look, and the one people ask for is the outline. `padding` pushes it
+    -- outward from the bar's edge -- at 0 it sits on the edge itself, drawing
+    -- over the outermost pixel of the bars the way the party frame border
+    -- does. Set the row gap to 0 if you want the outline tight.
+    local b = cfg.border
+    if bar.border then
+        if b and b.enabled then
+            local pad = b.padding or 0
+            bar.border:ClearAllPoints()
+            bar.border:SetPoint("TOPLEFT", bar, "TOPLEFT", -pad, pad)
+            bar.border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", pad, -pad)
+            bar.border:SetThickness(b.thickness or 1)
+            local c = b.color or {0, 0, 0, 1}
+            bar.border:SetColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
+            bar.border:Show()
+        else
+            bar.border:Hide()
+        end
     end
 
     bar:Show()

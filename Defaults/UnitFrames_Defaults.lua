@@ -404,6 +404,18 @@ profile.unitFrames = {
         -- Gap between the two rows, when both are shown.
         gap = 2,
 
+        -- Border around the WHOLE bar (both rows plus the gap between them),
+        -- built on BuiltIn_Update.lua's shared CreateBorderIndicator.
+        -- padding pushes it outward from the bar's edge; at 0 it sits on the
+        -- edge itself, over the outermost pixel of the bars, matching how the
+        -- party frame border behaves.
+        border = {
+            enabled = false,
+            thickness = 1,
+            padding = 0,
+            color = {0, 0, 0, 1},
+        },
+
         -- Power text. textFormat is a UnitFrames text token, rendered through
         -- that module's own FormatToken so the secret-value handling lives in
         -- one place -- "power", "powerPercent".
