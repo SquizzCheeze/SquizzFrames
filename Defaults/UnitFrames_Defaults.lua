@@ -117,6 +117,68 @@ local function DefaultFrame(opts)
             borderColor = {0, 0, 0, 0},
         },
 
+        -- Auras (Phase 3), built on the 12.1 AuraEngine -- see Auras.lua.
+        --
+        -- anchor "none" is off, which is why there is no separate enabled
+        -- flag: one control, and no way to have a row that is enabled but
+        -- has nowhere to be. The anchor vocabulary matches EllesmereUI's.
+        --
+        -- growth "auto" derives from the anchor (a row hung off the left
+        -- grows left), which is right almost always; the explicit values are
+        -- there for the cases where it is not.
+        buffs = {
+            anchor = opts.buffs or "none",
+            growth = "auto",
+            num = 8,
+            size = 20,
+            offsetX = 0,
+            offsetY = 2,
+            onlyMine = false,
+            showDuration = true,
+            showStack = true,
+            showBorder = true,
+            -- Text placement, passed straight through to the AuraEngine style
+            -- (see Auras.lua's BuildStyle). Duration takes TWO points -- its
+            -- own and the icon's -- which is what lets it sit outside the icon
+            -- (TOP anchored to the icon's BOTTOM, the default) as well as on
+            -- it. Stacks take one point, used for both sides, because that is
+            -- all the engine's style honours for them.
+            durationPoint = "TOP",
+            durationRelPoint = "BOTTOM",
+            durationX = 0,
+            durationY = -2,
+            stackPoint = "BOTTOMRIGHT",
+            stackX = 1,
+            stackY = -1,
+        },
+        debuffs = {
+            anchor = opts.debuffs or "none",
+            growth = "auto",
+            num = 8,
+            size = 22,
+            offsetX = 0,
+            offsetY = -2,
+            -- Debuffs default to yours only on a target: an enemy in a raid
+            -- carries far too many for an unfiltered row to be readable.
+            onlyMine = false,
+            showDuration = true,
+            showStack = true,
+            showBorder = true,
+            -- Text placement, passed straight through to the AuraEngine style
+            -- (see Auras.lua's BuildStyle). Duration takes TWO points -- its
+            -- own and the icon's -- which is what lets it sit outside the icon
+            -- (TOP anchored to the icon's BOTTOM, the default) as well as on
+            -- it. Stacks take one point, used for both sides, because that is
+            -- all the engine's style honours for them.
+            durationPoint = "TOP",
+            durationRelPoint = "BOTTOM",
+            durationX = 0,
+            durationY = -2,
+            stackPoint = "BOTTOMRIGHT",
+            stackX = 1,
+            stackY = -1,
+        },
+
         -- Cast bar (Phase 2). Per-frame rather than shared: you almost
         -- certainly want a bigger, more prominent bar on your target than on
         -- a target-of-target, and some frames want none at all.
@@ -205,11 +267,13 @@ profile.unitFrames = {
         player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,
                                     rightText = "healthBoth"},
         target       = DefaultFrame{anchorX =  260, anchorY = -180, castBar = true,
+                                    buffs = "topleft", debuffs = "bottomleft",
                                     rightText = "healthBoth"},
         targettarget = DefaultFrame{anchorX =  430, anchorY = -140,
                                     width = 110, height = 26, powerHeight = 0,
                                     leftText = "name", rightText = "healthPercent"},
         focus        = DefaultFrame{anchorX = -260, anchorY = -280, castBar = true,
+                                    debuffs = "bottomleft",
                                     width = 150, height = 34,
                                     rightText = "healthPercent"},
         focustarget  = DefaultFrame{enabled = false,

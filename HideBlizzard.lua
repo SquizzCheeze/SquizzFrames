@@ -266,6 +266,9 @@ end
 --
 -- PetCastingBarFrame is deliberately NOT touched: nothing in this addon draws
 -- a replacement for it yet, so hiding it would just lose information.
+--
+-- Boss frames are not in this table either -- they share one settings entry
+-- rather than having one each, so they get their own block below.
 local BLIZZARD_CASTBARS = {"PlayerCastingBarFrame", "CastingBarFrame"}
 
 function SquizzFrames:HideBlizzardCastBar()
@@ -304,6 +307,28 @@ function SquizzFrames:HideBlizzardUnitFrames()
                 HideFrame(frame)
             else
                 ShowFrame(frame)
+            end
+        end
+    end
+
+    -- Boss frames, handled separately because their settings do NOT live in
+    -- uf.frames -- all five share the single uf.boss table (see
+    -- UnitFrames_Defaults.lua), so the loop above cannot reach them.
+    local bossOn = hide and uf and uf.boss and uf.boss.enabled == true
+
+    -- Modern retail groups all five under one container, so hiding it covers
+    -- the lot; the individual globals are the fallback for a build that has
+    -- no container. Doing BOTH would reparent the children out from under a
+    -- container that is itself hidden, which the show path then cannot undo
+    -- cleanly -- hence the either/or.
+    local container = _G["BossTargetFrameContainer"]
+    if container then
+        if bossOn then HideFrame(container) else ShowFrame(container) end
+    else
+        for i = 1, (_G.MAX_BOSS_FRAMES or 5) do
+            local bf = _G["Boss" .. i .. "TargetFrame"]
+            if bf then
+                if bossOn then HideFrame(bf) else ShowFrame(bf) end
             end
         end
     end

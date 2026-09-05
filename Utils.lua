@@ -950,11 +950,11 @@ function F.SlashHandler(msg)
         if SquizzFrames.locked then
             SquizzFrames.locked = false
             SquizzFrames:Fire("LockChanged", false)
-            SquizzFrames.Print(L["Unlock Frames"])
+            SquizzFrames:Print(L["Unlock Frames"])
         else
             SquizzFrames.locked = true
             SquizzFrames:Fire("LockChanged", true)
-            SquizzFrames.Print(L["Lock Frames"])
+            SquizzFrames:Print(L["Lock Frames"])
         end
     elseif cmd == "reset" then
         if SquizzFrames.db then
@@ -964,7 +964,7 @@ function F.SlashHandler(msg)
             -- 2026-08-07: refuse in combat and say why, rather than
             -- pretending it worked.
             if InCombatLockdown() then
-                SquizzFrames.Print("Can't reset while in combat -- try again once you're out.")
+                SquizzFrames:Print("Can't reset while in combat -- try again once you're out.")
             else
                 SquizzFrames.db:ResetProfile()
                 ReloadUI()
@@ -980,11 +980,24 @@ function F.SlashHandler(msg)
         else
             SquizzFrames:Print("Nicknames module isn't loaded.")
         end
+    elseif cmd == "debug" then
+        -- Toggles the profile-migration narration (Core.lua's
+        -- MigrationPrint). Persisted account-wide, because the interesting
+        -- migration pass runs at login before any slash command could fire
+        -- -- see the comment on MigrationDebugEnabled.
+        if SquizzFramesDB then
+            SquizzFramesDB.debugMigrations = not SquizzFramesDB.debugMigrations
+            if SquizzFramesDB.debugMigrations then
+                SquizzFrames:Print("Migration debug ON -- /reload to see the login migration pass.")
+            else
+                SquizzFrames:Print("Migration debug OFF.")
+            end
+        end
     elseif cmd == "healer" then
         if SquizzFrames.ApplyHealerPreset then
             SquizzFrames.ApplyHealerPreset()
         else
-            SquizzFrames.Print("Healer preset not available yet.")
+            SquizzFrames:Print("Healer preset not available yet.")
         end
     end
 end

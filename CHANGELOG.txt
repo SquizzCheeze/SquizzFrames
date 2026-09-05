@@ -15,8 +15,9 @@ Added:
 - Unit Frames (new): player, target, target of target, focus and focus target,
   each independently enabled, sized and positioned, with a health bar, an
   optional power bar and three configurable text slots (left, right, centre).
-  Off by default. Turning it on hides Blizzard's matching frames, and turning
-  it back off gives them back. Find it under Unit Frames in the options.
+  Off by default. Turning it on hides Blizzard's matching frames - including
+  its boss frames - and turning it back off gives them all back. Find it under
+  Unit Frames in the options.
 
   Text slots can show name, health, health percent, health and percent,
   health/max, power, power percent, level, or level and class. Health bars
@@ -78,7 +79,34 @@ Added:
   a single long list to find one setting. The unit tabs run along the top and
   the sections down the left, and both stay put while the settings scroll.
 
-  Auras and arena frames are still to come.
+- Buff and debuff rows on any unit frame, positioned the way you'd expect:
+  pick a corner or side (above-left, below-right, left of the frame, and so
+  on) and the icons flow away from the frame from there. Growth follows the
+  anchor unless you override it. Per-row controls for icon count, size,
+  offsets, mine-only filtering, duration text, stacks and borders.
+
+  They're built on the same aura engine the party frames use, so they keep
+  working through a whole encounter rather than going blind the moment combat
+  starts.
+
+- A live preview down the right of the Unit Frames page, at actual size, so
+  you can judge a width or a colour without closing the options and going to
+  find a target. It updates as you drag a slider and shows the bars, text,
+  portrait, cast bar and aura rows for whichever frame you're editing.
+
+  Arena frames are still to come.
+
+Fixed:
+
+- No more "Migration: added missing built-in indicator ..." lines filling your
+  chat when you join or leave a group. Those were developer diagnostics that
+  ran whenever a profile loaded for the first time since an update, which with
+  profile auto-switching on could be at the least explicable moment possible.
+  The migrations themselves are unchanged; only the chatter is gone. /sf debug
+  turns it back on if you ever need it.
+
+- /sf lock, /sf unlock and the "can't reset in combat" message printed a bare
+  "nil" instead of what they meant to say.
 
 
 V1.13 (2026-08-31)

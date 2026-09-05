@@ -15,6 +15,13 @@
          keeping the dependency pointing one way stays easier to reason about. -->
     <Script file="UnitFrames/CastBar.lua"/>
     <Script file="UnitFrames/Portrait.lua"/>
+    <!-- After Indicators loads AuraEngine? No: Auras.lua reads
+         SquizzFrames.AuraEngine at RUNTIME, never at load, so order is free.
+         Kept beside its siblings for readability. -->
+    <Script file="UnitFrames/Auras.lua"/>
+    <!-- Options-page mock. Reads UnitFrames.FormatToken/ResolveHealthColor at
+         runtime so the preview cannot drift from what the real frames draw. -->
+    <Script file="UnitFrames/Preview.lua"/>
     <Script file="UnitFrames/UnitFrames.lua"/>
     <!-- Shell over the module + Options/Widgets.lua (already loaded by the
          .toc at this point), same arrangement as NicknamesPanel. -->

@@ -107,6 +107,7 @@ local function BossOffset(t, idx)
 end
 
 local portraits = {}       -- [unitToken] = portrait holder (Portrait.lua)
+local auraRows = {}        -- [unitToken] = {buffs = wrapper, debuffs = wrapper}
 
 -- Which units need a target-of-target style refresh. UNIT_TARGET does fire for
 -- "target"/"focus" when their target changes, but it is not reliable for every
@@ -596,6 +597,32 @@ local function CreateFrames()
             frame:HookScript("OnShow", function(f) UpdateFrame(f) end)
         end
 
+        -- The frame going away must take its cast bar with it. The bar is
+        -- parented to UIParent rather than to the frame (so it is not
+        -- combat-protected), which means it does NOT inherit the hide -- a
+        -- boss frame vanishing at the end of an encounter otherwise left its
+        -- cast bar floating on screen.
+        --
+        -- Aura rows need no equivalent: their wrappers ARE children of the
+        -- frame, so they hide with it.
+        frame:HookScript("OnHide", function(f)
+            local CBmod = SquizzFrames.UnitFrameCastBar
+            local bar = f.unit and castBars[f.unit]
+            if CBmod and bar then CBmod.StopCast(bar, f.unit) end
+        end)
+
+        -- Aura rows. The WRAPPERS are cheap and made up front; the real
+        -- AuraContainers are requested lazily by Auras.ApplySettings only for
+        -- rows actually switched on, so a profile with no auras never pays for
+        -- twenty containers' worth of pre-created buttons.
+        local A = SquizzFrames.UnitFrameAuras
+        if A and A.Create then
+            auraRows[unit] = {
+                buffs = A.Create(frame, unit, "buffs"),
+                debuffs = A.Create(frame, unit, "debuffs"),
+            }
+        end
+
         local CB = SquizzFrames.UnitFrameCastBar
         if CB and CB.Create then
             castBars[unit] = CB.Create(frame, unit)
@@ -920,6 +947,16 @@ function ApplyLayout()
 
                 local pside = (t.portrait and t.portrait.side) or "LEFT"
                 ApplyFrameFont(frame, t, inset, pside)
+
+                -- Aura rows. Requested here rather than at creation so a
+                -- container only exists for a row that is actually on.
+                local A = SquizzFrames.UnitFrameAuras
+                local rows = auraRows[unit]
+                if A and rows then
+                    A.ApplySettings(rows.buffs, frame, t, "buffs")
+                    A.ApplySettings(rows.debuffs, frame, t, "debuffs")
+                end
+
                 RegisterUnitWatch(frame)
             end
 
@@ -1039,6 +1076,14 @@ function UnitFrames.RefreshTexts()
         end
     end
 end
+
+-- Exposed for the options-page preview (Preview.lua) so it renders text and
+-- colours through the EXACT code the real frames use. A preview with its own
+-- copy of the formatting rules is a preview that lies the moment either side
+-- changes -- and this one has already had to encode a pile of secret-value
+-- handling that would be miserable to duplicate.
+UnitFrames.FormatToken = function(unit, token) return FormatToken(unit, token) end
+UnitFrames.ResolveHealthColor = function(unit, t) return ResolveHealthColor(unit, t) end
 
 function UnitFrames.HasVisibleFrames()
     for _, frame in pairs(frames) do

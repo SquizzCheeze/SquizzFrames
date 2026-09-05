@@ -39,6 +39,10 @@ local rebuildFields
 -- and the furniture cannot drift apart.
 local HEADER_HEIGHT = 34
 local SIDEBAR_WIDTH = 96
+-- ...and a third on the right holding a 1:1 preview of the frame being
+-- edited. Wide enough for a default 180px frame plus a portrait hanging off
+-- its side, with room to breathe.
+local PREVIEW_WIDTH = 250
 
 -- "boss" is a pseudo-unit here: it edits profile.unitFrames.boss, the ONE
 -- table shared by every boss frame, so the same field builder serves it.
@@ -95,8 +99,53 @@ local function GetUnitConfig()
     return cfg.frames and cfg.frames[activeUnit]
 end
 
+-- The live preview mock, set once by Panel.Build. Held file-local so Changed()
+-- can reach it without every caller having to thread the page frame down.
+local previewMock
+
+-- The shared ScrollFrame this page lives in, resolved in Panel.Build.
+local scrollHost
+
+-- Scroll to the top. Called ONLY when the unit or section tab changes -- never
+-- on a plain rebuild. Several setters rebuild the page (a text-content
+-- dropdown, an enable checkbox), and resetting there would yank you back to
+-- the top mid-edit every time you touched one of them.
+-- Goes through OptionsFrame's helper rather than calling SetVerticalScroll on
+-- the frame directly. The wheel handler derives its next position from the
+-- SCROLLBAR's value, so moving only the frame leaves the bar holding the old
+-- offset and the first wheel tick after a section switch snaps back to where
+-- you were. ShowPage has always set both; this was the one place that didn't.
+local function ScrollToTop()
+    if SquizzFrames.OptionsScrollToTop then
+        SquizzFrames.OptionsScrollToTop()
+    elseif scrollHost and scrollHost.SetVerticalScroll then
+        scrollHost:SetVerticalScroll(0)
+    end
+end
+
+-- Re-dress the preview for whatever is selected now.
+--
+-- Called from Changed(), NOT from BuildFields, because BuildFields only runs
+-- when the page is rebuilt -- which a handful of setters trigger but a plain
+-- slider or colour picker does not. Hanging the refresh off the rebuild meant
+-- width, offsets and colours moved the real frames instantly and left the
+-- preview showing the old values, which is worse than having no preview.
+local function RefreshPreview()
+    local P = SquizzFrames.UnitFramePreview
+    if not (P and previewMock) then return end
+    local cfg = GetConfig()
+    local t = GetUnitConfig()
+    if t and cfg and cfg.enabled then
+        P.Refresh(previewMock, t)
+        previewMock:Show()
+    else
+        previewMock:Hide()
+    end
+end
+
 local function Changed()
     SquizzFrames:Fire("UnitFramesChanged")
+    RefreshPreview()
     -- The Blizzard-frame hide reads the same settings, and nothing else
     -- re-evaluates it when they change.
     if SquizzFrames.HideBlizzardUnitFrames then
@@ -709,6 +758,187 @@ local function SecCastBar(host, y, cfg, t)
 
 end
 
+-- The nine anchor points, offered wherever something is placed against a
+-- corner/edge. One table so the aura text controls cannot drift apart.
+local ANCHOR_POINT_ITEMS = {
+    {value = "TOPLEFT",     text = "Top Left"},
+    {value = "TOP",         text = "Top"},
+    {value = "TOPRIGHT",    text = "Top Right"},
+    {value = "LEFT",        text = "Left"},
+    {value = "CENTER",      text = "Center"},
+    {value = "RIGHT",       text = "Right"},
+    {value = "BOTTOMLEFT",  text = "Bottom Left"},
+    {value = "BOTTOM",      text = "Bottom"},
+    {value = "BOTTOMRIGHT", text = "Bottom Right"},
+}
+
+-- Buffs and debuffs share one builder: the two settings tables have the same
+-- shape, and writing it twice is how the two drift apart.
+local function BuildAuraBlock(host, y, t, kind, label)
+    local A = SquizzFrames.UnitFrameAuras
+    W.CreateTitledPane(host, label, y)
+    y = y - 35
+
+    local function Cfg()
+        local c = GetUnitConfig()
+        if not c then return nil end
+        if not c[kind] then c[kind] = {anchor = "none"} end
+        return c[kind]
+    end
+    local function AuraSet(apply)
+        local c = Cfg()
+        if not c then return end
+        apply(c)
+        Changed()
+    end
+
+    local a = Cfg()
+    if not a then return y end
+
+    -- Anchor doubles as the on/off switch ("none"), so there is no separate
+    -- enable checkbox and no way to have a row that is on but has nowhere
+    -- to be.
+    local ddAnchor = W.CreateStyledDropdown(host, 200, 40, L["Position"] or "Position",
+        (A and A.ANCHOR_ITEMS) or {},
+        function() return a.anchor or "none" end,
+        function(v)
+            AuraSet(function(c) c.anchor = v end)
+            if rebuildFields then rebuildFields() end
+        end)
+    ddAnchor:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    if (a.anchor or "none") == "none" then return y end
+
+    local ddGrowth = W.CreateStyledDropdown(host, 200, 40, L["Growth"] or "Growth",
+        (A and A.GROWTH_ITEMS) or {},
+        function() return a.growth or "auto" end,
+        function(v) AuraSet(function(c) c.growth = v end) end)
+    ddGrowth:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    local sNum = W.CreateStyledSlider(host, 200, 1, 40, 1, L["Max Icons"] or "Max Icons",
+        function() return a.num or 8 end,
+        function(v) AuraSet(function(c) c.num = v end) end)
+    sNum:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local sSize = W.CreateStyledSlider(host, 200, 8, 64, 1, L["Icon Size"] or "Icon Size",
+        function() return a.size or 20 end,
+        function(v) AuraSet(function(c) c.size = v end) end)
+    sSize:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local sAX = W.CreateStyledSlider(host, 200, -200, 200, 1, L["Offset X"] or "Offset X",
+        function() return a.offsetX or 0 end,
+        function(v) AuraSet(function(c) c.offsetX = v end) end)
+    sAX:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local sAY = W.CreateStyledSlider(host, 200, -200, 200, 1, L["Offset Y"] or "Offset Y",
+        function() return a.offsetY or 0 end,
+        function(v) AuraSet(function(c) c.offsetY = v end) end)
+    sAY:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local cbMine = W.CreateStyledCheckbox(host, L["Mine Only"] or "Mine Only",
+        function() return a.onlyMine == true end,
+        function(v) AuraSet(function(c) c.onlyMine = v end) end)
+    cbMine:SetPoint("TOPLEFT", 15, y)
+    y = y - 28
+
+    local cbDur = W.CreateStyledCheckbox(host, L["Show Duration"] or "Show Duration",
+        function() return a.showDuration ~= false end,
+        function(v)
+            AuraSet(function(c) c.showDuration = v end)
+            if rebuildFields then rebuildFields() end
+        end)
+    cbDur:SetPoint("TOPLEFT", 15, y)
+    y = y - 28
+
+    -- Placement controls appear only while the text they place is on --
+    -- otherwise they are three live controls that visibly do nothing.
+    if a.showDuration ~= false then
+        local ddDP = W.CreateStyledDropdown(host, 200, 40,
+            L["Duration Anchor"] or "Duration Anchor", ANCHOR_POINT_ITEMS,
+            function() return a.durationPoint or "TOP" end,
+            function(v) AuraSet(function(c) c.durationPoint = v end) end)
+        ddDP:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        -- The icon-side point. Pairing TOP with BOTTOM puts the text just
+        -- below the icon (the default); pairing a point with itself puts it
+        -- on the icon.
+        local ddDRP = W.CreateStyledDropdown(host, 200, 40,
+            L["Duration Anchor To"] or "Duration Anchor To", ANCHOR_POINT_ITEMS,
+            function() return a.durationRelPoint or "BOTTOM" end,
+            function(v) AuraSet(function(c) c.durationRelPoint = v end) end)
+        ddDRP:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sDX = W.CreateStyledSlider(host, 200, -50, 50, 1,
+            L["Duration Offset X"] or "Duration Offset X",
+            function() return a.durationX or 0 end,
+            function(v) AuraSet(function(c) c.durationX = v end) end)
+        sDX:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sDY = W.CreateStyledSlider(host, 200, -50, 50, 1,
+            L["Duration Offset Y"] or "Duration Offset Y",
+            function() return a.durationY or -2 end,
+            function(v) AuraSet(function(c) c.durationY = v end) end)
+        sDY:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+    end
+
+    local cbStack = W.CreateStyledCheckbox(host, L["Show Stacks"] or "Show Stacks",
+        function() return a.showStack ~= false end,
+        function(v)
+            AuraSet(function(c) c.showStack = v end)
+            if rebuildFields then rebuildFields() end
+        end)
+    cbStack:SetPoint("TOPLEFT", 15, y)
+    y = y - 28
+
+    if a.showStack ~= false then
+        -- One point only: the engine uses stackPoint for both the text's own
+        -- point and the icon's, so there is no "anchor to" counterpart here.
+        local ddSP = W.CreateStyledDropdown(host, 200, 40,
+            L["Stack Anchor"] or "Stack Anchor", ANCHOR_POINT_ITEMS,
+            function() return a.stackPoint or "BOTTOMRIGHT" end,
+            function(v) AuraSet(function(c) c.stackPoint = v end) end)
+        ddSP:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sSX = W.CreateStyledSlider(host, 200, -50, 50, 1,
+            L["Stack Offset X"] or "Stack Offset X",
+            function() return a.stackX or 1 end,
+            function(v) AuraSet(function(c) c.stackX = v end) end)
+        sSX:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sSY = W.CreateStyledSlider(host, 200, -50, 50, 1,
+            L["Stack Offset Y"] or "Stack Offset Y",
+            function() return a.stackY or -1 end,
+            function(v) AuraSet(function(c) c.stackY = v end) end)
+        sSY:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+    end
+
+    local cbBord = W.CreateStyledCheckbox(host, L["Icon Border"] or "Icon Border",
+        function() return a.showBorder ~= false end,
+        function(v) AuraSet(function(c) c.showBorder = v end) end)
+    cbBord:SetPoint("TOPLEFT", 15, y)
+    y = y - 35
+
+    return y
+end
+
+local function SecAuras(host, y, cfg, t)
+    y = BuildAuraBlock(host, y, t, "buffs", L["Buffs"] or "Buffs")
+    y = BuildAuraBlock(host, y, t, "debuffs", L["Debuffs"] or "Debuffs")
+end
+
 local function SecPosition(host, y, cfg, t)
     W.CreateTitledPane(host, L["Positioning"] or "Positioning", y)
     y = y - 35
@@ -735,6 +965,7 @@ local SECTIONS = {
     {key = "text",     label = L["Text"] or "Text",         build = SecText},
     {key = "portrait", label = L["Portrait"] or "Portrait", build = SecPortrait},
     {key = "castbar",  label = L["Cast Bar"] or "Cast Bar", build = SecCastBar},
+    {key = "auras",    label = L["Auras"] or "Auras",       build = SecAuras},
     {key = "position", label = L["Position"] or "Position", build = SecPosition},
 }
 
@@ -748,8 +979,12 @@ local function BuildFields(frame)
     local host = CreateFrame("Frame", nil, frame)
     -- Clears BOTH pinned strips Panel.Build floats above the scroll area: the
     -- unit-tab header along the top and the section-tab sidebar down the left.
-    host:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
-    host:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    -- No vertical inset any more: the ScrollFrame's own top now sits below the
+    -- header (see ApplyScrollInset in Panel.Build), so the content area
+    -- already starts in the right place. Only the two side strips, which are
+    -- overlays rather than scroll-region changes, still need clearing.
+    host:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH, 0)
+    host:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
     frame.fieldsHost = host
 
     local cfg = GetConfig()
@@ -765,9 +1000,14 @@ local function BuildFields(frame)
     for _, sec in ipairs(SECTIONS) do
         if sec.key == activeSection then
             sec.build(host, -10, cfg, t)
-            return
+            break
         end
     end
+
+    -- Also refreshed here, not only from Changed(), so switching unit or
+    -- section tabs re-points the preview at the newly selected frame -- those
+    -- do not go through a setter. Hence `break` above rather than `return`.
+    RefreshPreview()
 end
 
 -----------------------------------------------------------------------
@@ -809,34 +1049,116 @@ function Panel.Build(frame)
     local scroll = scrollChild and scrollChild:GetParent()
     local contentArea = scroll and scroll:GetParent()
 
+    scrollHost = scroll
+
     local header, sidebar
     if contentArea and scroll then
-        -- Opaque and above the scrolling content: rows sliding underneath have
-        -- to be hidden, which is the whole point of pinned furniture.
-        local level = (scroll:GetFrameLevel() or 1) + 10
+        -- Opaque and WELL above the scrolling content: rows sliding underneath
+        -- have to be hidden, which is the whole point of pinned furniture.
+        --
+        -- +50, not +10. The content is a sibling subtree several frames deep
+        -- (scrollChild -> page -> fieldsHost -> widget -> widget's own
+        -- children), and the styled widgets bump their own levels on top of
+        -- that, so a +10 gap was not enough: sliders scrolled up and drew
+        -- straight over the tab row.
+        local level = (contentArea:GetFrameLevel() or 1) + 50
 
+        -- THE SCROLL REGION IS SHRUNK, not merely covered.
+        --
+        -- Overlaying an opaque header hid the content but did not stop it
+        -- travelling there: rows still scrolled up behind the tabs, so the
+        -- scrollbar's range included a band you could never read. Moving the
+        -- ScrollFrame's own top edge down means the content simply has
+        -- nowhere to go.
+        --
+        -- The ScrollFrame is SHARED with every other options page, so its
+        -- original anchors are captured and restored on hide rather than the
+        -- numbers being hardcoded here -- OptionsFrame owns them and is free
+        -- to change them.
+        local originalPoints = {}
+        for i = 1, scroll:GetNumPoints() do
+            originalPoints[i] = { scroll:GetPoint(i) }
+        end
+        local function ApplyScrollInset(inset)
+            scroll:ClearAllPoints()
+            for _, pt in ipairs(originalPoints) do
+                local point, rel, relPoint, px, py = unpack(pt)
+                -- Only the TOP anchors move; the bottom stays where it is.
+                if point == "TOPLEFT" or point == "TOPRIGHT" or point == "TOP" then
+                    py = (py or 0) - inset
+                end
+                scroll:SetPoint(point, rel, relPoint, px, py)
+            end
+        end
+
+        -- Anchored to contentArea, NOT to scroll: scroll is about to move down
+        -- by exactly the header's height, and a header anchored to it would
+        -- follow it and leave the gap it was meant to fill.
         header = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
-        header:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
-        header:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
+        local firstPoint = originalPoints[1]
+        local hx = (firstPoint and firstPoint[4]) or 0
+        local hy = (firstPoint and firstPoint[5]) or 0
+        header:SetPoint("TOPLEFT", contentArea, "TOPLEFT", hx, hy)
+        header:SetPoint("TOPRIGHT", contentArea, "TOPRIGHT", -16, hy)
         header:SetHeight(HEADER_HEIGHT)
         header:SetFrameLevel(level)
         W.StylizeFrame(header, {0.06, 0.06, 0.06, 1}, {0, 0, 0, 0})
 
         sidebar = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
-        sidebar:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
+        -- Follows scroll's top like the preview pane does, rather than the
+        -- header's bottom: the two are the same edge now that the scroll
+        -- region has been shortened, and anchoring to scroll keeps the two
+        -- side strips consistent.
+        sidebar:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
         sidebar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMLEFT", 0, 0)
         sidebar:SetWidth(SIDEBAR_WIDTH)
         sidebar:SetFrameLevel(level)
         W.StylizeFrame(sidebar, {0.06, 0.06, 0.06, 1}, {0, 0, 0, 0})
 
-        -- Tied to the page's visibility -- neither is one of OptionsFrame's
-        -- contentFrames, so ShowPage does not know about them and they would
-        -- otherwise sit on top of whatever page you switched to.
-        header:Hide()
-        sidebar:Hide()
-        frame:HookScript("OnShow", function() header:Show(); sidebar:Show() end)
-        frame:HookScript("OnHide", function() header:Hide(); sidebar:Hide() end)
-        if frame:IsShown() then header:Show(); sidebar:Show() end
+        -- Preview strip down the right, pinned like the other two so it stays
+        -- in view while the settings beside it scroll.
+        -- No -HEADER_HEIGHT offset: scroll's own top is already below the
+        -- header now, so the pane simply follows it.
+        local previewPane = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
+        previewPane:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
+        previewPane:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
+        previewPane:SetWidth(PREVIEW_WIDTH)
+        previewPane:SetFrameLevel(level)
+        W.StylizeFrame(previewPane, {0.06, 0.06, 0.06, 1}, {0, 0, 0, 0})
+
+        local caption = previewPane:CreateFontString(nil, "OVERLAY")
+        caption:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        caption:SetPoint("TOP", previewPane, "TOP", 0, -8)
+        caption:SetTextColor(0.7, 0.7, 0.7, 1)
+        caption:SetText(L["Preview (actual size)"] or "Preview (actual size)")
+
+        local P = SquizzFrames.UnitFramePreview
+        if P and P.Create then
+            local mock = P.Create(previewPane)
+            -- Anchored well below the caption rather than centred: a cast bar
+            -- hangs off the bottom and an aura row off the top, and a centred
+            -- mock would push them out of the pane at larger sizes.
+            mock:SetPoint("TOP", previewPane, "TOP", 0, -70)
+            frame.previewFrame = mock
+            previewMock = mock
+        end
+
+        -- Tied to the page's visibility -- none of the three is one of
+        -- OptionsFrame's contentFrames, so ShowPage does not know about them
+        -- and they would otherwise sit on top of whatever page you switched to.
+        local function ShowFurniture(show)
+            header:SetShown(show)
+            sidebar:SetShown(show)
+            previewPane:SetShown(show)
+            -- Restored on hide: the ScrollFrame belongs to every page, and
+            -- leaving it short would put a dead band at the top of Layout,
+            -- Indicators and everything else.
+            ApplyScrollInset(show and HEADER_HEIGHT or 0)
+        end
+        ShowFurniture(false)
+        frame:HookScript("OnShow", function() ShowFurniture(true) end)
+        frame:HookScript("OnHide", function() ShowFurniture(false) end)
+        if frame:IsShown() then ShowFurniture(true) end
     else
         header, sidebar = frame, frame
     end
@@ -857,6 +1179,7 @@ function Panel.Build(frame)
             activeUnit = tab.key
             RefreshTabVisual()
             if rebuildFields then rebuildFields() end
+            ScrollToTop()
         end)
         unitButtons[tab.key] = btn
         x = x + 75
@@ -882,6 +1205,7 @@ function Panel.Build(frame)
             activeSection = sec.key
             RefreshTabVisual()
             if rebuildFields then rebuildFields() end
+            ScrollToTop()
         end)
         sectionButtons[sec.key] = btn
         sy = sy - 25

@@ -396,6 +396,21 @@ local function CreateOptionsFrame()
         scrollBar:SetValue(newVal)
     end)
 
+    -- Reset the shared scroll area to the top.
+    --
+    -- MUST go through the SCROLLBAR. scrollFrame:SetVerticalScroll(0) on its
+    -- own moves the view but leaves scrollBar holding the old value, and the
+    -- wheel handler above derives its next position from exactly that -- so
+    -- the first wheel tick after a "reset" snaps straight back to where you
+    -- were. Setting the bar fires OnValueChanged, which moves the frame too.
+    --
+    -- Exposed because the Unit Frames page resets scroll when you switch
+    -- section, and it has no access to these locals.
+    function SquizzFrames.OptionsScrollToTop()
+        if scrollBar then scrollBar:SetValue(0) end
+        if scrollFrame then scrollFrame:SetVerticalScroll(0) end
+    end
+
     -- Full-area host for Indicators pages (no shared scroll wrapper --
     -- IndicatorsPanel.lua manages its own list/settings/preview panes).
     indicatorsHost = CreateFrame("Frame", nil, contentArea)

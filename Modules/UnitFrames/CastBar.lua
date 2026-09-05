@@ -241,6 +241,20 @@ function CastBar.Create(parent, unit)
             self:Hide()
             return
         end
+        -- SELF-HEAL FOR A UNIT THAT WENT AWAY.
+        --
+        -- This bar is parented to UIParent, not to its unit frame -- see
+        -- Create -- so the frame hiding does NOT take it with it. When a boss
+        -- despawns or you leave the instance the token simply stops existing
+        -- and no UNIT_SPELLCAST_STOP is ever sent, which left a boss cast bar
+        -- frozen on screen mid-cast for the rest of the session.
+        local u = self._sfUnit
+        if not u or not UnitExists(u) then
+            self._sfActive = false
+            self._sfCastID = nil
+            self:Hide()
+            return
+        end
         if not self._sfShowTime then return end
         -- The duration object is the ONLY sanctioned way to get remaining
         -- time; SetFormattedText takes it straight and formats C-side, so a

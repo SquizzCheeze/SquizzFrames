@@ -35,6 +35,35 @@ function SquizzFrames:RegisterModule(name, module)
     end
 end
 
+-- Migration chatter, silent unless asked for.
+--
+-- These messages are developer diagnostics, not news the user can act on:
+-- "added missing built-in indicator 'phasedIcon' (slot 25 occupied, appended
+-- instead)" tells somebody reading their chat log precisely nothing. They ran
+-- at profile-load time, which normally means login and goes unnoticed -- but
+-- with profile auto-switching on, a profile that has not been migrated yet
+-- loads the moment you join or LEAVE A GROUP, and six lines of this land in
+-- chat at the least explicable moment possible (user report, v1.13).
+--
+-- The migrations themselves stay exactly as they were; only the narration is
+-- gated. /sf debug turns it back on.
+--
+-- The flag lives in the account-wide SavedVariable rather than on a session
+-- table on purpose: the migration pass that matters most runs inside
+-- OnInitialize, long before anybody could type a slash command, so a
+-- session-only toggle could never narrate the pass you actually wanted to
+-- see. Persisted, "/sf debug" followed by "/reload" shows the login pass.
+local function MigrationDebugEnabled()
+    return (SquizzFramesDB and SquizzFramesDB.debugMigrations) and true or false
+end
+SquizzFrames.MigrationDebugEnabled = MigrationDebugEnabled
+
+local function MigrationPrint(msg)
+    if MigrationDebugEnabled() then
+        print("|cff33cc99[SquizzFrames]|r Migration: " .. msg)
+    end
+end
+
 -- Append any built-in indicator present in defaults but missing from an
 -- already-populated profile's indicators array -- e.g. a newly added
 -- built-in shipped in a later addon version. AceDB's default merging only
@@ -100,13 +129,13 @@ local function MigrateMissingBuiltIns(profile, listKey)
             local existing = profile.layout[listKey][slot]
             if not existing then
                 profile.layout[listKey][slot] = copy
-                print("|cff33cc99[SquizzFrames]|r Migration: added missing built-in indicator '" .. name .. "' at slot " .. slot .. " (" .. listKey .. ")")
+                MigrationPrint("added missing built-in indicator '" .. name .. "' at slot " .. slot .. " (" .. listKey .. ")")
             else
                 -- Assumed slot is occupied by something else entirely (drifted
                 -- array) -- append rather than clobbering whatever's actually
                 -- there.
                 table.insert(profile.layout[listKey], copy)
-                print("|cff33cc99[SquizzFrames]|r Migration: added missing built-in indicator '" .. name .. "' (slot " .. slot .. " occupied, appended instead, " .. listKey .. ")")
+                MigrationPrint("added missing built-in indicator '" .. name .. "' (slot " .. slot .. " occupied, appended instead, " .. listKey .. ")")
             end
         end
     end
@@ -132,7 +161,7 @@ local function MigrateAccentColorDefault(profile)
     if not ac then return end
     if ac[1] == "custom_color" and ac[2] == 0 and ac[3] == 0.48 and ac[4] == 0.65 then
         profile.appearance.general.accentColor = {"class_color"}
-        print("|cff33cc99[SquizzFrames]|r Migration: accentColor was still on the old blue default, switched to class_color")
+        MigrationPrint("accentColor was still on the old blue default, switched to class_color")
     end
 end
 
@@ -168,7 +197,7 @@ local function MigrateDispelsShape(profile, listKey)
             local copy = F.CopyTable and F.CopyTable(defDispels) or defDispels
             if wasEnabled ~= nil then copy.enabled = wasEnabled end
             profile.layout[listKey][i] = copy
-            print("|cff33cc99[SquizzFrames]|r Migration: rebuilt 'Dispels' indicator on the new AuraEngine format (" .. listKey .. ")")
+            MigrationPrint("rebuilt 'Dispels' indicator on the new AuraEngine format (" .. listKey .. ")")
             break
         end
     end
@@ -301,7 +330,7 @@ local function MigrateAggroBlinkMarker(profile, listKey)
             if ind.enabled ~= nil then copy.enabled = ind.enabled end
             if ind.frameLevel ~= nil then copy.frameLevel = ind.frameLevel end
             profile.layout[listKey][i] = copy
-            print("|cff33cc99[SquizzFrames]|r Migration: rebuilt 'Aggro (blink)' as a movable marker (" .. listKey .. ")")
+            MigrationPrint("rebuilt 'Aggro (blink)' as a movable marker (" .. listKey .. ")")
             break
         end
     end
