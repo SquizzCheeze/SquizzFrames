@@ -54,6 +54,22 @@ function Preview.Create(parent)
     health:SetValue(0.72)
     p.healthBar = health
 
+    -- Absorb overlays, pinned to the health bar the same way the real ones
+    -- are. Driven by a fixed fraction rather than live values: the player's
+    -- own absorb is almost always 0 while designing, and a bar that renders
+    -- as nothing is indistinguishable from one that is broken.
+    local function MakeOverlay(fraction)
+        local bar = CreateFrame("StatusBar", nil, health)
+        bar:SetFrameLevel(health:GetFrameLevel() or 1)
+        bar:SetAllPoints(health)
+        bar:SetMinMaxValues(0, 1)
+        bar:SetValue(fraction)
+        bar:Hide()
+        return bar
+    end
+    p.shieldBar = MakeOverlay(0.3)
+    p.healAbsorb = MakeOverlay(0.2)
+
     local power = CreateFrame("StatusBar", nil, p)
     power:SetPoint("BOTTOMLEFT")
     power:SetPoint("BOTTOMRIGHT")
@@ -71,11 +87,34 @@ function Preview.Create(parent)
     -- One FontString per text ELEMENT, keyed the same way the real frame's
     -- XML parentKeys are (nameText/healthText/...), so Refresh below can walk
     -- UF.TEXT_ELEMENTS and derive both sides of the pairing.
-    for _, element in ipairs((UF and UF.TEXT_ELEMENTS) or {"name", "health", "power", "level"}) do
+    -- The shared element list, NOT UnitFrames' export: this runs at panel
+    -- build time, which can be before the module object is reachable, and
+    -- reading a bare `UF` here resolved to a nil global and silently fell
+    -- through to a hardcoded copy.
+    for _, element in ipairs(SquizzFrames.UNITFRAME_TEXT_ELEMENTS
+        or {"name", "health", "power", "level"}) do
         local fs = textHost:CreateFontString(nil, "OVERLAY")
         fs:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
         p[element .. "Text"] = fs
     end
+
+    -- State icons. Always drawn at full strength when enabled, regardless of
+    -- whether you are actually in combat or actually the leader -- the point
+    -- of the preview is to place them, and one that only appears mid-pull
+    -- cannot be positioned.
+    local iconHost = CreateFrame("Frame", nil, p)
+    iconHost:SetAllPoints(p)
+    iconHost:SetFrameLevel(p:GetFrameLevel() + 7)
+    p.icons = {}
+    for _, key in ipairs({"combatIcon", "leaderIcon"}) do
+        local tex = iconHost:CreateTexture(nil, "OVERLAY")
+        tex:SetSize(16, 16)
+        tex:Hide()
+        p.icons[key] = tex
+    end
+    p.icons.combatIcon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
+    p.icons.combatIcon:SetTexCoord(0.5, 1.0, 0.0, 0.49)
+    p.icons.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
 
     -- Portrait
     local portrait = CreateFrame("Frame", nil, p)
@@ -196,6 +235,41 @@ function Preview.Refresh(p, t)
     if UF and UF.ResolveHealthColor then
         local r, g, b = UF.ResolveHealthColor(unit, t)
         p.healthBar:SetStatusBarColor(r, g, b, 1)
+    end
+
+    -- Absorb overlays. Fixed fractions, real colours -- see Create.
+    local function DressOverlay(bar, cfg, defaultAlpha)
+        if not bar then return end
+        if not cfg or not cfg.enabled then bar:Hide() return end
+        bar:SetStatusBarTexture(tex)
+        bar:SetReverseFill(cfg.reverseFill == true)
+        local c = cfg.color
+        bar:SetStatusBarColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1,
+                              c and c[4] or defaultAlpha)
+        bar:Show()
+    end
+    DressOverlay(p.shieldBar, t.shieldBar, 0.55)
+    DressOverlay(p.healAbsorb, t.healAbsorb, 0.55)
+
+    -- State icons
+    for _, key in ipairs({"combatIcon", "leaderIcon"}) do
+        local icon = p.icons and p.icons[key]
+        local cfg = t[key]
+        if icon then
+            if not cfg or not cfg.enabled then
+                icon:Hide()
+            else
+                local size = cfg.size or 16
+                icon:SetSize(size, size)
+                icon:ClearAllPoints()
+                local anchor = cfg.anchor or "TOPRIGHT"
+                icon:SetPoint(anchor, p, anchor, cfg.x or 0, cfg.y or 0)
+                local c = cfg.color
+                icon:SetVertexColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1)
+                icon:SetAlpha(c and c[4] or 1)
+                icon:Show()
+            end
+        end
     end
 
     if ph > 0 then

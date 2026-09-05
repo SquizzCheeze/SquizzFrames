@@ -19,6 +19,8 @@
          SquizzFrames.AuraEngine at RUNTIME, never at load, so order is free.
          Kept beside its siblings for readability. -->
     <Script file="UnitFrames/Auras.lua"/>
+    <Script file="UnitFrames/Icons.lua"/>
+    <Script file="UnitFrames/Absorbs.lua"/>
     <!-- Options-page mock. Reads UnitFrames.FormatToken/ResolveHealthColor at
          runtime so the preview cannot drift from what the real frames draw. -->
     <Script file="UnitFrames/Preview.lua"/>

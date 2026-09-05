@@ -94,6 +94,15 @@ Added:
   find a target. It updates as you drag a slider and shows the bars, text,
   portrait, cast bar and aura rows for whichever frame you're editing.
 
+- Shield and heal-absorb overlays on any unit frame's health bar, each with
+  its own colour and opacity. The shield bar can be set to only appear once
+  the absorb is bigger than the missing health - the point where more healing
+  would be wasted - and either can fill from the right instead of the left.
+
+- A combat icon on the player frame and a leader icon on any frame, both with
+  an anchor point, offsets, size and a tint. The leader icon falls back to the
+  assistant badge in a raid.
+
   Arena frames are still to come.
 
 Changed:

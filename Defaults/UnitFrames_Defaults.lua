@@ -146,6 +146,34 @@ local function DefaultFrame(opts)
         fadeOutOfCombat = false,
         fadeAlpha = 0.35,
 
+        -- State icons (Icons.lua). Same shape as each other so one factory and
+        -- one block of options serve both.
+        --
+        -- The combat icon is offered on the PLAYER frame only, by request. The
+        -- renderer reads UnitAffectingCombat(unit) rather than
+        -- InCombatLockdown(), so it is already correct for any unit if that
+        -- ever changes -- the restriction lives in the options page, not here.
+        combatIcon = {enabled = false, anchor = "TOPRIGHT", x = 0, y = 0,
+                      size = 18, color = {1, 1, 1, 1}},
+        leaderIcon = {enabled = false, anchor = "TOPLEFT", x = 0, y = 0,
+                      size = 14, color = {1, 1, 1, 1}},
+
+        -- Absorb overlays on the health bar (Absorbs.lua).
+        --
+        -- shieldBar: incoming damage absorb. onlyShowOvershields hides it
+        -- until the absorb exceeds missing health, which is the reading that
+        -- actually changes a healer's decision.
+        --
+        -- healAbsorb: healing that will be swallowed before it lands, drawn
+        -- inward from the health bar's leading edge (reverseFill).
+        --
+        -- Both default OFF and to a translucent colour: they sit ON TOP of the
+        -- health bar, so an opaque default would hide the bar underneath them.
+        shieldBar = {enabled = false, color = {0.6, 0.75, 1, 0.55},
+                     onlyShowOvershields = false, reverseFill = false},
+        healAbsorb = {enabled = false, color = {0.9, 0.2, 0.2, 0.55},
+                      reverseFill = true},
+
         -- Portrait (Phase 2). size 0 means "match the frame's height", so a
         -- resize carries the portrait with it instead of leaving a mismatch.
         portrait = {

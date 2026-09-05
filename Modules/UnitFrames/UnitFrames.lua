@@ -108,6 +108,8 @@ end
 
 local portraits = {}       -- [unitToken] = portrait holder (Portrait.lua)
 local auraRows = {}        -- [unitToken] = {buffs = wrapper, debuffs = wrapper}
+local iconSets = {}        -- [unitToken] = state-icon holder (Icons.lua)
+local absorbSets = {}      -- [unitToken] = absorb overlay holder (Absorbs.lua)
 
 -- Which units need a target-of-target style refresh. UNIT_TARGET does fire for
 -- "target"/"focus" when their target changes, but it is not reliable for every
@@ -508,10 +510,22 @@ local function UpdateFrame(frame)
     UpdatePower(frame)
     UpdateTexts(frame)
 
+    local t = GetFrameConfig(frame.unit)
+
     local P = SquizzFrames.UnitFramePortrait
     local holder = portraits[frame.unit]
     if P and holder then
-        P.Update(holder, frame.unit, GetFrameConfig(frame.unit))
+        P.Update(holder, frame.unit, t)
+    end
+
+    local IC = SquizzFrames.UnitFrameIcons
+    if IC and iconSets[frame.unit] then
+        IC.Update(iconSets[frame.unit], frame.unit, t)
+    end
+
+    local AB = SquizzFrames.UnitFrameAbsorbs
+    if AB and absorbSets[frame.unit] then
+        AB.Update(absorbSets[frame.unit], frame.unit, t)
     end
 end
 
@@ -661,6 +675,16 @@ local function CreateFrames()
                 debuffs = A.Create(frame, unit, "debuffs"),
             }
         end
+
+        -- State icons and absorb overlays. Created unconditionally for the
+        -- same reason the portrait and cast bar are: plain frames cost
+        -- nothing hidden, and building one lazily would mean building it
+        -- mid-combat the first time somebody ticked the box.
+        local IC = SquizzFrames.UnitFrameIcons
+        if IC and IC.Create then iconSets[unit] = IC.Create(frame, unit) end
+
+        local AB = SquizzFrames.UnitFrameAbsorbs
+        if AB and AB.Create then absorbSets[unit] = AB.Create(frame, unit) end
 
         local CB = SquizzFrames.UnitFrameCastBar
         if CB and CB.Create then
@@ -988,6 +1012,19 @@ function ApplyLayout()
                     A.ApplySettings(rows.debuffs, frame, t, "debuffs")
                 end
 
+                -- AFTER the health bar has its final height above: the absorb
+                -- overlays pin to the health bar, so applying them first would
+                -- size them against the previous height.
+                local IC = SquizzFrames.UnitFrameIcons
+                if IC and iconSets[unit] then
+                    IC.ApplySettings(iconSets[unit], frame, t)
+                end
+
+                local AB = SquizzFrames.UnitFrameAbsorbs
+                if AB and absorbSets[unit] then
+                    AB.ApplySettings(absorbSets[unit], frame, t, barTexture)
+                end
+
                 RegisterUnitWatch(frame)
             end
 
@@ -1197,6 +1234,31 @@ function UnitFrames:OnEnable()
         self:RegisterEvent("UNIT_NAME_UPDATE", onUnitEvent)
         self:RegisterEvent("UNIT_LEVEL", onUnitEvent)
         self:RegisterEvent("UNIT_FACTION", onUnitEvent)
+
+        -- Absorb overlays (Absorbs.lua). UNIT_HEALTH above already refreshes
+        -- the shield bar whenever health moves, but an absorb can be applied
+        -- or consumed with no health change at all -- a shield landing before
+        -- the first hit is the common case -- so both absorb events are needed
+        -- in their own right.
+        self:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED", onUnitEvent)
+        self:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", onUnitEvent)
+
+        -- State icons (Icons.lua). No unit argument on either of these, so
+        -- they refresh everything -- both are rare and the pass is cheap.
+        --
+        -- The combat icon needs REGEN_DISABLED/ENABLED rather than a unit
+        -- event because UnitAffectingCombat changing is not itself an event;
+        -- and the leader icon needs the roster because leadership changes
+        -- hands with no per-unit event either.
+        local function RefreshAll()
+            for _, frame in pairs(frames) do
+                if frame.unit and UnitExists(frame.unit) then UpdateFrame(frame) end
+            end
+        end
+        self:RegisterEvent("PLAYER_REGEN_DISABLED", RefreshAll)
+        self:RegisterEvent("PLAYER_REGEN_ENABLED", RefreshAll)
+        self:RegisterEvent("GROUP_ROSTER_UPDATE", RefreshAll)
+        self:RegisterEvent("PARTY_LEADER_CHANGED", RefreshAll)
 
         -- Token reassignment. RegisterUnitWatch handles the SHOW/HIDE of these
         -- frames on its own; what it does not do is refresh the contents when

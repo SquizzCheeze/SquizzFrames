@@ -1015,6 +1015,235 @@ local function SecPosition(host, y, cfg, t)
         or "Drag each frame in Edit Mode to position it.")
 end
 
+-- State icons. Same generated-accessor treatment as the text elements, for
+-- the same reason: the settings key is all that differs between them.
+local function IconGetters(key)
+    local function Cfg(t)
+        t[key] = t[key] or {}
+        return t[key]
+    end
+    local function Read(field, fallback)
+        local t = GetUnitConfig()
+        local v = t and t[key] and t[key][field]
+        if v == nil then return fallback end
+        return v
+    end
+    return {
+        enabled = function() return Read("enabled", false) == true end,
+        setEnabled = function(v)
+            Set(function(t) Cfg(t).enabled = v end)
+            if rebuildFields then rebuildFields() end
+        end,
+        anchor = function() return Read("anchor", "TOPRIGHT") end,
+        setAnchor = function(v) Set(function(t) Cfg(t).anchor = v end) end,
+        size = function() return Read("size", 16) end,
+        setSize = function(v) Set(function(t) Cfg(t).size = v end) end,
+        x = function() return Read("x", 0) end,
+        setX = function(v) Set(function(t) Cfg(t).x = v end) end,
+        y = function() return Read("y", 0) end,
+        setY = function(v) Set(function(t) Cfg(t).y = v end) end,
+        color = function()
+            local c = Read("color", nil)
+            if type(c) ~= "table" then return 1, 1, 1, 1 end
+            return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+        end,
+        setColor = function(r, g, b, a)
+            Set(function(t) Cfg(t).color = {r, g, b, a} end)
+        end,
+    }
+end
+
+local function BuildIconGroup(host, y, key, label, note)
+    local acc = IconGetters(key)
+
+    W.CreateTitledPane(host, label, y)
+    y = y - 35
+
+    local cbOn = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        acc.enabled, acc.setEnabled)
+    cbOn:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    if note then
+        local fs = host:CreateFontString(nil, "OVERLAY")
+        fs:SetFontObject("GameFontDisableSmall")
+        fs:SetPoint("TOPLEFT", 32, y)
+        fs:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetText(note)
+        y = y - 26
+    end
+
+    if acc.enabled() then
+        local dd = W.CreateStyledDropdown(host, 200, 40, L["Anchor"] or "Anchor",
+            AnchorItems(), acc.anchor, acc.setAnchor)
+        dd:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sX = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset X"] or "Offset X",
+            acc.x, acc.setX)
+        sX:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sY = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset Y"] or "Offset Y",
+            acc.y, acc.setY)
+        sY:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sSize = W.CreateStyledSlider(host, 200, 6, 48, 1, L["Size"] or "Size",
+            acc.size, acc.setSize)
+        sSize:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local cp = W.CreateColorPicker(host, L["Tint"] or "Tint",
+            acc.color, acc.setColor)
+        cp:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 42
+    end
+
+    return y
+end
+
+local function SecIcons(host, y, cfg, t)
+    -- Combat icon on the PLAYER tab only, by request. It is not built as a
+    -- hidden-but-present control on the other tabs: an option that exists in
+    -- the saved data but has no way to reach it is the "live control that
+    -- silently does nothing" failure in reverse, and the renderer would
+    -- happily honour it if a profile ever acquired one by hand.
+    if activeUnit == "player" then
+        y = BuildIconGroup(host, y, "combatIcon",
+            L["Combat Icon"] or "Combat Icon",
+            L["CombatIconNote"]
+                or "The crossed-swords marker, shown while you are in combat.")
+    end
+
+    y = BuildIconGroup(host, y, "leaderIcon",
+        L["Leader Icon"] or "Leader Icon",
+        L["LeaderIconNote"]
+            or "The leader crown, or the assistant badge in a raid.")
+
+    return y
+end
+
+-- Absorb overlays. Both sit ON the health bar, so both offer a colour with an
+-- opacity rather than a position -- there is nowhere else for them to go.
+local function AbsorbGetters(key)
+    local function Cfg(t)
+        t[key] = t[key] or {}
+        return t[key]
+    end
+    local function Read(field, fallback)
+        local t = GetUnitConfig()
+        local v = t and t[key] and t[key][field]
+        if v == nil then return fallback end
+        return v
+    end
+    return {
+        enabled = function() return Read("enabled", false) == true end,
+        setEnabled = function(v)
+            Set(function(t) Cfg(t).enabled = v end)
+            if rebuildFields then rebuildFields() end
+        end,
+        reverseFill = function() return Read("reverseFill", false) == true end,
+        setReverseFill = function(v) Set(function(t) Cfg(t).reverseFill = v end) end,
+        overshields = function() return Read("onlyShowOvershields", false) == true end,
+        setOvershields = function(v)
+            Set(function(t) Cfg(t).onlyShowOvershields = v end)
+        end,
+        color = function()
+            local c = Read("color", nil)
+            if type(c) ~= "table" then return 1, 1, 1, 0.55 end
+            return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 0.55
+        end,
+        setColor = function(r, g, b, a)
+            Set(function(t) Cfg(t).color = {r, g, b, a} end)
+        end,
+    }
+end
+
+local function SecAbsorbs(host, y, cfg, t)
+    -- Shield (damage absorb)
+    local shield = AbsorbGetters("shieldBar")
+    W.CreateTitledPane(host, L["Shield"] or "Shield", y)
+    y = y - 35
+
+    local cbShield = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        shield.enabled, shield.setEnabled)
+    cbShield:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local shieldNote = host:CreateFontString(nil, "OVERLAY")
+    shieldNote:SetFontObject("GameFontDisableSmall")
+    shieldNote:SetPoint("TOPLEFT", 32, y)
+    shieldNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    shieldNote:SetJustifyH("LEFT")
+    shieldNote:SetText(L["ShieldBarNote"]
+        or "Incoming damage absorb, drawn over the health bar. Keep the opacity below full so the bar stays readable underneath.")
+    y = y - 34
+
+    if shield.enabled() then
+        local cp = W.CreateColorPicker(host, L["Color"] or "Color",
+            shield.color, shield.setColor)
+        cp:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 36
+
+        local cbOver = W.CreateStyledCheckbox(host,
+            L["Only Show Overshields"] or "Only Show Overshields",
+            shield.overshields, shield.setOvershields)
+        cbOver:SetPoint("TOPLEFT", 15, y)
+        y = y - 26
+
+        local overNote = host:CreateFontString(nil, "OVERLAY")
+        overNote:SetFontObject("GameFontDisableSmall")
+        overNote:SetPoint("TOPLEFT", 32, y)
+        overNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+        overNote:SetJustifyH("LEFT")
+        overNote:SetText(L["OvershieldNote"]
+            or "Hide it until the absorb is bigger than the missing health - the point at which more healing would be wasted.")
+        y = y - 34
+
+        local cbRev = W.CreateStyledCheckbox(host,
+            L["Fill From Right"] or "Fill From Right",
+            shield.reverseFill, shield.setReverseFill)
+        cbRev:SetPoint("TOPLEFT", 15, y)
+        y = y - 36
+    end
+
+    -- Heal absorb
+    local heal = AbsorbGetters("healAbsorb")
+    W.CreateTitledPane(host, L["Heal Absorb"] or "Heal Absorb", y)
+    y = y - 35
+
+    local cbHeal = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        heal.enabled, heal.setEnabled)
+    cbHeal:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local healNote = host:CreateFontString(nil, "OVERLAY")
+    healNote:SetFontObject("GameFontDisableSmall")
+    healNote:SetPoint("TOPLEFT", 32, y)
+    healNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    healNote:SetJustifyH("LEFT")
+    healNote:SetText(L["HealAbsorbNote"]
+        or "Healing that will be swallowed before it lands, measured against current health.")
+    y = y - 34
+
+    if heal.enabled() then
+        local cp = W.CreateColorPicker(host, L["Color"] or "Color",
+            heal.color, heal.setColor)
+        cp:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 36
+
+        local cbRev = W.CreateStyledCheckbox(host,
+            L["Fill From Right"] or "Fill From Right",
+            heal.reverseFill, heal.setReverseFill)
+        cbRev:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+    end
+
+    return y
+end
+
 -----------------------------------------------------------------------
 -- Section registry + dispatch
 -----------------------------------------------------------------------
@@ -1030,6 +1259,8 @@ local SECTIONS = {
     {key = "portrait", label = L["Portrait"] or "Portrait", build = SecPortrait},
     {key = "castbar",  label = L["Cast Bar"] or "Cast Bar", build = SecCastBar},
     {key = "auras",    label = L["Auras"] or "Auras",       build = SecAuras},
+    {key = "icons",    label = L["Icons"] or "Icons",       build = SecIcons},
+    {key = "absorbs",  label = L["Absorbs"] or "Absorbs",   build = SecAbsorbs},
     {key = "position", label = L["Position"] or "Position", build = SecPosition},
 }
 
