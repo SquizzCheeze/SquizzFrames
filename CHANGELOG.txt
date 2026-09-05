@@ -98,6 +98,28 @@ Added:
 
 Changed:
 
+- Unit frame text is organised by what it SHOWS, not by where it sits. Instead
+  of three slots called Left, Right and Centre with a content dropdown in each,
+  there are now four groups - Name, Health, Power and Level - and the anchor is
+  a dropdown inside the group, with its own offsets, size and colour.
+
+  All nine anchor points are available to each, so you're no longer limited to
+  three readouts, can't accidentally show health twice, and moving something
+  from one side of the frame to the other is one dropdown rather than retyping
+  its settings into a different slot.
+
+  Text no longer class-colours by default. It's a checkbox per readout with a
+  custom colour picker underneath, and the picker only appears when class
+  colour is off, so there's never an inert control on screen.
+
+  Your existing text setup carries over. If two of your old slots showed the
+  same thing (say health on the left and health percent on the right) only one
+  survives, since they're now the same readout.
+
+- Opacity sliders on every colour picker - across all the indicator pages and
+  the unit frames page - now use the addon's own slider styling. They were the
+  last stock Blizzard control left in the options.
+
 - One "Hide Blizzard Frames" switch, on the General page, now covers the lot:
   party, raid, player, target, focus, boss, pet and the cast bar. It replaces
   the two checkboxes that were on the General page and the two more that were

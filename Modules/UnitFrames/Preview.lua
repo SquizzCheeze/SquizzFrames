@@ -68,10 +68,13 @@ function Preview.Create(parent)
     textHost:SetAllPoints(p)
     textHost:SetFrameLevel(p:GetFrameLevel() + 5)
 
-    for _, key in ipairs({"leftText", "rightText", "centerText"}) do
+    -- One FontString per text ELEMENT, keyed the same way the real frame's
+    -- XML parentKeys are (nameText/healthText/...), so Refresh below can walk
+    -- UF.TEXT_ELEMENTS and derive both sides of the pairing.
+    for _, element in ipairs((UF and UF.TEXT_ELEMENTS) or {"name", "health", "power", "level"}) do
         local fs = textHost:CreateFontString(nil, "OVERLAY")
         fs:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-        p[key] = fs
+        p[element .. "Text"] = fs
     end
 
     -- Portrait
@@ -235,30 +238,28 @@ function Preview.Refresh(p, t)
         p.portrait:Hide()
     end
 
-    -- Text slots, through the real formatter.
+    -- Text elements, through the real formatter AND the real anchor/justify/
+    -- inset/colour helpers -- see UnitFrames.lua's export block for why none
+    -- of this is reimplemented here.
     local fontFile = (F.ResolveFontFile and F.ResolveFontFile(t.font and t.font[1]))
         or "Fonts\\FRIZQT__.TTF"
     local outline = (t.font and t.font[3]) or "OUTLINE"
-    local slots = {leftText = "LEFT", rightText = "RIGHT", centerText = "CENTER"}
     local pside = (pcfg and pcfg.side) or "LEFT"
-    for key, point in pairs(slots) do
-        local fs = p[key]
-        local cfg = t[key]
-        if fs and cfg then
-            fs:SetFont(fontFile, cfg.size or 12, outline)
-            fs:ClearAllPoints()
-            local x = cfg.x or 0
-            if inset > 0 and point == pside then
-                x = x + ((point == "RIGHT") and -inset or inset)
-            end
-            fs:SetPoint(point, p.healthBar, point, x, cfg.y or 0)
-            local text = (UF and UF.FormatToken) and UF.FormatToken(unit, cfg.content)
-            fs:SetText(text or "")
-            if cfg.classColor and UF and UF.ResolveHealthColor then
-                local r, g, b = UF.ResolveHealthColor(unit, t)
-                fs:SetTextColor(r, g, b, 1)
+    for _, element in ipairs((UF and UF.TEXT_ELEMENTS) or {}) do
+        local fs = p[element .. "Text"]
+        local cfg = t.texts and t.texts[element]
+        if fs then
+            if not cfg or not cfg.enabled then
+                fs:SetText("")
             else
-                fs:SetTextColor(1, 1, 1, 1)
+                local anchor = cfg.anchor or "CENTER"
+                fs:SetFont(fontFile, cfg.size or 12, outline)
+                fs:SetJustifyH(UF.TextJustify(anchor))
+                fs:ClearAllPoints()
+                local x = (cfg.x or 0) + UF.TextInsetShift(anchor, inset, pside)
+                fs:SetPoint(anchor, p.healthBar, anchor, x, cfg.y or 0)
+                fs:SetText(UF.FormatToken(unit, cfg.format) or "")
+                fs:SetTextColor(UF.TextColor(unit, t, cfg))
             end
         end
     end

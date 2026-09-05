@@ -428,39 +428,77 @@ local function UpdatePower(frame)
     end
 end
 
--- One text slot. `key` is "leftText"/"rightText"/"centerText" on both the
--- frame (the FontString) and the settings table -- deliberately the same name
--- in both places so there is no mapping to get wrong.
-local function UpdateTextSlot(frame, key)
-    local fs = frame[key]
+-- Text elements. The settings live at t.texts[element]; the FontString lives
+-- at frame[element .. "Text"] (nameText/healthText/powerText/levelText, from
+-- UnitFrameButton.xml's parentKeys). One derived name rather than two parallel
+-- key sets to keep in step.
+-- Read from the defaults file (loaded earlier, per the .toc) rather than
+-- redeclared, so the renderer, the options page and the migration all walk one
+-- list. The literal is only a guard against load order changing under us.
+local TEXT_ELEMENTS = SquizzFrames.UNITFRAME_TEXT_ELEMENTS
+    or {"name", "health", "power", "level"}
+
+local function TextFontString(frame, element)
+    return frame[element .. "Text"]
+end
+
+-- justifyH follows the anchor, so a right-anchored readout grows leftward from
+-- its corner instead of running off the frame. Without this a wide value like
+-- "1.2M / 1.4M" anchored RIGHT still laid out left-justified from the anchor
+-- point and overflowed the frame's edge.
+local function TextJustify(anchor)
+    if not anchor then return "CENTER" end
+    if anchor:find("LEFT") then return "LEFT" end
+    if anchor:find("RIGHT") then return "RIGHT" end
+    return "CENTER"
+end
+
+-- How far to push a readout clear of an INSIDE portrait. Only elements on the
+-- portrait's own side move; everything else keeps its configured offset.
+local function TextInsetShift(anchor, inset, portraitSide)
+    if not inset or inset <= 0 or not anchor or not portraitSide then return 0 end
+    if portraitSide == "LEFT" and anchor:find("LEFT") then return inset end
+    if portraitSide == "RIGHT" and anchor:find("RIGHT") then return -inset end
+    return 0
+end
+
+-- Resolved colour for one element. classColor borrows the health bar's own
+-- resolution (class for players, reaction for NPCs) and defaults OFF -- see
+-- DefaultText in UnitFrames_Defaults.lua for why.
+local function TextColor(unit, t, elem)
+    if elem.classColor and unit and UnitExists(unit) then
+        local r, g, b = ResolveHealthColor(unit, t)
+        return r, g, b, 1
+    end
+    local c = elem.color
+    if c then return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1 end
+    return 1, 1, 1, 1
+end
+
+local function UpdateTextElement(frame, element)
+    local fs = TextFontString(frame, element)
     if not fs then return end
     local unit = frame.unit
     local t = GetFrameConfig(unit)
-    local slot = t and t[key]
-    if not slot or slot.content == "none" then
+    local elem = t and t.texts and t.texts[element]
+    if not elem or not elem.enabled then
         fs:SetText("")
         return
     end
 
-    local text = FormatToken(unit, slot.content)
+    local text = FormatToken(unit, elem.format)
     if not text then
         fs:SetText("")
         return
     end
     fs:SetText(text)
-
-    if slot.classColor and unit and UnitExists(unit) then
-        local r, g, b = ResolveHealthColor(unit, t)
-        fs:SetTextColor(r, g, b, 1)
-    else
-        fs:SetTextColor(1, 1, 1, 1)
-    end
+    fs:SetTextColor(TextColor(unit, t, elem))
 end
 
 local function UpdateTexts(frame)
-    UpdateTextSlot(frame, "leftText")
-    UpdateTextSlot(frame, "rightText")
-    UpdateTextSlot(frame, "centerText")
+    for _, element in ipairs(TEXT_ELEMENTS) do
+        UpdateTextElement(frame, element)
+    end
 end
 
 local function UpdateFrame(frame)
@@ -509,9 +547,10 @@ function SquizzFramesUnitFrame_OnLoad(self)
 
     self.healthBar = self.healthBar or (name and _G[name .. "HealthBar"])
     self.powerBar  = self.powerBar  or (name and _G[name .. "PowerBar"])
-    self.leftText  = self.leftText  or (name and _G[name .. "LeftText"])
-    self.rightText = self.rightText or (name and _G[name .. "RightText"])
-    self.centerText = self.centerText or (name and _G[name .. "CenterText"])
+    self.nameText   = self.nameText   or (name and _G[name .. "NameText"])
+    self.healthText = self.healthText or (name and _G[name .. "HealthText"])
+    self.powerText  = self.powerText  or (name and _G[name .. "PowerText"])
+    self.levelText  = self.levelText  or (name and _G[name .. "LevelText"])
 
     if self.healthBar then
         self.healthBar:SetMinMaxValues(0, 1)
@@ -824,29 +863,21 @@ local function ApplyFrameFont(frame, t, inset, portraitSide)
     local outline = (t.font and t.font[3]) or "OUTLINE"
     inset = inset or 0
 
-    local slots = {
-        leftText   = "LEFT",
-        rightText  = "RIGHT",
-        centerText = "CENTER",
-    }
-    for key, point in pairs(slots) do
-        local fs = frame[key]
-        local cfg = t[key]
+    for _, element in ipairs(TEXT_ELEMENTS) do
+        local fs = TextFontString(frame, element)
+        local cfg = t.texts and t.texts[element]
         if fs and cfg then
             fs:SetFont(fontFile, cfg.size or 12, outline)
+            local anchor = cfg.anchor or "CENTER"
+            fs:SetJustifyH(TextJustify(anchor))
             fs:ClearAllPoints()
             -- Anchored to the HEALTH bar, not the whole frame: with a power
             -- bar present, centring on the frame would sit the text
             -- noticeably low. This keeps text optically centred on the health
             -- bar regardless of the power bar's height.
             local anchorTo = frame.healthBar or frame
-            local x = cfg.x or 0
-            if inset > 0 and point == portraitSide then
-                -- Push away from the portrait, whichever edge it is on. RIGHT
-                -- offsets run negative, hence the sign flip.
-                x = x + ((point == "RIGHT") and -inset or inset)
-            end
-            fs:SetPoint(point, anchorTo, point, x, cfg.y or 0)
+            local x = (cfg.x or 0) + TextInsetShift(anchor, inset, portraitSide)
+            fs:SetPoint(anchor, anchorTo, anchor, x, cfg.y or 0)
         end
     end
 end
@@ -1084,6 +1115,15 @@ end
 -- handling that would be miserable to duplicate.
 UnitFrames.FormatToken = function(unit, token) return FormatToken(unit, token) end
 UnitFrames.ResolveHealthColor = function(unit, t) return ResolveHealthColor(unit, t) end
+
+-- Text-element rendering, likewise shared with the preview. The anchor,
+-- justification, portrait-inset and colour rules all have to match the real
+-- frame exactly or the preview stops being a preview -- it's the same reason
+-- FormatToken is exported rather than reimplemented.
+UnitFrames.TEXT_ELEMENTS = TEXT_ELEMENTS
+UnitFrames.TextJustify = TextJustify
+UnitFrames.TextInsetShift = TextInsetShift
+UnitFrames.TextColor = function(unit, t, elem) return TextColor(unit, t, elem) end
 
 function UnitFrames.HasVisibleFrames()
     for _, frame in pairs(frames) do

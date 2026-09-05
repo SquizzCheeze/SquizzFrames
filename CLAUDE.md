@@ -50,7 +50,7 @@ SquizzFrames/
     │   ├── Nicknames.lua       # Storage, secret-safe resolution cache, AceComm-free addon-message sync, /sf nick
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API
     ├── UnitFrames/          # Standalone single-unit frames (player/target/ToT/focus/focustarget) — Phase 1: no cast bars, portraits, boss or arena yet
-    │   ├── UnitFrames.lua      # Engine: fixed-token frames, health/power/3 text slots, movers, derived-unit poll
+    │   ├── UnitFrames.lua      # Engine: fixed-token frames, health/power/4 text elements (name/health/power/level), movers, derived-unit poll
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames
     ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame

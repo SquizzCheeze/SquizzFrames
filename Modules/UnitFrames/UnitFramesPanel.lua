@@ -55,11 +55,19 @@ local UNIT_TABS = {
     {key = "boss",         label = L["Boss"] or "Boss"},
 }
 
--- Content tokens offered in every text-slot dropdown. Built from the module's
--- own token list so the page can never offer something FormatToken doesn't
--- render -- see UnitFrames_Defaults.lua for why "health deficit" isn't here.
+-- The four text readouts, and the label each gets as a section heading.
+local TEXT_ELEMENT_LABELS = {
+    name   = L["Name"] or "Name",
+    health = L["Health"] or "Health",
+    power  = L["Power"] or "Power",
+    level  = L["Level"] or "Level",
+}
+
+-- Format labels. Built against the module's own per-element format lists so a
+-- dropdown can never offer something FormatToken doesn't render, nor a health
+-- format on the level element -- see UnitFrames_Defaults.lua for why "health
+-- deficit" isn't here at all.
 local TEXT_LABELS = {
-    none          = L["None"] or "None",
     name          = L["Name"] or "Name",
     health        = L["Health"] or "Health",
     healthPercent = L["Health %"] or "Health %",
@@ -71,12 +79,34 @@ local TEXT_LABELS = {
     levelClass    = L["Level + Class"] or "Level + Class",
 }
 
-local function TextItems()
+local function FormatItems(element)
     local items = {}
-    for _, token in ipairs(SquizzFrames.UNITFRAME_TEXT_TOKENS or {}) do
+    local formats = SquizzFrames.UNITFRAME_TEXT_FORMATS
+        and SquizzFrames.UNITFRAME_TEXT_FORMATS[element]
+    for _, token in ipairs(formats or {}) do
         if TEXT_LABELS[token] then
             items[#items + 1] = {value = token, text = TEXT_LABELS[token]}
         end
+    end
+    return items
+end
+
+local ANCHOR_LABELS = {
+    TOPLEFT     = L["Top Left"] or "Top Left",
+    TOP         = L["Top"] or "Top",
+    TOPRIGHT    = L["Top Right"] or "Top Right",
+    LEFT        = L["Left"] or "Left",
+    CENTER      = L["Center"] or "Center",
+    RIGHT       = L["Right"] or "Right",
+    BOTTOMLEFT  = L["Bottom Left"] or "Bottom Left",
+    BOTTOM      = L["Bottom"] or "Bottom",
+    BOTTOMRIGHT = L["Bottom Right"] or "Bottom Right",
+}
+
+local function AnchorItems()
+    local items = {}
+    for _, point in ipairs(SquizzFrames.UNITFRAME_TEXT_ANCHORS or {}) do
+        items[#items + 1] = {value = point, text = ANCHOR_LABELS[point] or point}
     end
     return items
 end
@@ -161,49 +191,65 @@ local function Set(apply)
     Changed()
 end
 
--- Text-slot accessors are generated rather than written out three times: the
--- slot key is the only thing that differs, and fifteen hand-written getter/
--- setter pairs is exactly how a page drifts out of sync with its data.
-local function SlotGetters(slotKey)
+-- Text-element accessors are generated rather than written out four times: the
+-- element key is the only thing that differs, and two dozen hand-written
+-- getter/setter pairs is exactly how a page drifts out of sync with its data.
+--
+-- Every setter goes through Elem(), which materialises t.texts[element] on
+-- demand -- a profile can reach here with the table missing (a frame added
+-- after the profile was created, or a migration that found nothing to carry
+-- over), and a setter that silently no-ops on nil is a control that does
+-- nothing with no way to tell.
+local function ElemGetters(element)
+    local function Elem(t)
+        t.texts = t.texts or {}
+        t.texts[element] = t.texts[element] or {}
+        return t.texts[element]
+    end
+    local function Read(field, fallback)
+        local t = GetUnitConfig()
+        local e = t and t.texts and t.texts[element]
+        local v = e and e[field]
+        if v == nil then return fallback end
+        return v
+    end
+    local defFormat = (SquizzFrames.UNITFRAME_TEXT_FORMATS
+        and SquizzFrames.UNITFRAME_TEXT_FORMATS[element]
+        and SquizzFrames.UNITFRAME_TEXT_FORMATS[element][1]) or "name"
+
     return {
-        content = function()
-            local t = GetUnitConfig()
-            return (t and t[slotKey] and t[slotKey].content) or "none"
-        end,
-        setContent = function(v)
-            Set(function(t)
-                t[slotKey] = t[slotKey] or {}
-                t[slotKey].content = v
-            end)
+        enabled = function() return Read("enabled", false) == true end,
+        setEnabled = function(v)
+            Set(function(t) Elem(t).enabled = v end)
+            -- Everything below the checkbox is hidden while off, so the page
+            -- has to rebuild to show or hide it.
             if rebuildFields then rebuildFields() end
         end,
-        size = function()
-            local t = GetUnitConfig()
-            return (t and t[slotKey] and t[slotKey].size) or 12
-        end,
-        setSize = function(v)
-            Set(function(t) t[slotKey] = t[slotKey] or {}; t[slotKey].size = v end)
-        end,
-        x = function()
-            local t = GetUnitConfig()
-            return (t and t[slotKey] and t[slotKey].x) or 0
-        end,
-        setX = function(v)
-            Set(function(t) t[slotKey] = t[slotKey] or {}; t[slotKey].x = v end)
-        end,
-        y = function()
-            local t = GetUnitConfig()
-            return (t and t[slotKey] and t[slotKey].y) or 0
-        end,
-        setY = function(v)
-            Set(function(t) t[slotKey] = t[slotKey] or {}; t[slotKey].y = v end)
-        end,
-        classColor = function()
-            local t = GetUnitConfig()
-            return (t and t[slotKey] and t[slotKey].classColor) == true
-        end,
+        format = function() return Read("format", defFormat) end,
+        setFormat = function(v) Set(function(t) Elem(t).format = v end) end,
+        anchor = function() return Read("anchor", "CENTER") end,
+        setAnchor = function(v) Set(function(t) Elem(t).anchor = v end) end,
+        size = function() return Read("size", 12) end,
+        setSize = function(v) Set(function(t) Elem(t).size = v end) end,
+        x = function() return Read("x", 0) end,
+        setX = function(v) Set(function(t) Elem(t).x = v end) end,
+        y = function() return Read("y", 0) end,
+        setY = function(v) Set(function(t) Elem(t).y = v end) end,
+        classColor = function() return Read("classColor", false) == true end,
         setClassColor = function(v)
-            Set(function(t) t[slotKey] = t[slotKey] or {}; t[slotKey].classColor = v end)
+            Set(function(t) Elem(t).classColor = v end)
+            -- The custom colour picker is hidden while class colour is on --
+            -- a live control that provably does nothing is the failure this
+            -- page keeps trying to avoid.
+            if rebuildFields then rebuildFields() end
+        end,
+        color = function()
+            local c = Read("color", nil)
+            if type(c) ~= "table" then return 1, 1, 1, 1 end
+            return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+        end,
+        setColor = function(r, g, b, a)
+            Set(function(t) Elem(t).color = {r, g, b, a} end)
         end,
     }
 end
@@ -413,30 +459,39 @@ local function SecColors(host, y, cfg, t)
 
 end
 
+-- One group per READOUT (name / health / power / level), each with its own
+-- enable, format, anchor, offsets, size and colour. This replaced three groups
+-- named after anchors whose content was a dropdown -- see
+-- UNITFRAME_TEXT_ELEMENTS in UnitFrames_Defaults.lua for why that was backwards.
 local function SecText(host, y, cfg, t)
-    local slots = {
-        {key = "leftText",   label = L["Left Text"] or "Left Text"},
-        {key = "rightText",  label = L["Right Text"] or "Right Text"},
-        {key = "centerText", label = L["Center Text"] or "Center Text"},
-    }
-    for _, slot in ipairs(slots) do
-        W.CreateTitledPane(host, slot.label, y)
+    for _, element in ipairs(SquizzFrames.UNITFRAME_TEXT_ELEMENTS or {}) do
+        local acc = ElemGetters(element)
+
+        W.CreateTitledPane(host, TEXT_ELEMENT_LABELS[element] or element, y)
         y = y - 35
 
-        local acc = SlotGetters(slot.key)
+        local cbOn = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+            acc.enabled, acc.setEnabled)
+        cbOn:SetPoint("TOPLEFT", 15, y)
+        y = y - 28
 
-        local dd = W.CreateStyledDropdown(host, 200, 40, L["Content"] or "Content",
-            TextItems(), acc.content, acc.setContent)
-        dd:SetPoint("TOPLEFT", 15, y - 20)
-        y = y - 70
+        -- Everything below is meaningless for a hidden readout, so it is
+        -- hidden rather than shown-and-ignored.
+        if acc.enabled() then
+            -- Name has exactly one format, so a one-item dropdown would be a
+            -- control that cannot be changed. Skip it rather than show it.
+            local formats = FormatItems(element)
+            if #formats > 1 then
+                local dd = W.CreateStyledDropdown(host, 200, 40, L["Format"] or "Format",
+                    formats, acc.format, acc.setFormat)
+                dd:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 70
+            end
 
-        -- Everything below is meaningless for an empty slot, so it is hidden
-        -- rather than shown-and-ignored.
-        if acc.content() ~= "none" then
-            local sSize = W.CreateStyledSlider(host, 200, 6, 24, 1, L["Size"] or "Size",
-                acc.size, acc.setSize)
-            sSize:SetPoint("TOPLEFT", 15, y - 20)
-            y = y - 65
+            local ddAnchor = W.CreateStyledDropdown(host, 200, 40, L["Anchor"] or "Anchor",
+                AnchorItems(), acc.anchor, acc.setAnchor)
+            ddAnchor:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
 
             local sX = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset X"] or "Offset X",
                 acc.x, acc.setX)
@@ -448,13 +503,26 @@ local function SecText(host, y, cfg, t)
             sY:SetPoint("TOPLEFT", 15, y - 20)
             y = y - 65
 
+            local sSize = W.CreateStyledSlider(host, 200, 6, 24, 1, L["Size"] or "Size",
+                acc.size, acc.setSize)
+            sSize:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
             local cbCC = W.CreateStyledCheckbox(host, L["Use Class Color"] or "Use Class Color",
                 acc.classColor, acc.setClassColor)
             cbCC:SetPoint("TOPLEFT", 15, y)
-            y = y - 35
+            y = y - 28
+
+            -- Class colour wins when it's on, so the swatch would be inert.
+            if not acc.classColor() then
+                local cp = W.CreateColorPicker(host, L["Text Color"] or "Text Color",
+                    acc.color, acc.setColor)
+                cp:SetPoint("TOPLEFT", 15, y - 6)
+                y = y - 32
+            end
+            y = y - 10
         end
     end
-
 end
 
 local function SecPortrait(host, y, cfg, t)

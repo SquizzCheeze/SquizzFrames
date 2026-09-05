@@ -99,3 +99,13 @@ L["Top Left"] = "Top Left"
 L["Top Right"] = "Top Right"
 L["Bottom Left"] = "Bottom Left"
 L["Bottom Right"] = "Bottom Right"
+
+-- Unit frame text elements (name/health/power/level). The nine anchor point
+-- labels these dropdowns use are the "Screen anchor point" block above --
+-- same words, so they are not duplicated here.
+L["Show"] = "Show"
+L["Format"] = "Format"
+L["Text Color"] = "Text Color"
+L["Health + %"] = "Health + %"
+L["Health / Max"] = "Health / Max"
+L["Level + Class"] = "Level + Class"

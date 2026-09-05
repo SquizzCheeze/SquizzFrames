@@ -27,24 +27,66 @@ end
 
 local profile = defaults.profile
 
--- Text content tokens shared by every text slot. Kept as one list so the
--- options dropdowns and the renderer can't drift -- UnitFrames.lua's
--- RenderTextSlot switches on exactly these.
-SquizzFrames.UNITFRAME_TEXT_TOKENS = {
-    "none",
-    "name",
-    "health",          -- current, abbreviated (e.g. 1.2M)
-    "healthPercent",
-    "healthBoth",      -- "1.2M | 84%"
-    "healthMax",       -- "1.2M / 1.4M"
-    -- No "healthDeficit": max minus current is ARITHMETIC on a secret value,
-    -- which throws in combat, and there is no C-level API that returns it.
-    -- See UnitFrames.lua's header.
-    "power",
-    "powerPercent",
-    "level",
-    "levelClass",      -- "70 Warlock" / "72 Elite"
+-- TEXT ELEMENTS (2026-09-05, replacing the old left/right/centre "slots").
+--
+-- The old model made the ANCHOR the identity: three slots called leftText,
+-- rightText and centerText, each with a content dropdown listing every token.
+-- That got the hierarchy backwards. You think "I want the level shown", not
+-- "I want the centre slot to be the level", and the anchor-as-identity model
+-- made three things awkward at once: you could only ever show three of the
+-- available readouts, you could show the same one twice by accident, and
+-- moving a readout from the left to the right of the frame meant retyping its
+-- whole configuration into a different slot.
+--
+-- Now each READOUT is the group, with its anchor as one of its settings. The
+-- four cover everything the old token list did.
+SquizzFrames.UNITFRAME_TEXT_ELEMENTS = {"name", "health", "power", "level"}
+
+-- Which content tokens each element can render. UnitFrames.lua's FormatToken
+-- switches on exactly these strings -- the lists are split per element rather
+-- than kept as one flat set so a dropdown physically cannot offer a health
+-- format on the level element.
+--
+-- No "healthDeficit": max minus current is ARITHMETIC on a secret value,
+-- which throws in combat, and there is no C-level API that returns it. See
+-- UnitFrames.lua's header.
+SquizzFrames.UNITFRAME_TEXT_FORMATS = {
+    name   = {"name"},
+    health = {"health", "healthPercent", "healthBoth", "healthMax"},
+    power  = {"power", "powerPercent"},
+    level  = {"level", "levelClass"},
 }
+
+-- Every anchor point a text element may use. The element is anchored to the
+-- HEALTH bar (not the whole frame) at point-to-same-point, so these read as
+-- "which corner/edge of the health bar do I sit on".
+SquizzFrames.UNITFRAME_TEXT_ANCHORS = {
+    "TOPLEFT", "TOP", "TOPRIGHT",
+    "LEFT", "CENTER", "RIGHT",
+    "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT",
+}
+
+-- One text element's settings.
+--
+-- classColor defaults to FALSE for every element on every frame. It used to
+-- default on for the name, which meant the single most-read piece of text on
+-- the frame changed colour per target with no obvious way to find the switch
+-- -- and it borrows the HEALTH bar's colour resolution, so on an NPC it was
+-- reaction colour rather than anything to do with the name. Off by default
+-- with an explicit custom colour underneath is the honest arrangement.
+local function DefaultText(opts)
+    opts = opts or {}
+    return {
+        enabled = opts.enabled or false,
+        format = opts.format,
+        anchor = opts.anchor or "CENTER",
+        x = opts.x or 0,
+        y = opts.y or 0,
+        size = opts.size or 12,
+        classColor = false,
+        color = opts.color or {1, 1, 1, 1},
+    }
+end
 
 -- One frame's settings. Every unit gets the same shape so the options page can
 -- be a single builder parameterised by unit key -- the alternative (per-unit
@@ -76,11 +118,20 @@ local function DefaultFrame(opts)
         healthCustomColor = {0.2, 0.6, 0.2, 1},
         healthBackdropColor = {0, 0, 0, 0.6},
 
-        -- Three text slots per frame, matching where the eye actually looks.
-        -- Each is {content, size, offsetX, offsetY, useClassColor}.
-        leftText   = {content = opts.leftText   or "name",   size = 12, x = 2,  y = 0, classColor = true},
-        rightText  = {content = opts.rightText  or "healthBoth", size = 12, x = -2, y = 0, classColor = false},
-        centerText = {content = "none", size = 12, x = 0, y = 0, classColor = false},
+        -- One entry per readout, keyed by UNITFRAME_TEXT_ELEMENTS. Name and
+        -- health are on by default because a frame showing neither is not a
+        -- unit frame; power and level are off, since both are usually already
+        -- legible from the power bar / the target's own frame and both crowd
+        -- a small frame badly.
+        texts = {
+            name   = DefaultText{enabled = opts.nameText ~= false, format = "name",
+                                 anchor = "LEFT", x = 2},
+            health = DefaultText{enabled = opts.healthText ~= false,
+                                 format = opts.healthFormat or "healthBoth",
+                                 anchor = "RIGHT", x = -2},
+            power  = DefaultText{format = "powerPercent", anchor = "CENTER"},
+            level  = DefaultText{format = "level", anchor = "TOPLEFT", x = 2},
+        },
 
         font = {"Friz QT__", 12, "OUTLINE", true},
 
@@ -258,21 +309,21 @@ profile.unitFrames = {
 
     frames = {
         player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,
-                                    rightText = "healthBoth"},
+                                    healthFormat = "healthBoth"},
         target       = DefaultFrame{anchorX =  260, anchorY = -180, castBar = true,
                                     buffs = "topleft", debuffs = "bottomleft",
-                                    rightText = "healthBoth"},
+                                    healthFormat = "healthBoth"},
         targettarget = DefaultFrame{anchorX =  430, anchorY = -140,
                                     width = 110, height = 26, powerHeight = 0,
-                                    leftText = "name", rightText = "healthPercent"},
+                                    healthFormat = "healthPercent"},
         focus        = DefaultFrame{anchorX = -260, anchorY = -280, castBar = true,
                                     debuffs = "bottomleft",
                                     width = 150, height = 34,
-                                    rightText = "healthPercent"},
+                                    healthFormat = "healthPercent"},
         focustarget  = DefaultFrame{enabled = false,
                                     anchorX = -100, anchorY = -280,
                                     width = 110, height = 26, powerHeight = 0,
-                                    leftText = "name", rightText = "healthPercent"},
+                                    healthFormat = "healthPercent"},
     },
 
     -- BOSS FRAMES. ONE settings table shared by boss1..MAX_BOSS_FRAMES rather
@@ -288,7 +339,7 @@ profile.unitFrames = {
         local t = DefaultFrame{enabled = false,
                                anchorX = 380, anchorY = 120,
                                width = 170, height = 34, powerHeight = 4,
-                               leftText = "name", rightText = "healthBoth",
+                               healthFormat = "healthBoth",
                                castBar = true}
         t.spacing = 26
         t.growthDirection = "DOWN"   -- DOWN | UP | RIGHT | LEFT

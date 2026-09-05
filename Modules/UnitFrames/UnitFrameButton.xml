@@ -16,9 +16,14 @@
          keyboard/wheel bind would silently not (the exact half-working state
          documented in ClickCasting.lua's WrapExternalHover comment).
 
-         Three text slots (left/right/center) rather than fixed name/health
-         FontStrings: every slot's CONTENT is a user setting, so hardcoding
-         which one shows the name would make half the options page a lie. -->
+         One FontString per READOUT (name/health/power/level), each anchored
+         wherever its own settings say. This replaced three anchor-named slots
+         (left/right/center) whose content was a dropdown: that let you show
+         the same readout twice, capped you at three of them, and made moving
+         one across the frame a retype rather than a dropdown change.
+
+         justifyH is set from Lua, not here, since it has to follow whichever
+         anchor the readout is currently using. -->
     <Button name="SquizzFramesUnitFrameTemplate"
             inherits="BackdropTemplate,SecureUnitButtonTemplate,SecureHandlerEnterLeaveTemplate,SecureHandlerShowHideTemplate,SecureHandlerMouseUpDownTemplate"
             virtual="true" enableMouse="true">
@@ -34,21 +39,28 @@
 
         <Layers>
             <Layer level="ARTWORK" textureSubLevel="2">
-                <FontString name="$parentLeftText" parentKey="leftText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL">
+                <FontString name="$parentNameText" parentKey="nameText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL">
                     <FontHeight val="12"/>
                     <Shadow>
                         <Offset x="1" y="-1"/>
                         <Color r="0" g="0" b="0" a="1"/>
                     </Shadow>
                 </FontString>
-                <FontString name="$parentRightText" parentKey="rightText" font="Fonts\FRIZQT__.TTF" justifyH="RIGHT" outline="NORMAL">
+                <FontString name="$parentHealthText" parentKey="healthText" font="Fonts\FRIZQT__.TTF" justifyH="RIGHT" outline="NORMAL">
                     <FontHeight val="12"/>
                     <Shadow>
                         <Offset x="1" y="-1"/>
                         <Color r="0" g="0" b="0" a="1"/>
                     </Shadow>
                 </FontString>
-                <FontString name="$parentCenterText" parentKey="centerText" font="Fonts\FRIZQT__.TTF" justifyH="CENTER" outline="NORMAL">
+                <FontString name="$parentPowerText" parentKey="powerText" font="Fonts\FRIZQT__.TTF" justifyH="CENTER" outline="NORMAL">
+                    <FontHeight val="12"/>
+                    <Shadow>
+                        <Offset x="1" y="-1"/>
+                        <Color r="0" g="0" b="0" a="1"/>
+                    </Shadow>
+                </FontString>
+                <FontString name="$parentLevelText" parentKey="levelText" font="Fonts\FRIZQT__.TTF" justifyH="LEFT" outline="NORMAL">
                     <FontHeight val="12"/>
                     <Shadow>
                         <Offset x="1" y="-1"/>

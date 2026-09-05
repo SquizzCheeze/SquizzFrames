@@ -455,6 +455,80 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
 end
 
 -----------------------------------------------------------------------
+-- CreateCompactSlider: CreateStyledSlider's look, on one row
+-----------------------------------------------------------------------
+
+-- Same Dense Tactical track/fill/thumb as CreateStyledSlider, with the title,
+-- low/high labels and value editbox stripped out so it fits inside an existing
+-- 24px row.
+--
+-- This exists because the opacity slider in CreateColorPicker was the last
+-- stock OptionsSliderTemplate left in the addon (2026-09-05): every colour
+-- control on every indicator page and on the unit frames page carried a piece
+-- of default-UI furniture next to restyled widgets, complete with the stock
+-- "Low"/"High" end labels that don't say what is being adjusted. Dropping
+-- CreateStyledSlider in wholesale wasn't an option -- it is 48px tall and
+-- brings its own label.
+--
+-- Returns the Slider itself, not a container, so it is a drop-in for the
+-- CreateFrame("Slider", ...) call it replaced: SetMinMaxValues, SetValue and
+-- GetValue all behave as the caller expects.
+--
+-- CALLERS MUST USE HookScript, NOT SetScript, for OnValueChanged, OnEnter and
+-- OnLeave. This widget owns those three (fill redraw, thumb highlight) via
+-- SetScript, so a caller's SetScript would replace them outright -- and the
+-- symptom of getting that wrong is a slider whose fill bar simply never
+-- moves, which reads as a broken value rather than as a lost handler.
+local function CreateCompactSlider(parent, width, height, low, high, step)
+    local slider = CreateFrame("Slider", nil, parent, "BackdropTemplate")
+    slider:SetSize(width, height or 4)
+    slider:SetOrientation("HORIZONTAL")
+    slider:SetMinMaxValues(low, high)
+    slider:SetValueStep(step or 1)
+    slider:SetObeyStepOnDrag(true)
+    -- Same reasoning as CreateStyledSlider: a 4px visible track is a 4px
+    -- mouse target without this. No mouse wheel, for the same reason too --
+    -- these live on scrolling pages.
+    slider:SetHitRectInsets(0, 0, -SLIDER_HIT_EXPAND_UP, -SLIDER_HIT_EXPAND_DOWN)
+
+    slider:SetBackdrop({
+        bgFile = WHITE_TEXTURE,
+        edgeFile = WHITE_TEXTURE,
+        edgeSize = 1,
+        insets = {left = 0, right = 0, top = 0, bottom = 0},
+    })
+    slider:SetBackdropColor(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
+    slider:SetBackdropBorderColor(0, 0, 0, 1)
+
+    local fill = slider:CreateTexture(nil, "ARTWORK")
+    fill:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.85)
+    fill:SetPoint("TOPLEFT", 0, 0)
+    fill:SetPoint("BOTTOMLEFT", 0, 0)
+    fill:SetWidth(1)
+
+    local thumb = slider:CreateTexture(nil, "OVERLAY")
+    thumb:SetSize(10, 10)
+    thumb:SetColorTexture(1, 1, 1, 1)
+    slider:SetThumbTexture(thumb)
+
+    local function UpdateFill(value)
+        local frac = (high > low) and ((value - low) / (high - low)) or 0
+        frac = math.max(0, math.min(1, frac))
+        fill:SetWidth(math.max(1, width * frac))
+    end
+    slider.UpdateFill = UpdateFill
+
+    slider:SetScript("OnValueChanged", function(_, value) UpdateFill(value) end)
+    slider:SetScript("OnEnter", function()
+        thumb:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 1)
+    end)
+    slider:SetScript("OnLeave", function() thumb:SetColorTexture(1, 1, 1, 1) end)
+
+    UpdateFill(low)
+    return slider
+end
+
+-----------------------------------------------------------------------
 -- CreateStyledSwitch: Two-state toggle with class-color highlight
 -----------------------------------------------------------------------
 
@@ -1413,23 +1487,24 @@ local function CreateColorPicker(parent, label, getColor, setColor)
     container.swatch.tex:SetPoint("TOPLEFT", 1, -1)
     container.swatch.tex:SetPoint("BOTTOMRIGHT", -1, 1)
 
-    -- Opacity slider. OptionsSliderTemplate's stock "Low"/"High" end labels
-    -- don't say what's being adjusted at all -- add a tooltip so hovering
-    -- explains it's opacity (0 = fully transparent, 1 = fully opaque)
-    -- without needing extra vertical space for a title in this compact row.
-    container.opacity = CreateFrame("Slider", nil, container, "OptionsSliderTemplate")
-    container.opacity:SetSize(80, 16)
+    -- Opacity slider, on the addon's own compact slider rather than the stock
+    -- OptionsSliderTemplate it used until 2026-09-05. This was the last piece
+    -- of default-UI furniture left in the options, and it appeared next to
+    -- every colour control on every indicator page and on the unit frames
+    -- page -- so a single swap here restyles all of them at once.
+    --
+    -- The tooltip stays: it was added because the stock template's "Low"/
+    -- "High" end labels never said what was being adjusted, and the compact
+    -- slider has no labels at all, so the need is if anything greater.
+    container.opacity = CreateCompactSlider(container, 80, 6, 0, 1, 0.05)
     container.opacity:SetPoint("LEFT", container.swatch, "RIGHT", 8, 0)
-    container.opacity:SetMinMaxValues(0, 1)
-    container.opacity:SetValueStep(0.05)
-    container.opacity:SetObeyStepOnDrag(true)
-    container.opacity:SetScript("OnEnter", function(self)
+    container.opacity:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText("Opacity")
         GameTooltip:AddLine("Low = fully transparent, High = fully opaque.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    container.opacity:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    container.opacity:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Guards against a real WoW Slider quirk: SetValue() below fires
     -- OnValueChanged even when set programmatically, not just on user drag.
@@ -1505,7 +1580,7 @@ local function CreateColorPicker(parent, label, getColor, setColor)
         ColorPickerFrame:SetupColorPickerAndShow(info)
     end)
 
-    container.opacity:SetScript("OnValueChanged", function(_, val)
+    container.opacity:HookScript("OnValueChanged", function(_, val)
         if suppressCallback then return end
         local r, g, b = getColor()
         setColor(r, g, b, val)
@@ -1965,6 +2040,7 @@ SquizzFrames.Widgets = {
     CreateStyledCheckbox = CreateStyledCheckbox,
     CreateStyledDropdown = CreateStyledDropdown,
     CreateStyledSlider = CreateStyledSlider,
+    CreateCompactSlider = CreateCompactSlider,
     CreateStyledSwitch = CreateStyledSwitch,
     CreateTitledPane = CreateTitledPane,
     StylizeFrame = StylizeFrame,

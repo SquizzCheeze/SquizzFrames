@@ -227,6 +227,111 @@ local function MigrateHideBlizzardSwitches(profile)
         .. tostring(g.hideBlizzardFrames) .. ")")
 end
 
+-- Unit frame text: three anchor-named slots -> four readout-named elements
+-- (2026-09-05). Old shape, per frame:
+--     leftText/rightText/centerText = {content, size, x, y, classColor}
+-- New shape:
+--     texts = {name|health|power|level = {enabled, format, anchor, x, y,
+--                                        size, classColor, color}}
+--
+-- The mapping is exact rather than approximate, because each old slot held
+-- exactly ONE content token and every token belongs to exactly one of the four
+-- new elements. The slot's key supplies the anchor it used to be named for.
+--
+-- Note this can legitimately DROP settings: two old slots both showing a
+-- health token collapse onto the single health element, last one wins. That
+-- was never a configuration worth preserving (the frame showed the same
+-- reading twice), and it is the reason the anchor-as-identity model was
+-- replaced.
+local UNITFRAME_SLOT_ANCHORS = {
+    leftText = "LEFT",
+    rightText = "RIGHT",
+    centerText = "CENTER",
+}
+
+local UNITFRAME_TOKEN_ELEMENT = {
+    name = "name",
+    health = "health", healthPercent = "health",
+    healthBoth = "health", healthMax = "health",
+    power = "power", powerPercent = "power",
+    level = "level", levelClass = "level",
+}
+
+local function MigrateUnitFrameTextsOne(t)
+    if type(t) ~= "table" then return false end
+    -- Nothing to do if it never had the old shape, or already has the new one
+    -- AND the old keys are gone.
+    local hadOld = false
+    for slotKey in pairs(UNITFRAME_SLOT_ANCHORS) do
+        if type(t[slotKey]) == "table" then hadOld = true end
+    end
+    if not hadOld then return false end
+
+    local defFrame = SquizzFrames.defaults and SquizzFrames.defaults.profile
+        and SquizzFrames.defaults.profile.unitFrames
+        and SquizzFrames.defaults.profile.unitFrames.frames
+        and SquizzFrames.defaults.profile.unitFrames.frames.player
+    local defTexts = defFrame and defFrame.texts
+
+    -- Start from the shipped defaults so every element exists with a sane
+    -- format/anchor, then overwrite the ones the old config actually used.
+    --
+    -- `enabled` is forced false on ALL FOUR first, unconditionally. The
+    -- elements are usually already present by the time this runs --
+    -- ProfileStore's DeepFillDefaults materialises the new default tree over
+    -- every profile it activates, before any migration -- and the shipped
+    -- defaults have name and health ON. Only creating the missing ones would
+    -- therefore leave a frame showing readouts its old config never had, with
+    -- the user's actual slots merged in on top. The slot loop below is the
+    -- only thing that may switch one back on.
+    t.texts = t.texts or {}
+    for element, defElem in pairs(defTexts or {}) do
+        if type(t.texts[element]) ~= "table" then
+            t.texts[element] = F.CopyTable and F.CopyTable(defElem) or {}
+        end
+        t.texts[element].enabled = false
+    end
+
+    -- Deterministic order. pairs() over the three slots would make which one
+    -- wins a health-token collision depend on hash order, i.e. differ between
+    -- sessions for the same saved data.
+    for _, slotKey in ipairs({"leftText", "centerText", "rightText"}) do
+        local slot = t[slotKey]
+        if type(slot) == "table" then
+            local element = UNITFRAME_TOKEN_ELEMENT[slot.content]
+            local dest = element and t.texts[element]
+            if dest then
+                dest.enabled = true
+                dest.format = slot.content
+                dest.anchor = UNITFRAME_SLOT_ANCHORS[slotKey]
+                dest.x = slot.x or 0
+                dest.y = slot.y or 0
+                dest.size = slot.size or 12
+                -- classColor carries over as the user had it, even though its
+                -- default flipped to false: an explicit true was a choice.
+                dest.classColor = slot.classColor == true
+                dest.color = dest.color or {1, 1, 1, 1}
+            end
+        end
+        t[slotKey] = nil
+    end
+    return true
+end
+
+local function MigrateUnitFrameTexts(profile)
+    local uf = profile and profile.unitFrames
+    if not uf then return end
+    local changed = false
+    for _, t in pairs(uf.frames or {}) do
+        if MigrateUnitFrameTextsOne(t) then changed = true end
+    end
+    -- Boss frames are a single shared table alongside .frames, not inside it.
+    if MigrateUnitFrameTextsOne(uf.boss) then changed = true end
+    if changed then
+        MigrationPrint("converted unit frame text slots to name/health/power/level elements")
+    end
+end
+
 -- One-time correction: Dispels was rebuilt from a manual aura scan (icon
 -- grid: filters/highlightType/iconStyle/orientation/size/position) onto
 -- AuraEngine (per-dispel-type AuraContainer overlay: dispelShowAll/
@@ -545,6 +650,7 @@ local function EnsureIndicatorLists(profile)
     end
     MigrateAccentColorDefault(profile)
     MigrateHideBlizzardSwitches(profile)
+    MigrateUnitFrameTexts(profile)
 end
 
 -- Print with addon prefix
