@@ -152,6 +152,20 @@ function ResourceBar.Create()
     bar:SetFrameStrata("MEDIUM")
     bar:Hide()
 
+    -- Solid backdrop behind EVERYTHING, on the bar frame itself rather than on
+    -- any of its children -- a BACKGROUND-layer texture on the parent renders
+    -- below every child frame, which is exactly what is wanted.
+    --
+    -- This is what makes the point row countable. The points are separate
+    -- frames with `pointSpacing` between them, so without a backdrop the gaps
+    -- are TRANSPARENT and you are reading charges against whatever the game
+    -- world happens to be showing through them (user report + screenshot). A
+    -- solid fill turns each gap into a dark gutter, and the row reads as
+    -- discrete pips instead of a smear.
+    local backdrop = bar:CreateTexture(nil, "BACKGROUND")
+    backdrop:SetColorTexture(0, 0, 0, 0.8)
+    bar.backdrop = backdrop
+
     local power = CreateFrame("StatusBar", nil, bar)
     power:SetMinMaxValues(0, 1)
     power:SetValue(0)
@@ -183,7 +197,7 @@ function ResourceBar.Create()
         pip:SetValue(0)
         local pipBg = pip:CreateTexture(nil, "BACKGROUND")
         pipBg:SetAllPoints(pip)
-        pipBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
+        pipBg:SetColorTexture(0.22, 0.22, 0.22, 1)
         pip._sfBg = pipBg
         pip:Hide()
         bar.points[i] = pip
@@ -351,6 +365,25 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         for i = 1, MAX_POINTS do bar.points[i]:Hide() end
     end
 
+    -- Backdrop. Defaults to ON (`~= false`, not `== true`): the transparent
+    -- gaps it fixes are a defect rather than a style, so a profile that has
+    -- never heard of this key should still get the readable version.
+    local bgCfg = cfg.background
+    if bar.backdrop then
+        if not bgCfg or bgCfg.enabled ~= false then
+            local pad = (bgCfg and bgCfg.padding) or 0
+            local c = (bgCfg and bgCfg.color) or {0, 0, 0, 0.8}
+            bar.backdrop:ClearAllPoints()
+            bar.backdrop:SetPoint("TOPLEFT", bar, "TOPLEFT", -pad, pad)
+            bar.backdrop:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", pad, -pad)
+            bar.backdrop:SetColorTexture(c[1] or 0, c[2] or 0, c[3] or 0,
+                                         c[4] or 0.8)
+            bar.backdrop:Show()
+        else
+            bar.backdrop:Hide()
+        end
+    end
+
     -- Border. Wraps the WHOLE bar, power row and point row together, rather
     -- than one box per row: two boxes with a gap between them is a different
     -- look, and the one people ask for is the outline. `padding` pushes it
@@ -428,7 +461,7 @@ function ResourceBar.Update()
             local auto = RESOURCE_COLOR[name] or {1, 1, 1}
             local r, g, b = ResolveColor(cfg.pointColorMode or "auto",
                 cfg.pointColor, auto[1], auto[2], auto[3])
-            local ec = cfg.pointEmptyColor or {0.15, 0.15, 0.15, 0.8}
+            local ec = cfg.pointEmptyColor or {0.22, 0.22, 0.22, 1}
             for i = 1, count do
                 local pip = bar.points[i]
                 pip:SetStatusBarColor(r, g, b, 1)

@@ -108,9 +108,14 @@ Added:
   class colour, or your own), the points can sit above or below the bar, and
   the power text has its own format, anchor, offsets, size and colour.
 
-  There's an optional border around the whole thing, with its own thickness,
-  padding and colour. It outlines both rows together, so set the row Gap to 0
-  if you want it tight around them.
+  A solid background sits behind the whole bar so the gaps between the
+  resource points read as dark gutters instead of see-through holes - without
+  it the charges are genuinely hard to count against a busy scene. On by
+  default, with its own colour and padding.
+
+  There's an optional border around the whole thing too, with its own
+  thickness, padding and colour. It outlines both rows together, so set the
+  row Gap to 0 if you want it tight around them.
 
   It has its own enable and works whether or not the unit frames themselves
   are switched on - wanting a Holy Power display is not the same as wanting a

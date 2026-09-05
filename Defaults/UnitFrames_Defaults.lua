@@ -399,10 +399,27 @@ profile.unitFrames = {
         pointsAbove = true,
         pointColorMode = "auto",     -- "auto" (per resource) | "class" | "custom"
         pointColor = {1, 0.85, 0.3, 1},
-        pointEmptyColor = {0.15, 0.15, 0.15, 0.8},
+        -- Deliberately lighter than the backdrop below, and fully opaque. The
+        -- point row has to read as THREE distinct tones to be countable at a
+        -- glance: the resource colour for a filled point, this grey for an
+        -- empty one, and the near-black backdrop showing through the gaps
+        -- between them. At the old 0.15/0.8 an empty point and a gap were
+        -- nearly the same shade.
+        pointEmptyColor = {0.22, 0.22, 0.22, 1},
 
         -- Gap between the two rows, when both are shown.
         gap = 2,
+
+        -- Solid fill behind the whole bar. ON by default, because the point
+        -- row is not reliably countable without it -- the gaps between points
+        -- are transparent, so the charges get read against whatever the game
+        -- world is showing through them (user report + screenshot, 2026-09-06).
+        -- padding extends it past the bar's edge.
+        background = {
+            enabled = true,
+            color = {0, 0, 0, 0.8},
+            padding = 0,
+        },
 
         -- Border around the WHOLE bar (both rows plus the gap between them),
         -- built on BuiltIn_Update.lua's shared CreateBorderIndicator.

@@ -1555,10 +1555,44 @@ local function SecResource(host, y, cfg, t)
         end
 
         local cpEmpty = W.CreateColorPicker(host, L["Empty Color"] or "Empty Color",
-            R.colorGet("pointEmptyColor", 0.15, 0.15, 0.15, 0.8),
+            R.colorGet("pointEmptyColor", 0.22, 0.22, 0.22, 1),
             R.colorSet("pointEmptyColor"))
         cpEmpty:SetPoint("TOPLEFT", 15, y - 6)
         y = y - 42
+    end
+
+    -- Background
+    local BG = ResourceGetters("background")
+
+    W.CreateTitledPane(host, L["Background"] or "Background", y)
+    y = y - 35
+
+    local cbBg = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        function() return BG.Read("enabled", true) ~= false end,
+        BG.setBoolRebuild("enabled"))
+    cbBg:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local bgNote = host:CreateFontString(nil, "OVERLAY")
+    bgNote:SetFontObject("GameFontDisableSmall")
+    bgNote:SetPoint("TOPLEFT", 32, y)
+    bgNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    bgNote:SetJustifyH("LEFT")
+    bgNote:SetText(L["ResourceBackgroundNote"]
+        or "A solid fill behind the whole bar. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background.")
+    y = y - 42
+
+    if BG.Read("enabled", true) ~= false then
+        local cpBg = W.CreateColorPicker(host, L["Color"] or "Color",
+            BG.colorGet("color", 0, 0, 0, 0.8), BG.colorSet("color"))
+        cpBg:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 36
+
+        local sBgPad = W.CreateStyledSlider(host, 200, 0, 20, 1,
+            L["Padding"] or "Padding",
+            BG.get("padding", 0), BG.set("padding"))
+        sBgPad:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
     end
 
     -- Border
