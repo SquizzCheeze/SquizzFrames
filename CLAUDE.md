@@ -29,7 +29,7 @@ SquizzFrames/
 ├── Locales/                 # enUS.lua (AceLocale-3.0)
 ├── Compat/
 │   └── BlizziCompat.lua     # Optional integration: registers SquizzFrames with BliZzi_Interrupts' unit-frame resolver
-├── HideBlizzard.lua         # Hides default Blizzard party/raid frames
+├── HideBlizzard.lua         # One master switch (general.hideBlizzardFrames) hiding every Blizzard frame we replace, gated per-frame on ours being enabled
 └── Modules/
     ├── LoadModules.xml      # Loads PartyFrames, Indicators (incl. AuraEngine), ClickCasting, Options
     ├── PartyFrames/         # Secure group header + unit buttons (party1-4 + player)

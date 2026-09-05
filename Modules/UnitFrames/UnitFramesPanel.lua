@@ -144,19 +144,14 @@ local function RefreshPreview()
 end
 
 local function Changed()
+    -- HideBlizzard.lua listens for this and re-evaluates every Blizzard frame
+    -- itself -- which it has to, since the single master switch means our
+    -- per-frame enables are what decide whether Blizzard's counterpart shows.
+    -- This used to call HideBlizzardUnitFrames/HideBlizzardCastBar by hand and
+    -- would now need a third call for the pet frame; the message keeps the
+    -- decision in one file instead.
     SquizzFrames:Fire("UnitFramesChanged")
     RefreshPreview()
-    -- The Blizzard-frame hide reads the same settings, and nothing else
-    -- re-evaluates it when they change.
-    if SquizzFrames.HideBlizzardUnitFrames then
-        SquizzFrames:HideBlizzardUnitFrames()
-    end
-    -- The cast bar hide reads the module switch, its own switch AND the player
-    -- frame's cast bar enable, so any of the three changing has to re-run it.
-    -- Cheapest correct answer is to run it on every settings change.
-    if SquizzFrames.HideBlizzardCastBar then
-        SquizzFrames:HideBlizzardCastBar()
-    end
 end
 
 local function Set(apply)
@@ -235,19 +230,20 @@ local function SecGeneral(host, y, cfg, t)
     cbModule:SetPoint("TOPLEFT", 15, y)
     y = y - 30
 
-    local cbHide = W.CreateStyledCheckbox(host,
-        L["Hide Blizzard Unit Frames"] or "Hide Blizzard Unit Frames",
-        function() return cfg.hideBlizzard ~= false end,
-        function(v) cfg.hideBlizzard = v; Changed() end)
-    cbHide:SetPoint("TOPLEFT", 15, y)
-    y = y - 28
-
-    local cbHideCast = W.CreateStyledCheckbox(host,
-        L["Hide Blizzard Cast Bar"] or "Hide Blizzard Cast Bar",
-        function() return cfg.hideBlizzardCastBar == true end,
-        function(v) cfg.hideBlizzardCastBar = v; Changed() end)
-    cbHideCast:SetPoint("TOPLEFT", 15, y)
-    y = y - 30
+    -- "Hide Blizzard Unit Frames" and "Hide Blizzard Cast Bar" used to sit
+    -- here. Both are now folded into the single Hide Blizzard Frames switch on
+    -- the General page, which covers party, raid and pet frames as well -- and
+    -- which only ever hides a frame we are actually drawing a replacement for,
+    -- so turning any of ours off below gives Blizzard's back on its own. See
+    -- HideBlizzard.lua's ShouldHideBlizzard.
+    local hideNote = host:CreateFontString(nil, "OVERLAY")
+    hideNote:SetFontObject("GameFontDisableSmall")
+    hideNote:SetPoint("TOPLEFT", 32, y)
+    hideNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    hideNote:SetJustifyH("LEFT")
+    hideNote:SetText(L["UnitFramesHideNote"]
+        or "Blizzard's matching frames are hidden by Hide Blizzard Frames on the General page. Frames you leave switched off below keep Blizzard's.")
+    y = y - 38
 
     -- Module-wide, not per-frame: it describes a relationship BETWEEN two
     -- frames, so putting it on the Player tab (or the Target tab) would make

@@ -35,33 +35,22 @@ SquizzFrames.options = {
             type = "group",
             order = 1,
             args = {
-                hideBlizzardParty = {
-                    name = L["Hide Blizzard Party"],
-                    desc = "Hide the default Blizzard party frames",
+                hideBlizzardFrames = {
+                    name = L["Hide Blizzard Frames"],
+                    desc = "Hide Blizzard's party, raid, player, target, focus, "
+                        .. "boss, pet and cast bar frames -- but only the ones "
+                        .. "SquizzFrames is actually drawing. Anything of ours "
+                        .. "you leave switched off keeps Blizzard's frame.",
                     type = "toggle",
                     width = "full",
                     order = 1,
                     get = function()
-                        return SquizzFrames.db.profile.general.hideBlizzardParty
+                        local v = SquizzFrames.db.profile.general.hideBlizzardFrames
+                        if v == nil then return true end
+                        return v ~= false
                     end,
                     set = function(_, val)
-                        SquizzFrames.db.profile.general.hideBlizzardParty = val
-                        if SquizzFrames.HideBlizzard then
-                            SquizzFrames:HideBlizzard()
-                        end
-                    end,
-                },
-                hideBlizzardRaid = {
-                    name = L["Hide Blizzard Raid"],
-                    desc = "Hide the default Blizzard raid frames",
-                    type = "toggle",
-                    width = "full",
-                    order = 2,
-                    get = function()
-                        return SquizzFrames.db.profile.general.hideBlizzardRaid
-                    end,
-                    set = function(_, val)
-                        SquizzFrames.db.profile.general.hideBlizzardRaid = val
+                        SquizzFrames.db.profile.general.hideBlizzardFrames = val
                         if SquizzFrames.HideBlizzard then
                             SquizzFrames:HideBlizzard()
                         end

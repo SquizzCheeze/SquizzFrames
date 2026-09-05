@@ -8,8 +8,19 @@ SquizzFrames.defaults = defaults
 local profile = defaults.profile or {}
 
 profile.general = {
-    hideBlizzardParty = true,
-    hideBlizzardRaid = true,
+    -- ONE switch for every Blizzard frame this addon replaces: party, raid,
+    -- player/target/focus/boss, the player cast bar and the pet frame
+    -- (2026-09-05, replacing the old hideBlizzardParty/hideBlizzardRaid pair
+    -- plus unitFrames.hideBlizzard/.hideBlizzardCastBar -- see
+    -- MigrateHideBlizzardSwitches in Core.lua).
+    --
+    -- It is safe to leave on because it never hides a frame we aren't
+    -- actually drawing a replacement for: HideBlizzard.lua gates each piece
+    -- on its own module/frame being enabled, so anything switched off here
+    -- falls back to Blizzard's own frame rather than leaving you with
+    -- nothing. That is also why arena frames are unaffected for now -- we
+    -- don't draw them yet, so Blizzard's stay.
+    hideBlizzardFrames = true,
     locked = false,
     fadeOut = true,
 }

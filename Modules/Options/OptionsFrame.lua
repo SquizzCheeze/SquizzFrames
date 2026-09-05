@@ -500,30 +500,21 @@ end
 -- Named checkbox value handlers (avoids inline lambdas)
 -----------------------------------------------------------------------
 
-local function GetHideParty()
+-- One switch for every Blizzard frame the addon replaces (2026-09-05).
+-- Replaced the separate Hide Party / Hide Raid pair here and the two more on
+-- the Unit Frames page -- see HideBlizzard.lua's ShouldHideBlizzard.
+local function GetHideBlizzard()
     local p = GetProfile()
-    return p and p.general and p.general.hideBlizzardParty
+    local v = p and p.general and p.general.hideBlizzardFrames
+    if v == nil then return true end
+    return v ~= false
 end
 
-local function SetHideParty(checked)
+local function SetHideBlizzard(checked)
     local p = GetProfile()
     if p and p.general then
-        p.general.hideBlizzardParty = checked
-        if SquizzFrames.HideBlizzardParty then SquizzFrames:HideBlizzardParty() end
-        SquizzFrames:Fire("LayoutChanged")
-    end
-end
-
-local function GetHideRaid()
-    local p = GetProfile()
-    return p and p.general and p.general.hideBlizzardRaid
-end
-
-local function SetHideRaid(checked)
-    local p = GetProfile()
-    if p and p.general then
-        p.general.hideBlizzardRaid = checked
-        if SquizzFrames.HideBlizzardRaid then SquizzFrames:HideBlizzardRaid() end
+        p.general.hideBlizzardFrames = checked
+        if SquizzFrames.HideBlizzard then SquizzFrames:HideBlizzard() end
         SquizzFrames:Fire("LayoutChanged")
     end
 end
@@ -633,6 +624,12 @@ local function GetDirectionItems(orientation)
         }
     end
 end
+
+-- Forward declaration. SetOrientation and SetGrowthDirection both call this,
+-- and both are defined BEFORE it -- without this the name resolved to a nil
+-- global at those two call sites, so changing Orientation on the Layout tab
+-- threw "attempt to call a nil value".
+local RefreshGroupGrowthDropdown
 
 local function SetOrientation(val)
     local l = GetActiveLayoutTable()
@@ -755,7 +752,7 @@ end
 -- Re-point the Group Growth dropdown at the axis the blocks are now on, and
 -- carry the stored value across with it. Called from both SetOrientation and
 -- SetGrowthDirection, either of which can flip that axis.
-local function RefreshGroupGrowthDropdown()
+function RefreshGroupGrowthDropdown()
     local l = GetActiveLayoutTable()
     if not l or not groupGrowthDropdown or not groupGrowthDropdown.dropdown
        or not groupGrowthDropdown.dropdown.RefreshItems then
@@ -1272,13 +1269,18 @@ local function BuildGeneralFields(frame)
     W.CreateTitledPane(fieldsHost, L["Blizzard Frames"] or "Blizzard Frames", yOffset)
     yOffset = yOffset - 35
 
-    local cb1 = W.CreateStyledCheckbox(fieldsHost, L["Hide Blizzard Party"] or "Hide Blizzard Party", GetHideParty, SetHideParty)
+    local cb1 = W.CreateStyledCheckbox(fieldsHost, L["Hide Blizzard Frames"] or "Hide Blizzard Frames", GetHideBlizzard, SetHideBlizzard)
     cb1:SetPoint("TOPLEFT", 15, yOffset)
-    yOffset = yOffset - 25
+    yOffset = yOffset - 22
 
-    local cb2 = W.CreateStyledCheckbox(fieldsHost, L["Hide Blizzard Raid"] or "Hide Blizzard Raid", GetHideRaid, SetHideRaid)
-    cb2:SetPoint("TOPLEFT", 15, yOffset)
-    yOffset = yOffset - 25
+    local hideNote = fieldsHost:CreateFontString(nil, "OVERLAY")
+    hideNote:SetFontObject("GameFontDisableSmall")
+    hideNote:SetPoint("TOPLEFT", 32, yOffset)
+    hideNote:SetPoint("RIGHT", fieldsHost, "RIGHT", -20, 0)
+    hideNote:SetJustifyH("LEFT")
+    hideNote:SetText(L["HideBlizzardFramesNote"]
+        or "Covers party, raid, player, target, focus, boss, pet and cast bar - but only the ones SquizzFrames actually draws. Anything you leave switched off keeps Blizzard's frame.")
+    yOffset = yOffset - 40
 
     -- Section: Behavior
     W.CreateTitledPane(fieldsHost, L["Behavior"] or "Behavior", yOffset)

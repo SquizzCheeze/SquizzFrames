@@ -248,20 +248,13 @@ profile.unitFrames = {
     -- half-mirrored after a profile switch or a settings edit.
     mirrorPlayerTarget = false,
 
-    -- Whether to hide Blizzard's corresponding frame when ours is enabled.
-    -- Separate from `enabled` so someone can run ours alongside Blizzard's
-    -- while positioning them, and so the hide is reversible from one place
-    -- (HideBlizzard.lua's reparent hide, not UnregisterAllEvents).
-    hideBlizzard = true,
-
-    -- Blizzard's PLAYER cast bar, on its own switch rather than folded into
-    -- hideBlizzard: replacing the cast bar while keeping Blizzard's unit
-    -- frames (or the reverse) is a perfectly ordinary thing to want.
-    --
-    -- Additionally gated at apply time on the player frame's OWN cast bar
-    -- being enabled -- see HideBlizzard.lua -- so this can never leave you
-    -- with no cast bar at all.
-    hideBlizzardCastBar = true,
+    -- NOTE: hideBlizzard and hideBlizzardCastBar used to live here. Both are
+    -- now the single general.hideBlizzardFrames master (2026-09-05), which
+    -- also covers party, raid and pet frames -- and which is gated per frame
+    -- on ours being enabled, so it needs no separate "let me see both while I
+    -- position them" escape hatch: switching ours off is that escape hatch.
+    -- MigrateHideBlizzardSwitches in Core.lua strips the two dead keys off
+    -- existing profiles.
 
     frames = {
         player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,

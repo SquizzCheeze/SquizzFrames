@@ -36,8 +36,10 @@ local combatRetryFrame
 local function FlushPending()
     local party, raid = pendingApply.party, pendingApply.raid
     local unitframes, castbar = pendingApply.unitframes, pendingApply.castbar
+    local pet = pendingApply.pet
     pendingApply.party, pendingApply.raid = nil, nil
     pendingApply.unitframes, pendingApply.castbar = nil, nil
+    pendingApply.pet = nil
     if party ~= nil then SquizzFrames:HideBlizzardParty() end
     if raid ~= nil then SquizzFrames:HideBlizzardRaid() end
     -- Every DeferIfInCombat key MUST be drained here. A key set by
@@ -45,6 +47,7 @@ local function FlushPending()
     -- no error -- the work simply never happens.
     if unitframes ~= nil then SquizzFrames:HideBlizzardUnitFrames() end
     if castbar ~= nil then SquizzFrames:HideBlizzardCastBar() end
+    if pet ~= nil then SquizzFrames:HideBlizzardPetFrame() end
 end
 
 -- Returns true if the caller should BAIL (work was deferred to combat end).
@@ -79,21 +82,38 @@ local function ShowFrame(frame)
     frame:Show()
 end
 
--- Live setting readers -- checked at HOOK-FIRE time (not just once at hook-
--- install time), so a single permanently-installed HookScript (WoW hooks
--- can't be removed once added) can still honor a setting that changes later.
-local function ShouldHideParty()
+-- THE master switch (2026-09-05). One setting for every Blizzard frame this
+-- addon replaces, replacing the old general.hideBlizzardParty +
+-- general.hideBlizzardRaid + unitFrames.hideBlizzard +
+-- unitFrames.hideBlizzardCastBar quartet -- see MigrateHideBlizzardSwitches
+-- in Core.lua for the collapse and why.
+--
+-- Turning it on is safe because it is only ever half the answer: every
+-- Should* reader below ANDs it with "and do we actually draw a replacement
+-- for this particular frame". Anything of ours that is switched off falls
+-- back to Blizzard's own frame rather than leaving that unit blank. That
+-- also means Blizzard's ARENA frames are untouched -- we don't draw arena
+-- frames yet, so there is nothing to fall back FROM.
+--
+-- Read live at HOOK-FIRE time, not once at hook-install time: WoW hooks
+-- can't be removed once added, so a single permanent HookScript has to
+-- re-check the setting on every fire to honour a later change.
+local function ShouldHideBlizzard()
     local p = SquizzFrames.db and SquizzFrames.db.profile
-    local v = p and p.general and p.general.hideBlizzardParty
+    local v = p and p.general and p.general.hideBlizzardFrames
     if v == nil then return true end -- matches the DB default (Appearance_Defaults.lua)
-    return v
+    return v ~= false
+end
+
+-- Party and raid frames are drawn unconditionally -- there is no "enable
+-- party frames" setting to fall back on, they are the addon -- so for these
+-- two the master switch IS the whole answer.
+local function ShouldHideParty()
+    return ShouldHideBlizzard()
 end
 
 local function ShouldHideRaid()
-    local p = SquizzFrames.db and SquizzFrames.db.profile
-    local v = p and p.general and p.general.hideBlizzardRaid
-    if v == nil then return true end
-    return v
+    return ShouldHideBlizzard()
 end
 
 -- PartyFrame's own OnShow (12.x pool-based frame) is neutralized while
@@ -229,17 +249,16 @@ function SquizzFrames:HideBlizzardRaid()
 end
 
 -- Blizzard's standalone unit frames, hidden only while OUR UnitFrames module
--- is both enabled and set to hide them (2026-09-04). Two separate settings on
--- purpose: someone positioning our frames for the first time wants to see both
--- sets side by side, and turning the module off must give Blizzard's back.
+-- is enabled AND the master switch is on AND the matching frame of ours is
+-- itself enabled (that last check is in HideBlizzardUnitFrames' loop).
 --
 -- Reversible reparent-hide, exactly like the party/raid path above -- never
 -- UnregisterAllEvents, which is what made the old Hide Party/Raid checkbox a
 -- one-way trip (see the hideblizzard-toggle-bugfix history).
 --
--- PetFrame is deliberately NOT in this list. Our own pet frame is the
--- PetFrames module's business, it has its own enable setting, and hiding
--- Blizzard's from here would fight it.
+-- PetFrame is not in this list, but not because it is exempt any more --
+-- it needs the extra rescue step in HideBlizzardPetFrame below, which this
+-- plain loop has no room for.
 local BLIZZARD_UNIT_FRAMES = {
     player = "PlayerFrame",
     target = "TargetFrame",
@@ -250,15 +269,16 @@ local BLIZZARD_UNIT_FRAMES = {
 }
 
 local function ShouldHideBlizzardUnitFrames()
+    if not ShouldHideBlizzard() then return false end
     local p = SquizzFrames.db and SquizzFrames.db.profile
     local uf = p and p.unitFrames
-    if not uf or uf.enabled ~= true then return false end
-    return uf.hideBlizzard ~= false
+    return (uf and uf.enabled == true) or false
 end
 
--- Blizzard's PLAYER cast bar, hidden on its own setting rather than with the
--- unit frames: a cast bar is the one piece people commonly want replaced while
--- keeping Blizzard's frames, or vice versa.
+-- Blizzard's PLAYER cast bar. Gated on the master switch AND on our own
+-- player cast bar being enabled -- hiding Blizzard's while we draw nothing in
+-- its place would leave you with no cast bar at all, which is exactly the
+-- fallback rule the master switch relies on to be safe.
 --
 -- PlayerCastingBarFrame is the modern global; CastingBarFrame is the legacy
 -- name kept as an alias on some builds. Both are reparent-hidden if present,
@@ -275,11 +295,8 @@ function SquizzFrames:HideBlizzardCastBar()
     if DeferIfInCombat("castbar") then return end
     local p = SquizzFrames.db and SquizzFrames.db.profile
     local uf = p and p.unitFrames
-    -- Gated on the module being on AND the player's own cast bar being
-    -- enabled: hiding Blizzard's while we draw nothing in its place would
-    -- leave you with no cast bar at all.
     local playerCast = uf and uf.frames and uf.frames.player and uf.frames.player.castBar
-    local hide = uf and uf.enabled == true and uf.hideBlizzardCastBar == true
+    local hide = ShouldHideBlizzard() and uf and uf.enabled == true
         and playerCast and playerCast.enabled == true
 
     local seen = {}
@@ -334,11 +351,77 @@ function SquizzFrames:HideBlizzardUnitFrames()
     end
 end
 
+-- Blizzard's pet frame, gated on the master switch AND on the PetFrames
+-- module's standalone player's-own-pet frame being enabled.
+--
+-- This one needs a step the others don't. PetFrame is a DESCENDANT of
+-- PlayerFrame on modern retail (via PlayerFrame's bottom managed-frames
+-- container), so reparent-hiding PlayerFrame takes the pet frame down with
+-- it whether we meant to or not -- which would break the fallback promise
+-- for anyone who turns our player frame on but leaves our pet frame off.
+--
+-- So when we want to KEEP Blizzard's pet frame while hiding PlayerFrame, we
+-- rescue it out to UIParent first. Its anchor points are untouched by
+-- SetParent and PlayerFrame keeps its own position while hidden (it is
+-- reparented, not moved), so the rescued frame renders in exactly the place
+-- it always did. Restoring puts it back under its recorded original parent.
+--
+-- PetCastingBarFrame is still deliberately untouched -- nothing in this addon
+-- draws a replacement for it, so hiding it would only lose information.
+local function PlayerPetFrameEnabled()
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local pf = p and p.petFrames and p.petFrames.player
+    return (pf and pf.enabled) == true
+end
+
+function SquizzFrames:HideBlizzardPetFrame()
+    if DeferIfInCombat("pet") then return end
+    local frame = _G["PetFrame"]
+    if not frame then return end
+
+    if ShouldHideBlizzard() and PlayerPetFrameEnabled() then
+        HideFrame(frame)
+        return
+    end
+
+    -- Keeping it. Does it need rescuing out from under a PlayerFrame we are
+    -- about to hide (or have already hidden)?
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = p and p.unitFrames
+    local ourPlayer = uf and uf.frames and uf.frames.player
+    local playerHidden = ShouldHideBlizzardUnitFrames()
+        and ourPlayer and ourPlayer.enabled ~= false
+
+    -- Never Show() a frame we didn't hide. PetFrame is under a unit watch, so
+    -- Blizzard alone decides whether it belongs on screen -- forcing it
+    -- visible would put an empty pet frame up for anyone with no pet, until
+    -- the watch next corrected us. _sfOriginalParent is only ever set by us,
+    -- so its presence is the record of "we touched this".
+    local touchedByUs = frame._sfOriginalParent ~= nil
+
+    if playerHidden then
+        if InCombatLockdown() then return end
+        local hiddenByUs = frame:GetParent() == hiddenParent
+        if not touchedByUs then
+            frame._sfOriginalParent = frame:GetParent() or UIParent
+        end
+        if frame:GetParent() ~= UIParent then
+            frame:SetParent(UIParent)
+        end
+        if hiddenByUs then frame:Show() end
+    elseif touchedByUs then
+        ShowFrame(frame)
+    end
+end
+
 function SquizzFrames:HideBlizzard()
     SquizzFrames:HideBlizzardParty()
     SquizzFrames:HideBlizzardRaid()
     SquizzFrames:HideBlizzardUnitFrames()
     SquizzFrames:HideBlizzardCastBar()
+    -- AFTER HideBlizzardUnitFrames: the rescue branch above reads whether
+    -- PlayerFrame is being hidden, so it has to run once that is settled.
+    SquizzFrames:HideBlizzardPetFrame()
 end
 
 -- Re-apply on group-type and profile changes (bug fix 2026-08-07). Nothing
@@ -347,8 +430,8 @@ end
 --     unconditional call is Core.lua's OnEnable+0.5s pass, which typically
 --     runs while solo (before Blizzard_CompactRaidFrames has even loaded,
 --     which is also why the hook-install latch above had to be fixed).
---   * Switching to a profile with different hideBlizzardParty/Raid values
---     did nothing until a /reload.
+--   * Switching to a profile with a different hideBlizzardFrames value did
+--     nothing until a /reload.
 -- Raw events go on a private frame so this file stays independent of module
 -- load order (it's a root-level file, not a module).
 local hideBlizzardEventFrame = CreateFrame("Frame")
@@ -367,5 +450,16 @@ messageOwner:RegisterMessage("GroupTypeChanged", function()
     if SquizzFrames.HideBlizzard then SquizzFrames:HideBlizzard() end
 end)
 messageOwner:RegisterMessage("ProfileChanged", function()
+    if SquizzFrames.HideBlizzard then SquizzFrames:HideBlizzard() end
+end)
+-- With one master switch, "which Blizzard frame should be visible" is now a
+-- question about OUR settings, so anything that changes them has to re-ask
+-- it. Owning that here rather than at each options panel keeps the answer in
+-- one place -- the panels previously called HideBlizzardUnitFrames and
+-- HideBlizzardCastBar by hand and would have needed a third call for pets.
+messageOwner:RegisterMessage("UnitFramesChanged", function()
+    if SquizzFrames.HideBlizzard then SquizzFrames:HideBlizzard() end
+end)
+messageOwner:RegisterMessage("PetFramesChanged", function()
     if SquizzFrames.HideBlizzard then SquizzFrames:HideBlizzard() end
 end)

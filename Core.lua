@@ -165,6 +165,68 @@ local function MigrateAccentColorDefault(profile)
     end
 end
 
+-- Collapse the four separate "hide Blizzard's X" switches into the single
+-- general.hideBlizzardFrames master (2026-09-05). The old set was
+-- general.hideBlizzardParty, general.hideBlizzardRaid,
+-- unitFrames.hideBlizzard and unitFrames.hideBlizzardCastBar -- four places
+-- to look for one question ("why can I still see Blizzard's frames?"), and
+-- they multiplied with every new frame type the addon learned to draw.
+--
+-- The granularity they offered is no longer worth its cost, because
+-- HideBlizzard.lua now gates every piece on whether we actually draw a
+-- replacement for it. "Show Blizzard's raid frames" is now spelled the same
+-- way as "show Blizzard's target frame": turn our version off.
+--
+-- Collapsing rule: OFF only if the user had explicitly turned OFF everything
+-- they had a switch for. Any single one left on migrates to the master being
+-- on -- somebody who hid three of the four frame types and left one visible
+-- was expressing a preference about that ONE frame, which the per-piece
+-- fallback now expresses better than a global "show everything" would.
+local function MigrateHideBlizzardSwitches(profile)
+    local g = profile and profile.general
+    if not g then return end
+    -- Already migrated (or a fresh profile off the current defaults).
+    if g.hideBlizzardFrames ~= nil then
+        g.hideBlizzardParty, g.hideBlizzardRaid = nil, nil
+        if profile.unitFrames then
+            profile.unitFrames.hideBlizzard = nil
+            profile.unitFrames.hideBlizzardCastBar = nil
+        end
+        return
+    end
+
+    local uf = profile.unitFrames
+    local old = {
+        g.hideBlizzardParty,
+        g.hideBlizzardRaid,
+        uf and uf.hideBlizzard,
+        uf and uf.hideBlizzardCastBar,
+    }
+
+    -- nil means "never touched it", which is the shipped default of true for
+    -- three of the four (hideBlizzardCastBar shipped false, but it was gated
+    -- behind unitFrames.enabled, which itself defaults off -- so a nil there
+    -- says nothing about intent either way and is ignored rather than voting
+    -- "off").
+    local anyOn, sawExplicit = false, false
+    for i = 1, 3 do
+        if old[i] ~= nil then
+            sawExplicit = true
+            if old[i] ~= false then anyOn = true end
+        end
+    end
+    if old[4] == true then anyOn = true end
+
+    g.hideBlizzardFrames = (not sawExplicit) or anyOn
+    g.hideBlizzardParty, g.hideBlizzardRaid = nil, nil
+    if uf then
+        uf.hideBlizzard = nil
+        uf.hideBlizzardCastBar = nil
+    end
+    MigrationPrint("collapsed the hide-Blizzard switches into one (now "
+        .. tostring(g.hideBlizzardFrames) .. ")")
+end
+
 -- One-time correction: Dispels was rebuilt from a manual aura scan (icon
 -- grid: filters/highlightType/iconStyle/orientation/size/position) onto
 -- AuraEngine (per-dispel-type AuraContainer overlay: dispelShowAll/
@@ -482,6 +544,7 @@ local function EnsureIndicatorLists(profile)
         MigrateDispelIconsSplit(profile, listKey)
     end
     MigrateAccentColorDefault(profile)
+    MigrateHideBlizzardSwitches(profile)
 end
 
 -- Print with addon prefix
@@ -650,8 +713,7 @@ function SquizzFrames:OnInitialize()
     self.defaults = self.defaults or { profile = {} }
     if not self.defaults.profile.general then
         self.defaults.profile.general = {
-            hideBlizzardParty = true,
-            hideBlizzardRaid = true,
+            hideBlizzardFrames = true,
             locked = false,
             fadeOut = true,
         }

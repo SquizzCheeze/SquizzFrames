@@ -96,6 +96,26 @@ Added:
 
   Arena frames are still to come.
 
+Changed:
+
+- One "Hide Blizzard Frames" switch, on the General page, now covers the lot:
+  party, raid, player, target, focus, boss, pet and the cast bar. It replaces
+  the two checkboxes that were on the General page and the two more that were
+  on the Unit Frames page.
+
+  It's safe to just leave on, because it only ever hides a frame SquizzFrames
+  is actually drawing. Turn our target frame off and Blizzard's comes back;
+  same for every other frame. Blizzard's arena frames are left alone entirely
+  for now, since we don't draw those yet.
+
+  Your existing setting carries over. If you'd turned all of them off you keep
+  Blizzard's frames; otherwise the new switch comes up on.
+
+  Blizzard's pet frame is covered for the first time - it's hidden when you're
+  using our standalone pet frame. If you're not, it stays, even with our player
+  frame on (Blizzard parents the pet frame under the player frame, so it needed
+  lifting clear to survive).
+
 Fixed:
 
 - No more "Migration: added missing built-in indicator ..." lines filling your
