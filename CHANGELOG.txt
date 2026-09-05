@@ -2,8 +2,8 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.14
------
+V1.14 (2026-09-06)
+------------------
 
 Added:
 
@@ -13,15 +13,19 @@ Added:
   the Party and Raid pet layouts, so it never shows up twice.
 
 - Unit Frames (new): player, target, target of target, focus and focus target,
-  each independently enabled, sized and positioned, with a health bar, an
-  optional power bar and three configurable text slots (left, right, centre).
-  Off by default. Turning it on hides Blizzard's matching frames - including
-  its boss frames - and turning it back off gives them all back. Find it under
-  Unit Frames in the options.
+  each independently enabled, sized and positioned, with a health bar and an
+  optional power bar. Off by default. Turning it on hides Blizzard's matching
+  frames - including its boss frames - and turning it back off gives them all
+  back. Find it under Unit Frames in the options.
 
-  Text slots can show name, health, health percent, health and percent,
-  health/max, power, power percent, level, or level and class. Health bars
-  colour by class for players and by reaction for NPCs.
+  Four text readouts per frame - Name, Health, Power and Level - each switched
+  on separately, with its own anchor point (any of the nine), offsets, size and
+  colour. Health can show the current value, a percent, both, or current/max;
+  Power the value or a percent; Level on its own or with the class. Class
+  colouring is a per-readout checkbox, off by default, with a custom colour
+  picker underneath.
+
+  Health bars colour by class for players and by reaction for NPCs.
 
   Bar texture and power bar colour come from the same Layout > Appearance
   settings your party frames already use, so everything matches without a
@@ -75,9 +79,10 @@ Added:
   local - it changes nothing anybody else sees.
 
 - The Unit Frames options page is split into sections - General, Frame,
-  Sizing, Colors, Text, Portrait, Cast Bar, Position - so you're not scrolling
-  a single long list to find one setting. The unit tabs run along the top and
-  the sections down the left, and both stay put while the settings scroll.
+  Sizing, Colors, Text, Portrait, Cast Bar, Auras, Icons, Absorbs, Resources
+  and Position - so you're not scrolling a single long list to find one
+  setting. The unit tabs run along the top and the sections down the left, and
+  both stay put while the settings scroll.
 
 - Buff and debuff rows on any unit frame, positioned the way you'd expect:
   pick a corner or side (above-left, below-right, left of the frame, and so
@@ -134,32 +139,13 @@ Added:
 
 Changed:
 
-- Unit frame text is organised by what it SHOWS, not by where it sits. Instead
-  of three slots called Left, Right and Centre with a content dropdown in each,
-  there are now four groups - Name, Health, Power and Level - and the anchor is
-  a dropdown inside the group, with its own offsets, size and colour.
-
-  All nine anchor points are available to each, so you're no longer limited to
-  three readouts, can't accidentally show health twice, and moving something
-  from one side of the frame to the other is one dropdown rather than retyping
-  its settings into a different slot.
-
-  Text no longer class-colours by default. It's a checkbox per readout with a
-  custom colour picker underneath, and the picker only appears when class
-  colour is off, so there's never an inert control on screen.
-
-  Your existing text setup carries over. If two of your old slots showed the
-  same thing (say health on the left and health percent on the right) only one
-  survives, since they're now the same readout.
-
 - Opacity sliders on every colour picker - across all the indicator pages and
   the unit frames page - now use the addon's own slider styling. They were the
   last stock Blizzard control left in the options.
 
 - One "Hide Blizzard Frames" switch, on the General page, now covers the lot:
   party, raid, player, target, focus, boss, pet and the cast bar. It replaces
-  the two checkboxes that were on the General page and the two more that were
-  on the Unit Frames page.
+  the separate Hide Blizzard Party and Hide Blizzard Raid checkboxes.
 
   It's safe to just leave on, because it only ever hides a frame SquizzFrames
   is actually drawing. Turn our target frame off and Blizzard's comes back;
