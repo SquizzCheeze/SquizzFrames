@@ -642,15 +642,38 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 eventFrame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
+eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
+eventFrame:RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED")
 eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+
+-- Spec and talent changes get a DELAYED second pass on top of the immediate
+-- one. Two different things go stale on these events and they settle at
+-- different times: the point count (ours, readable straight away) and the
+-- width of a matched Cooldown Manager row (Blizzard's, which relayouts on
+-- these same events -- read it in the same frame and you get the width it is
+-- about to stop having).
+--
+-- The immediate pass is kept rather than replaced by the delay, so the point
+-- row is right instantly on a spec change and only the width settles late.
+local RELAYOUT_LATE = {
+    PLAYER_SPECIALIZATION_CHANGED = true,
+    ACTIVE_PLAYER_SPECIALIZATION_CHANGED = true,
+    PLAYER_TALENT_UPDATE = true,
+    TRAIT_CONFIG_UPDATED = true,
+    ACTIVE_COMBAT_CONFIG_CHANGED = true,
+}
 
 eventFrame:SetScript("OnEvent", function(_, event)
     if not ResourceBar.bar then return end
     if event == "UNIT_POWER_UPDATE" then
         ResourceBar.Update()
-    else
-        -- UNIT_MAXPOWER and UNIT_DISPLAYPOWER change the bar's RANGE, and the
-        -- rest can change the point count, so all of them relayout.
-        ResourceBar.Refresh()
+        return
+    end
+    -- UNIT_MAXPOWER and UNIT_DISPLAYPOWER change the bar's RANGE, and the
+    -- rest can change the point count, so all of them relayout.
+    ResourceBar.Refresh()
+    if RELAYOUT_LATE[event] then
+        C_Timer.After(0.3, function() ResourceBar.Refresh() end)
+        C_Timer.After(1.0, function() ResourceBar.Refresh() end)
     end
 end)

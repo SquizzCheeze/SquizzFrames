@@ -1432,6 +1432,39 @@ function UnitFrames:OnEnable()
             end)
         end
 
+        -- SPEC AND TALENT CHANGES. Nothing here listened for either, so a bar
+        -- whose width matches a Cooldown Manager row kept the OLD spec's width
+        -- indefinitely (user report). The OnSizeChanged hook above was meant
+        -- to cover it and does not reliably: it only exists at all once a
+        -- width actually resolved in "match" mode, and the CDM rows do not
+        -- always resize the hooked frame itself when their contents change.
+        -- Listening for the cause rather than inferring it from a side effect
+        -- is the fix; the hook stays as the live-tracking path.
+        --
+        -- ProfileChanged was NOT already covering this. It only fires when
+        -- profile auto-switching is on AND the new spec maps to a different
+        -- profile -- change talents, or swap between two specs sharing one
+        -- profile, and nothing fired at all.
+        --
+        -- Re-applied on a delay, and twice: Blizzard's Cooldown Manager
+        -- relayouts on these same events, so reading its width in the same
+        -- frame gets the width it is about to stop having.
+        local function ReapplySoon()
+            C_Timer.After(0.3, function() ApplyLayout() end)
+            C_Timer.After(1.0, function() ApplyLayout() end)
+        end
+        -- Registered on the module object, which is its own CallbackHandler
+        -- owner -- Core.lua registers PLAYER_SPECIALIZATION_CHANGED on the
+        -- ADDON ROOT for profile switching, and one handler per (owner, event)
+        -- means putting ours there would silently kill its.
+        self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", ReapplySoon)
+        self:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", ReapplySoon)
+        self:RegisterEvent("PLAYER_TALENT_UPDATE", ReapplySoon)
+        self:RegisterEvent("TRAIT_CONFIG_UPDATED", ReapplySoon)
+        -- Swapping talent LOADOUTS changes the tracked cooldowns without
+        -- necessarily firing any of the four above.
+        self:RegisterEvent("ACTIVE_COMBAT_CONFIG_CHANGED", ReapplySoon)
+
         EnsureTotPoller()
 
         if SquizzFrames.editMode then self:SetEditMode(true) end
