@@ -2,6 +2,21 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.16
+-----
+
+Added:
+
+- The cast bar's spell name and cast timer now have their own font, size,
+  outline, colour and offsets, set separately for each. They previously shared
+  one size slider and borrowed the unit frame's font face, which left a cast
+  bar detached from its frame - floating free, or riding a Cooldown Manager
+  row - with no way to be styled to match where it actually sat.
+
+  Existing cast bars look exactly as they did until you touch the new
+  controls.
+
+
 V1.15 (2026-09-06)
 ------------------
 

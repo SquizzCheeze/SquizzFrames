@@ -781,13 +781,19 @@ local function SecCastBar(host, y, cfg, t)
 
         local cbName2 = W.CreateStyledCheckbox(host, L["Show Spell Name"] or "Show Spell Name",
             function() return cb.showName ~= false end,
-            function(v) CastSet(function(c) c.showName = v end) end)
+            function(v) CastSet(function(c) c.showName = v end)
+                -- Rebuild: the styling group below appears and disappears
+                -- with this.
+                if rebuildFields then rebuildFields() end
+            end)
         cbName2:SetPoint("TOPLEFT", 15, y)
         y = y - 28
 
         local cbTime = W.CreateStyledCheckbox(host, L["Show Cast Time"] or "Show Cast Time",
             function() return cb.showTime ~= false end,
-            function(v) CastSet(function(c) c.showTime = v end) end)
+            function(v) CastSet(function(c) c.showTime = v end)
+                if rebuildFields then rebuildFields() end
+            end)
         cbTime:SetPoint("TOPLEFT", 15, y)
         y = y - 28
 
@@ -818,6 +824,105 @@ local function SecCastBar(host, y, cfg, t)
             end)
         shieldPicker:SetPoint("TOPLEFT", 15, y)
         y = y - 35
+
+        -- TEXT. One builder for both readouts: the two settings tables have
+        -- the same shape, and writing it twice is how the two drift apart.
+        --
+        -- `key` is the settings sub-table ("nameText"/"timeText"); `shown`
+        -- says whether that readout is currently switched on above, since
+        -- styling text that is turned off is a control that does nothing.
+        local function TextGroup(label, key, shown)
+            W.CreateTitledPane(host, label, y)
+            y = y - 35
+
+            if not shown then
+                local off = host:CreateFontString(nil, "OVERLAY")
+                off:SetFontObject("GameFontDisableSmall")
+                off:SetPoint("TOPLEFT", 32, y)
+                off:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+                off:SetJustifyH("LEFT")
+                off:SetText(L["CastTextOffNote"] or "Switch this on above to style it.")
+                return y - 28
+            end
+
+            -- Every getter falls back the way CastBar.ApplyTextStyle does, so
+            -- the controls show what is actually being rendered rather than a
+            -- blank for "not set yet".
+            local function Font(i, fallback)
+                local sub = cb[key]
+                local f = sub and sub.font
+                return (f and f[i]) or fallback
+            end
+            local function SetFont(i, v)
+                CastSet(function(c)
+                    c[key] = c[key] or {}
+                    c[key].font = c[key].font or {}
+                    c[key].font[i] = v
+                end)
+            end
+
+            local ddFace = W.CreateStyledDropdown(host, 200, 40, L["Font"] or "Font",
+                F.GetFontDropdownItems and F.GetFontDropdownItems() or {},
+                function() return Font(1, "Friz QT__") end,
+                function(v) SetFont(1, v) end)
+            ddFace:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local sSize = W.CreateStyledSlider(host, 200, 6, 24, 1, L["Size"] or "Size",
+                function() return Font(2, cb.fontSize or 11) end,
+                function(v) SetFont(2, v) end)
+            sSize:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            -- "NONE" is stored, never passed to SetFont -- ApplyTextStyle
+            -- converts it to nil, because it is not a valid flag string.
+            local ddOutline = W.CreateStyledDropdown(host, 200, 40, L["Outline"] or "Outline", {
+                {value = "NONE",         text = L["None"] or "None"},
+                {value = "OUTLINE",      text = L["Outline"] or "Outline"},
+                {value = "THICKOUTLINE", text = L["Thick Outline"] or "Thick Outline"},
+            }, function() return Font(3, "OUTLINE") end, function(v) SetFont(3, v) end)
+            ddOutline:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local cp = W.CreateColorPicker(host, L["Color"] or "Color",
+                function()
+                    local sub = cb[key]
+                    local c = sub and sub.color
+                    if type(c) ~= "table" then return 1, 1, 1, 1 end
+                    return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+                end,
+                function(r, g, b, a)
+                    CastSet(function(c)
+                        c[key] = c[key] or {}
+                        c[key].color = {r, g, b, a or 1}
+                    end)
+                end)
+            cp:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 36
+
+            local function Offset(axis, v)
+                CastSet(function(c)
+                    c[key] = c[key] or {}
+                    c[key][axis] = v
+                end)
+            end
+            local sX = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset X"] or "Offset X",
+                function() local s = cb[key]; return (s and s.x) or 0 end,
+                function(v) Offset("x", v) end)
+            sX:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local sY = W.CreateStyledSlider(host, 200, -30, 30, 1, L["Offset Y"] or "Offset Y",
+                function() local s = cb[key]; return (s and s.y) or 0 end,
+                function(v) Offset("y", v) end)
+            sY:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            return y
+        end
+
+        y = TextGroup(L["Spell Name"] or "Spell Name", "nameText", cb.showName ~= false)
+        y = TextGroup(L["Cast Time"] or "Cast Time", "timeText", cb.showTime ~= false)
     end
 
 end

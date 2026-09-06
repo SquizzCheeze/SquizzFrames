@@ -374,12 +374,26 @@ function Preview.Refresh(p, t)
         else
             p.castBar.icon:Hide()
         end
-        p.castBar.spellName:SetFont(fontFile, cb.fontSize or 11, outline)
-        p.castBar.timeText:SetFont(fontFile, cb.fontSize or 11, outline)
+        -- Through CastBar's own styler, not a second copy of the fallback
+        -- chain -- see its comment. Note it takes the FACE, not the resolved
+        -- file: it resolves internally.
+        local CB = SquizzFrames.UnitFrameCastBar
+        if CB and CB.ApplyTextStyle then
+            local face = t.font and t.font[1]
+            CB.ApplyTextStyle(p.castBar.spellName, cb.nameText, face, cb.fontSize or 11, outline)
+            CB.ApplyTextStyle(p.castBar.timeText, cb.timeText, face, cb.fontSize or 11, outline)
+        else
+            p.castBar.spellName:SetFont(fontFile, cb.fontSize or 11, outline)
+            p.castBar.timeText:SetFont(fontFile, cb.fontSize or 11, outline)
+        end
+        local nx = (cb.nameText and cb.nameText.x) or 0
+        local ny = (cb.nameText and cb.nameText.y) or 0
+        local tx = (cb.timeText and cb.timeText.x) or 0
+        local ty = (cb.timeText and cb.timeText.y) or 0
         p.castBar.spellName:ClearAllPoints()
-        p.castBar.spellName:SetPoint("LEFT", p.castBar, "LEFT", 3 + iconInset, 0)
+        p.castBar.spellName:SetPoint("LEFT", p.castBar, "LEFT", 3 + iconInset + nx, ny)
         p.castBar.timeText:ClearAllPoints()
-        p.castBar.timeText:SetPoint("RIGHT", p.castBar, "RIGHT", -3, 0)
+        p.castBar.timeText:SetPoint("RIGHT", p.castBar, "RIGHT", -3 + tx, ty)
         p.castBar.spellName:SetText(cb.showName ~= false and "Cast Bar" or "")
         p.castBar.timeText:SetText(cb.showTime ~= false and "1.4" or "")
         p.castBar:Show()

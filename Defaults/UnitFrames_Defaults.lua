@@ -299,6 +299,30 @@ local function DefaultFrame(opts)
             showIcon = true,
             showName = true,
             showTime = true,
+
+            -- TEXT. Face, size and outline per readout, plus colour and
+            -- offsets. Before this the two shared a single `fontSize` and
+            -- borrowed the unit frame's font face, so a cast bar detached from
+            -- its frame -- floating free, or riding a Cooldown Manager row --
+            -- had no way to be styled to match where it actually sat.
+            --
+            -- `fontSize` below is KEPT and honoured as the size fallback, so a
+            -- profile written before these existed renders identically until
+            -- somebody touches the new controls. No migration needed.
+            --
+            -- font is {face, size, outline}. "NONE" is not a valid SetFont
+            -- flag -- it has to become nil -- which is why nothing reads
+            -- font[3] straight through. See CastBar.ApplyTextStyle.
+            nameText = {
+                font = {"Friz QT__", 11, "OUTLINE"},
+                color = {1, 1, 1, 1},
+                x = 0, y = 0,
+            },
+            timeText = {
+                font = {"Friz QT__", 11, "OUTLINE"},
+                color = {1, 1, 1, 1},
+                x = 0, y = 0,
+            },
             fontSize = 11,
 
             -- Class colour of the CASTING unit, falling back to `color` when

@@ -157,3 +157,11 @@ L["Padding"] = "Padding"
 L["ResourceBorderNote"] = "Outlines the whole bar, both rows together. Set the row Gap to 0 if you want it tight around them."
 L["Background"] = "Background"
 L["ResourceBackgroundNote"] = "A solid fill behind the whole bar. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background."
+
+-- Cast bar text styling (CastBar.ApplyTextStyle)
+L["Font"] = "Font"
+L["Outline"] = "Outline"
+L["Thick Outline"] = "Thick Outline"
+L["Spell Name"] = "Spell Name"
+L["Cast Time"] = "Cast Time"
+L["CastTextOffNote"] = "Switch this on above to style it."

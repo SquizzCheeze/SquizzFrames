@@ -299,6 +299,30 @@ end
 -- Positioned relative to the unit frame it belongs to. Called from
 -- UnitFrames.lua's ApplyLayout, so it inherits that function's combat guard
 -- even though nothing here strictly needs one.
+-- Font face/size/outline and colour for one cast bar readout.
+--
+-- Exported rather than kept local because Preview.lua styles the same two
+-- texts and must not re-derive the fallback chain -- a preview that resolves
+-- a font differently from the real bar is worse than no preview.
+--
+-- THE "NONE" TRAP: WoW's SetFont takes nil for "no outline". The string
+-- "NONE" is not a valid flag, and passing it through silently gives you a
+-- font with no outline AND no error, which reads as the setting having
+-- worked. Indicators.lua documents the same conversion; this is the second
+-- place that needs it.
+function CastBar.ApplyTextStyle(fs, tcfg, fallbackFace, fallbackSize, fallbackOutline)
+    if not fs then return end
+    local font = tcfg and tcfg.font
+    local face = (font and font[1]) or fallbackFace
+    local size = (font and font[2]) or fallbackSize or 11
+    local flags = (font and font[3]) or fallbackOutline
+    if not flags or flags == "NONE" then flags = nil end
+    fs:SetFont((F.ResolveFontFile and F.ResolveFontFile(face)) or "Fonts\\FRIZQT__.TTF",
+               size, flags)
+    local c = tcfg and tcfg.color
+    fs:SetTextColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1, c and c[4] or 1)
+end
+
 function CastBar.ApplySettings(bar, parent, t, barTexture)
     if not bar or not parent or not t then return end
     local cfg = t.castBar
@@ -337,18 +361,27 @@ function CastBar.ApplySettings(bar, parent, t, barTexture)
         bar.icon:Hide()
     end
 
-    local fontFile = (F.ResolveFontFile and F.ResolveFontFile(t.font and t.font[1]))
-        or "Fonts\\FRIZQT__.TTF"
-    local fontSize = cfg.fontSize or 11
-    local outline = (t.font and t.font[3]) or "OUTLINE"
-    bar.spellName:SetFont(fontFile, fontSize, outline)
-    bar.timeText:SetFont(fontFile, fontSize, outline)
+    -- Per-readout font, falling back to the unit frame's own face/outline and
+    -- to the pre-existing shared `fontSize`. That fallback chain is what lets
+    -- these settings be added without a migration: a profile that has never
+    -- seen them renders exactly as it did.
+    local frameFace = t.font and t.font[1]
+    local frameOutline = (t.font and t.font[3]) or "OUTLINE"
+    local baseSize = cfg.fontSize or 11
+    CastBar.ApplyTextStyle(bar.spellName, cfg.nameText, frameFace, baseSize, frameOutline)
+    CastBar.ApplyTextStyle(bar.timeText, cfg.timeText, frameFace, baseSize, frameOutline)
 
-    -- Spell name starts clear of the icon rather than under it.
+    -- Spell name starts clear of the icon rather than under it. The offsets
+    -- are ADDED to those fixed insets rather than replacing them, so nudging
+    -- the name cannot accidentally park it back under the icon.
+    local nx = (cfg.nameText and cfg.nameText.x) or 0
+    local ny = (cfg.nameText and cfg.nameText.y) or 0
+    local tx = (cfg.timeText and cfg.timeText.x) or 0
+    local ty = (cfg.timeText and cfg.timeText.y) or 0
     bar.spellName:ClearAllPoints()
-    bar.spellName:SetPoint("LEFT", bar, "LEFT", 3 + iconInset, 0)
+    bar.spellName:SetPoint("LEFT", bar, "LEFT", 3 + iconInset + nx, ny)
     bar.timeText:ClearAllPoints()
-    bar.timeText:SetPoint("RIGHT", bar, "RIGHT", -3, 0)
+    bar.timeText:SetPoint("RIGHT", bar, "RIGHT", -3 + tx, ty)
 
     -- Width-capped so a long spell name can't run under the timer. The icon
     -- eats into the space available for it, hence the inset here too.
