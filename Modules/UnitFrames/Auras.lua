@@ -162,6 +162,68 @@ local function BuildSpec(unit, kind, cfg)
     }
 end
 
+-----------------------------------------------------------------------
+-- Refresh
+-----------------------------------------------------------------------
+
+-- container:UpdateAllAuras() forces a full re-parse. Two things need it, and
+-- both were missing here (user report + screenshot, 2026-09-06: seven copies
+-- of one Hunter's Mark on the target frame, one more per recast).
+--
+--   1. REAPPLICATION. The engine can hold a stale matched instance and not
+--      notice the aura being refreshed, so a recast reads as an additional
+--      aura rather than the same one. AuraEngineIndicators.lua hit this first
+--      and fixed it exactly this way for its slot-based indicators; the same
+--      remedy applies to the group-based rows here.
+--
+--   2. THE UNIT BEHIND THE TOKEN CHANGING. "target" is a stable STRING whose
+--      meaning changes every time you target something else. The container is
+--      bound to the token and only re-parses on that unit's UNIT_AURA, which
+--      is not what fires when you switch targets -- so the row kept showing
+--      the previous target's auras.
+--
+-- UpdateAllAuras and nothing else: AE.RebindUnit is the wrong tool for both.
+-- It early-outs when the token is unchanged (which it always is here), and it
+-- defers to end of combat because SetUnit's combat legality on a live
+-- container is unverified -- see its comment. UpdateAllAuras carries no such
+-- doubt; the slot ticker has been running it in combat since August.
+local refreshRegistry = {}  -- [wrapper] = container
+local refreshTicker = CreateFrame("Frame")
+refreshTicker:Hide()
+local refreshElapsed = 0
+refreshTicker:SetScript("OnUpdate", function(_, dt)
+    refreshElapsed = refreshElapsed + dt
+    if refreshElapsed < 1 then return end
+    refreshElapsed = 0
+    local any = false
+    for wrapper, container in pairs(refreshRegistry) do
+        if not wrapper:IsShown() then
+            refreshRegistry[wrapper] = nil -- self-prune hidden/disabled rows
+        else
+            any = true
+            pcall(container.UpdateAllAuras, container)
+        end
+    end
+    if not any then refreshTicker:Hide() end
+end)
+
+local function RegisterRefresh(wrapper, container)
+    refreshRegistry[wrapper] = container
+    refreshTicker:Show()
+end
+
+-- Immediate re-parse for every row on `unit`. Called the moment a token is
+-- repointed (target/focus changed), rather than waiting up to a second for the
+-- ticker -- a target frame showing the last target's debuffs is the kind of
+-- wrong that gets acted on.
+function Auras.ForceRefresh(unit)
+    for wrapper, container in pairs(refreshRegistry) do
+        if wrapper._sfUnit == unit then
+            pcall(container.UpdateAllAuras, container)
+        end
+    end
+end
+
 -- One wrapper per frame per kind. The real AuraContainer becomes a child of it
 -- once the engine hands one over, which can be deferred to the end of combat
 -- (container creation hard-errors in combat by Blizzard design), so nothing
@@ -212,9 +274,15 @@ function Auras.ApplySettings(wrapper, parent, t, kind)
             wrapper._container = c
             Auras.ApplyLayout(wrapper, cfg)
             c:SetShown(wrapper:IsShown())
+            RegisterRefresh(wrapper, c)
         end)
         return
     end
+
+    -- Re-registered on every settings pass, not only at creation: the ticker
+    -- self-prunes hidden wrappers, so a row switched off and back on would
+    -- otherwise never refresh again.
+    RegisterRefresh(wrapper, container)
 
     -- Live container: push the changed settings rather than rebuilding it.
     -- Containers are permanent (WoW never destroys frames) and each carries a

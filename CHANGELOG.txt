@@ -7,6 +7,12 @@ V1.15
 
 Fixed:
 
+- Buff and debuff rows on the target, focus and boss frames were piling up
+  duplicates: recasting a debuff added another copy of the same icon instead
+  of refreshing the one already there, and switching target left the previous
+  target's auras on screen. Both rows now force a full re-read - on a timer,
+  and immediately whenever you change target or focus.
+
 - Cast bars and the resource bar now follow a Cooldown Manager row when you
   change spec, talents or loadout. Nothing in the unit frames listened for any
   of those, so a bar set to match a CDM row's width kept the previous spec's

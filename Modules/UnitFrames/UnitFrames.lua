@@ -1334,11 +1334,23 @@ function UnitFrames:OnEnable()
             end
         end
 
+        -- Aura rows need the same treatment as the cast bar when a token is
+        -- repointed, and for the same reason: the token string is unchanged,
+        -- so nothing the container listens for tells it the unit behind
+        -- "target" is now somebody else. Without this the row kept showing the
+        -- previous target's auras. See Auras.ForceRefresh.
+        local function RederiveAuras(unit)
+            local A = SquizzFrames.UnitFrameAuras
+            if A and A.ForceRefresh then A.ForceRefresh(unit) end
+        end
+
         self:RegisterEvent("PLAYER_TARGET_CHANGED", function()
             local f = frames.target;       if f then UpdateFrame(f) end
             local d = frames.targettarget; if d then UpdateFrame(d) end
             RederiveCast("target")
             RederiveCast("targettarget")
+            RederiveAuras("target")
+            RederiveAuras("targettarget")
             EnsureTotPoller()
         end)
         self:RegisterEvent("PLAYER_FOCUS_CHANGED", function()
@@ -1346,6 +1358,8 @@ function UnitFrames:OnEnable()
             local d = frames.focustarget; if d then UpdateFrame(d) end
             RederiveCast("focus")
             RederiveCast("focustarget")
+            RederiveAuras("focus")
+            RederiveAuras("focustarget")
             EnsureTotPoller()
         end)
         -- Fires on the OWNER token when that unit's target changes, which is
@@ -1356,6 +1370,7 @@ function UnitFrames:OnEnable()
                 if unit == owner then
                     local f = frames[derived]
                     if f then UpdateFrame(f) end
+                    RederiveAuras(derived)
                 end
             end
         end)
@@ -1389,7 +1404,13 @@ function UnitFrames:OnEnable()
         local function RefreshBossFrames()
             for _, unit in ipairs(BOSS_UNITS) do
                 local f = frames[unit]
-                if f and FrameEnabled(unit) then UpdateFrame(f) end
+                if f and FrameEnabled(unit) then
+                    UpdateFrame(f)
+                    -- bossN is the same stable-token/changing-unit shape as
+                    -- target: an encounter swapping which NPC is behind it
+                    -- leaves the aura row on the previous one.
+                    RederiveAuras(unit)
+                end
             end
         end
         self:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", RefreshBossFrames)
@@ -1397,6 +1418,7 @@ function UnitFrames:OnEnable()
             if IsBossUnit(unit) then
                 local f = frames[unit]
                 if f then UpdateFrame(f) end
+                RederiveAuras(unit)
             end
         end)
 
