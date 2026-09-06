@@ -1082,7 +1082,122 @@ end
 -- Ace3 lifecycle
 -----------------------------------------------------------------------
 
+-----------------------------------------------------------------------
+-- Right-click menu classifier backstop
+-----------------------------------------------------------------------
+
+-- SYMPTOM: right-clicking a party/raid member gives a PET menu -- "Show Pet
+-- in Journal", "Report Pet Name", no Remove from Group. Reported twice: first
+-- for members who were out of range, then (2026-09-06, with a screenshot) for
+-- members who had gone OFFLINE, which is exactly when you most need Remove
+-- from Group.
+--
+-- CAUSE, and it is Blizzard's. Our default right-click is
+-- {bindKey="Right", type="menu"}, which SetByGatedAction writes as the native
+-- attribute type2 = "togglemenu". SECURE_ACTIONS.togglemenu
+-- (Blizzard's SecureTemplates.lua) picks WHICH menu by sniffing the unit:
+--
+--     if unitType == "party"  -> "PARTY"
+--     elseif boss/focus/arena -> ...
+--     elseif UnitIsUnit(unit, "player"/"vehicle"/"pet") -> ...
+--     elseif UnitIsOtherPlayersBattlePet(unit) -> "OTHERBATTLEPET"
+--     elseif UnitIsOtherPlayersPet(unit)       -> "OTHERPET"
+--     elseif UnitIsPlayer(unit) -> RAID_PLAYER / PARTY / PLAYER
+--
+-- When a unit's object has not streamed to the client -- out of range, zoned
+-- elsewhere, offline -- the UnitIs* probes cannot answer, and the chain
+-- reaches the battle-pet probes BEFORE UnitIsPlayer. Pet ownership was never
+-- the trigger; unavailability is. Only party/boss/focus/arena tokens
+-- short-circuit ahead of the chain, which is why a 5-man party never
+-- reproduces it and a raid does.
+--
+-- FIX: a PET-family menu opening for a raidN/partyN token whose GUID is a
+-- Player is, by construction, this misfire. Re-open the correct menu.
+--
+-- WHY A HOOK AND NOT A BETTER ATTRIBUTE. Blizzard's own CompactUnitFrame uses
+-- type2 = "menu" plus a menu-function whose opener has no battle-pet probe at
+-- all. That route is closed to addons: ExecuteAttribute runs the function with
+-- the taint of whoever SET the attribute, so a menu-function written from
+-- addon Lua opens a tainted menu and Set Focus throws. EllesmereUI
+-- field-tested and abandoned it on 2026-08-26. Hooking is what is left.
+--
+-- THE COST, stated plainly: the re-opened menu is opened from this (tainted)
+-- hook, so protected entries in THAT menu instance can fail. That is the trade
+-- for not showing a pet menu on a player, and it is the same trade every other
+-- addon fixing this makes.
+--
+-- SECRET VALUES: UnitGUID can return a secret for exactly these unstreamed
+-- units, and `guid:find(...)` on a secret throws. F.IsValueNonSecret gates it.
+-- The correct `which` is derived from the TOKEN alone -- no unit API is
+-- consulted for it -- precisely because identity reads are unreliable here.
+local menuFixInstalled = false
+
+-- Suppresses a duplicate re-open when another addon's identical backstop is
+-- also loaded (EllesmereUI ships one). Their re-open passes back through this
+-- same hook with a corrected `which`, which is what we record here; a later
+-- call for the same unit in the same instant is then recognised as already
+-- handled. It cannot catch every ordering -- if our hook is registered first
+-- we act before theirs runs at all -- but a redundant re-open only costs a
+-- second open of the correct menu, never a wrong one.
+local lastGoodOpen = {}
+
+local function InstallMenuClassifierFix()
+    if menuFixInstalled then return end
+    if type(UnitPopup_OpenMenu) ~= "function" then return end
+    menuFixInstalled = true
+
+    local reopening = false
+    hooksecurefunc("UnitPopup_OpenMenu", function(which, contextData)
+        if reopening then return end
+        local unit = contextData and contextData.unit
+        if type(unit) ~= "string" then return end
+
+        -- A correct menu just opened for this unit, by us or by anyone else.
+        if which == "RAID_PLAYER" or which == "PARTY" then
+            lastGoodOpen[unit] = GetTime()
+            return
+        end
+        if which ~= "PET" and which ~= "OTHERPET" and which ~= "OTHERBATTLEPET" then
+            return
+        end
+
+        local lu = unit:lower()
+        local isRaidToken = lu:match("^raid%d+$") ~= nil
+        -- Deliberately NOT widened to target/focus. The right menu for those
+        -- depends on whether the unit is in your group, and answering that
+        -- needs UnitInRaid/UnitInParty -- unit APIs that are unreliable for
+        -- the very units this fires on. A wrong menu is no better than a pet
+        -- menu. Group tokens carry the answer in the token itself.
+        if not isRaidToken and not lu:match("^party%d+$") then return end
+
+        -- A real pet's GUID is Creature-/Pet-, so this is what keeps a
+        -- legitimate pet menu working. raidpetN/partypetN never reach here
+        -- anyway (they fail the token match above).
+        local guid = UnitGUID(unit)
+        if not (F.IsValueNonSecret and F.IsValueNonSecret(guid)) then return end
+        if type(guid) ~= "string" or not guid:find("^Player%-") then return end
+
+        local t = lastGoodOpen[unit]
+        if t and (GetTime() - t) < 0.5 then return end
+
+        reopening = true
+        -- A FRESH context table, never the inbound one: OpenMenu ENRICHES its
+        -- contextData in place (playerLocation, accountInfo) and asserts those
+        -- fields are nil on entry, so re-passing the first open's table throws
+        -- "assertion failed" at UnitPopupShared:53.
+        UnitPopup_OpenMenu(isRaidToken and "RAID_PLAYER" or "PARTY", {unit = unit})
+        reopening = false
+    end)
+end
+
 function ClickCasting:OnInitialize()
+    -- Installed once, unconditionally, rather than lazily alongside a menu
+    -- binding: the misfire is Blizzard's and fires for whoever opened the
+    -- menu, including Blizzard's own frames and other addons' -- so gating it
+    -- on our bindings would leave it broken exactly where we happen not to
+    -- have written one.
+    InstallMenuClassifierFix()
+
     -- When PartyFrames finishes wiring buttons, apply our bindings.
     self:RegisterMessage("PartyButtonsWired", function(_, header)
         if type(header) == "table" then
@@ -1119,6 +1234,13 @@ function ClickCasting:OnInitialize()
     -- land even on the slowest first-login frames. Without this, click-
     -- casting appears "dead" until the user clicks once.
     self:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        -- Retried here because the latch above is only set on a SUCCESSFUL
+        -- install: UnitPopup_OpenMenu lives in Blizzard_UnitPopupShared and
+        -- may not be in memory at OnInitialize. Latching "installed" before
+        -- confirming it took is the mistake HideBlizzard.lua's hook latch
+        -- already made once -- there it silently disabled the hooks for the
+        -- whole session.
+        InstallMenuClassifierFix()
         C_Timer.After(0.5, function() self:ApplyToAll() end)
         C_Timer.After(1.5, function() self:ApplyToAll() end)
         C_Timer.After(3.0, function() self:ApplyToAll() end)

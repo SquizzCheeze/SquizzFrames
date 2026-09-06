@@ -2,6 +2,22 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.15
+-----
+
+Fixed:
+
+- Right-clicking a party or raid member no longer gives you a PET menu -- "Show
+  Pet in Journal", "Report Pet Name", and crucially no Remove from Group. It
+  happened for anyone whose data the game had not sent us: out of range, zoned
+  elsewhere, or offline, which is exactly when you most need to remove them.
+
+  The cause is in Blizzard's own right-click handler, which checks "is this
+  somebody's battle pet" before it checks "is this a player", and falls into the
+  first when it cannot answer either. SquizzFrames now spots that and reopens
+  the correct menu. Nothing changes for real pets.
+
+
 V1.14 (2026-09-06)
 ------------------
 
