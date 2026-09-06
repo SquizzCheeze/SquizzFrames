@@ -58,9 +58,15 @@ function Preview.Create(parent)
     -- are. Driven by a fixed fraction rather than live values: the player's
     -- own absorb is almost always 0 while designing, and a bar that renders
     -- as nothing is indistinguishable from one that is broken.
+    -- One level ABOVE the health bar, matching Absorbs.Create exactly. At the
+    -- health bar's own level this happened to render correctly here while the
+    -- real frame rendered underneath the fill -- same code, opposite result,
+    -- because same-level parent-vs-child draw order is not defined. A preview
+    -- that is right for a reason the real frame is wrong for is worse than no
+    -- preview.
     local function MakeOverlay(fraction)
         local bar = CreateFrame("StatusBar", nil, health)
-        bar:SetFrameLevel(health:GetFrameLevel() or 1)
+        bar:SetFrameLevel((health:GetFrameLevel() or 1) + 1)
         bar:SetAllPoints(health)
         bar:SetMinMaxValues(0, 1)
         bar:SetValue(fraction)

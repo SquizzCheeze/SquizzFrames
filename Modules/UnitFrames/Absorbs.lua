@@ -86,20 +86,29 @@ end
 -- Creation
 -----------------------------------------------------------------------
 
--- FRAME LEVEL, the one thing here worth checking on screen. Both bars are
--- children of the HEALTH BAR and pinned to its level rather than raised above
--- it. The unit frame's text is drawn as regions on the Button itself, which
--- sits at a higher frame level than the health bar (that is why the text
--- renders over the bar at all -- see UnitFrameButton.xml, where healthBar is
--- frameLevel 1). Anything that climbs above the health bar's level would
--- therefore paint over the name and health text instead of under them.
+-- FRAME LEVEL. Both bars are children of the HEALTH BAR, one level ABOVE it.
+--
+-- The first version pinned them to the health bar's own level, on the theory
+-- that anything higher would paint over the frame's text. It rendered them
+-- underneath the health bar's fill instead (user report, 2026-09-06): draw
+-- order between a parent's regions and a same-level child's is not something
+-- to rely on, and the bar's own status texture won.
+--
+-- Raising them is only safe because UnitFrames.lua now reparents the four text
+-- readouts onto a dedicated host at level +6, rather than leaving them as
+-- regions of the Button where their ordering against the bars was emergent.
+-- The stack is explicit now:
+--
+--     healthBar 1 -> powerBar / absorbs 2 -> icons 3 -> portrait 4 -> text 7
+--
+-- Do not lower these back without moving the text with them.
 function Absorbs.Create(parent, unit)
     local host = parent.healthBar or parent
     local holder = {unit = unit, host = host}
 
     local function MakeBar()
         local bar = CreateFrame("StatusBar", nil, host)
-        bar:SetFrameLevel(host:GetFrameLevel() or 1)
+        bar:SetFrameLevel((host:GetFrameLevel() or 1) + 1)
         bar:SetMinMaxValues(0, 1)
         bar:SetValue(0)
         bar:Hide()

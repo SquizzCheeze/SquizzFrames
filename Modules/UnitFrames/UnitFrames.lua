@@ -566,6 +566,36 @@ function SquizzFramesUnitFrame_OnLoad(self)
     self.powerText  = self.powerText  or (name and _G[name .. "PowerText"])
     self.levelText  = self.levelText  or (name and _G[name .. "LevelText"])
 
+    -- The four readouts are declared as regions of the BUTTON in XML, which
+    -- put them at the button's own frame level. That worked only for as long
+    -- as nothing else was layered over the health bar: draw order between a
+    -- parent's regions and a same-level child's is not something to rely on,
+    -- and the absorb overlays (Absorbs.lua) landed on exactly that ambiguity
+    -- -- pinned to the health bar's level they rendered UNDERNEATH its fill,
+    -- and raising them a level would have put them over the text instead.
+    --
+    -- Reparenting the FontStrings onto a dedicated high-level host makes the
+    -- stack explicit rather than emergent:
+    --
+    --     healthBar 1 -> powerBar / absorbs 2 -> icons 3 -> portrait 4 -> text 7
+    --
+    -- Preview.lua already builds its mock this way and says why in its own
+    -- comment; this brings the real frame in line with it.
+    --
+    -- Done here, at OnLoad, and nowhere else: this runs once at frame
+    -- creation, long before the button is carrying a unit or combat matters.
+    -- Regions are not protected the way frames are, but reparenting anything
+    -- belonging to a secure button mid-combat is not a thing to start doing.
+    if not self.textHost then
+        local textHost = CreateFrame("Frame", nil, self)
+        textHost:SetAllPoints(self)
+        textHost:SetFrameLevel((self:GetFrameLevel() or 1) + 6)
+        self.textHost = textHost
+    end
+    for _, fs in ipairs({self.nameText, self.healthText, self.powerText, self.levelText}) do
+        if fs and fs.SetParent then fs:SetParent(self.textHost) end
+    end
+
     if self.healthBar then
         self.healthBar:SetMinMaxValues(0, 1)
         self.healthBar:SetValue(0)

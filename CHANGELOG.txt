@@ -7,6 +7,12 @@ V1.15
 
 Fixed:
 
+- The shield and heal-absorb overlays were drawing UNDERNEATH the health bar
+  on the real unit frames, so they were invisible. They sat at the health
+  bar's own layer, which left it to chance whether the bar or the overlay won
+  -- and the bar did. They are a layer above it now, and the frame's text has
+  moved onto its own layer above everything so it still reads over the top.
+
 - Right-clicking a party or raid member no longer gives you a PET menu -- "Show
   Pet in Journal", "Report Pet Name", and crucially no Remove from Group. It
   happened for anyone whose data the game had not sent us: out of range, zoned
