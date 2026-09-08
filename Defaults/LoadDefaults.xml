@@ -5,5 +5,6 @@
     <Script file="PetFrames_Defaults.lua"/>
     <Script file="UnitFrames_Defaults.lua"/>
     <Script file="ClickCasting_Defaults.lua"/>
+    <Script file="TankTracker_Defaults.lua"/>
     <Script file="Indicator_Defaults.lua"/>
 </Ui>

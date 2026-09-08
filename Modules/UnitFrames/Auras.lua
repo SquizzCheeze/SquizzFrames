@@ -48,6 +48,10 @@ local ANCHOR_POINTS = {
     right       = {"LEFT",        "RIGHT",       "RIGHT"},
 }
 
+-- Exported so TankTracker.lua can place its icon rows with the SAME vocabulary
+-- rather than a second copy of the point pairs.
+Auras.ANCHOR_POINTS = ANCHOR_POINTS
+
 Auras.ANCHOR_ITEMS = {
     {value = "none",        text = "Off"},
     {value = "topleft",     text = "Above, left"},

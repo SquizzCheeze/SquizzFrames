@@ -7,6 +7,26 @@ V1.16
 
 Added:
 
+- Tank Tracker (new): a compact frame per tank in your group, with that tank's
+  incoming boss and role debuffs above the bar and their active defensives
+  below it. Off by default; find it under Tank Tracker in the options and drag
+  it in Edit Mode.
+
+  Shows all tanks including you by default, or switch Include Yourself off to
+  see only your co-tanks. Works anywhere you are grouped, and solo.
+
+  Full control over both icon rows - position, offsets, icon size, count,
+  rows, spacing, duration and stack text, borders - plus frame size, stacking
+  direction, spacing, health colour, name font and a border.
+
+  The debuff row defaults to Boss and role mechanics, which is where the game
+  actually delivers tank-relevant debuffs. Defensives pick up both personal
+  and external cooldowns.
+
+  Layout inspired by CoTankTracker by zerbi; the implementation is our own, on
+  the same aura engine the rest of the addon uses, so it keeps working through
+  a whole encounter.
+
 - The cast bar's spell name and cast timer now have their own font, size,
   outline, colour and offsets, set separately for each. They previously shared
   one size slider and borrowed the unit frame's font face, which left a cast

@@ -43,6 +43,7 @@ local NAV_ITEMS = {
     {id = "unitFrames",   label = "Unit Frames"},
     {id = "clickCasting", label = "Click Casting"},
     {id = "indicators",   label = "Indicators"},
+    {id = "tankTracker",  label = "Tank Tracker"},
     {id = "nicknames",    label = "Nicknames"},
     {id = "profiles",     label = "Profiles"},
 }
@@ -55,6 +56,7 @@ local pageHeights = {
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1000, -- one section at a time; cast bar is the tallest
     ["clickCasting"] = 460,
+    ["tankTracker"] = 1500, -- both icon rows expanded is the tallest state
     ["nicknames"] = 780,
     ["profiles"] = 600,
 }
@@ -2903,6 +2905,21 @@ local function CreateUnitFramesPage()
     end
 end
 
+local function CreateTankTrackerPage()
+    local frame = CreateFrame("Frame", nil, scrollChild)
+    frame:SetAllPoints()
+    frame:Hide()
+    contentFrames["tankTracker"] = frame
+
+    if SquizzFrames.TankTrackerPanel and SquizzFrames.TankTrackerPanel.Build then
+        SquizzFrames.TankTrackerPanel.Build(frame)
+    else
+        local msg = frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
+        msg:SetPoint("CENTER")
+        msg:SetText("Tank Tracker module not loaded.")
+    end
+end
+
 local function CreateNicknamesPage()
     local frame = CreateFrame("Frame", nil, scrollChild)
     frame:SetAllPoints()
@@ -2937,6 +2954,7 @@ local function ToggleOptions()
         CreateUnitFramesPage()
         CreateClickCastingPage()
         CreateIndicatorsPage()
+        CreateTankTrackerPage()
         CreateNicknamesPage()
         CreateProfilesPage()
     end
