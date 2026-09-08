@@ -92,6 +92,22 @@ local GROWTH_ITEMS = {
     {value = "LEFT",  text = L["Left"] or "Left"},
 }
 
+-- Where a text sits ON its icon. AuraEngine's ApplyFontSlot uses ONE point for
+-- both sides of SetPoint, so each entry reads as "pin the text's corner to the
+-- icon's same corner" -- a point/relative-point pair would offer combinations
+-- nobody wants.
+local ANCHOR_POINT_ITEMS = {
+    {value = "TOPLEFT",     text = L["Top Left"] or "Top Left"},
+    {value = "TOP",         text = L["Top"] or "Top"},
+    {value = "TOPRIGHT",    text = L["Top Right"] or "Top Right"},
+    {value = "LEFT",        text = L["Left"] or "Left"},
+    {value = "CENTER",      text = L["Center"] or "Center"},
+    {value = "RIGHT",       text = L["Right"] or "Right"},
+    {value = "BOTTOMLEFT",  text = L["Bottom Left"] or "Bottom Left"},
+    {value = "BOTTOM",      text = L["Bottom"] or "Bottom"},
+    {value = "BOTTOMRIGHT", text = L["Bottom Right"] or "Bottom Right"},
+}
+
 local OUTLINE_ITEMS = {
     {value = "NONE",         text = L["None"] or "None"},
     {value = "OUTLINE",      text = L["Outline"] or "Outline"},
@@ -162,6 +178,25 @@ local function BuildRow(host, y, label, sub, extra)
             R.get("durationSize", 11), R.set("durationSize"))
         sDur:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65
+
+        local ddDur = W.CreateStyledDropdown(host, 200, 40,
+            L["Duration Anchor"] or "Duration Anchor",
+            ANCHOR_POINT_ITEMS, R.get("durationAnchor", "CENTER"),
+            R.set("durationAnchor"))
+        ddDur:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sDx = W.CreateStyledSlider(host, 200, -30, 30, 1,
+            L["Duration Offset X"] or "Duration Offset X",
+            R.get("durationX", 0), R.set("durationX"))
+        sDx:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sDy = W.CreateStyledSlider(host, 200, -30, 30, 1,
+            L["Duration Offset Y"] or "Duration Offset Y",
+            R.get("durationY", 0), R.set("durationY"))
+        sDy:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
     end
 
     local cbStack = W.CreateStyledCheckbox(host, L["Show Stacks"] or "Show Stacks",
@@ -175,6 +210,13 @@ local function BuildRow(host, y, label, sub, extra)
             R.get("stackSize", 11), R.set("stackSize"))
         sSt:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65
+
+        local ddStack = W.CreateStyledDropdown(host, 200, 40,
+            L["Stack Anchor"] or "Stack Anchor",
+            ANCHOR_POINT_ITEMS, R.get("stackAnchor", "BOTTOMRIGHT"),
+            R.set("stackAnchor"))
+        ddStack:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
 
         local sSx = W.CreateStyledSlider(host, 200, -20, 20, 1, L["Stack Offset X"] or "Stack Offset X",
             R.get("stackX", 1), R.set("stackX"))

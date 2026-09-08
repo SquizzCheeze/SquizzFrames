@@ -2,6 +2,23 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.17
+-----
+
+Added:
+
+- Tank Tracker: the duration and stack text on both icon rows now have an
+  anchor dropdown and their own offset sliders.
+
+Fixed:
+
+- Tank Tracker: the duration and stack text SIZE sliders did nothing. The size
+  had in fact never been applied at all - the font settings were handed to the
+  aura engine in the wrong shape, which it ignores silently rather than
+  erroring - and on top of that the text style was only ever built when a row
+  first appeared, so no text setting could update afterwards either.
+
+
 V1.16 (2026-09-08)
 ------------------
 

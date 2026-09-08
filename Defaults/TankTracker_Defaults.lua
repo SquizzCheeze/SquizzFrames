@@ -76,12 +76,23 @@ local function DefaultRow(opts)
         -- Growth follows the anchor unless overridden.
         growth = "auto",
 
+        -- Both texts get the same four controls: size, anchor, and two
+        -- offsets. AuraEngine's ApplyFontSlot uses ONE point for both sides of
+        -- SetPoint, so an anchor reads as "pin the text's <corner> to the
+        -- icon's <corner>" -- which is why these are a single dropdown rather
+        -- than a point/relative-point pair.
         showDuration = true,
         durationSize = opts.durationSize or 11,
+        durationAnchor = "CENTER",
+        durationX = 0,
+        durationY = 0,
+
         showStack = true,
         stackSize = 11,
+        stackAnchor = "BOTTOMRIGHT",
         stackX = 1,
         stackY = -1,
+
         showBorder = true,
     }
 end

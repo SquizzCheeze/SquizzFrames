@@ -228,15 +228,34 @@ local function BuildStyle(index, kind, row, cfg)
     style.width, style.height = size, size
     style.showDuration = row.showDuration ~= false
     style.showStack = row.showStack ~= false
-    style.durationPoint = "CENTER"
-    style.durationRelPoint = "CENTER"
-    style.durationX, style.durationY = 0, 0
-    style.stackPoint = "BOTTOMRIGHT"
-    style.stackX = row.stackX or 1
-    style.stackY = row.stackY or -1
     style.border = (row.showBorder ~= false) and {0, 0, 0, 1, size = 1} or nil
-    if AE.ApplyFontSettings and cfg.font then
-        AE.ApplyFontSettings(style, {cfg.font[1], row.durationSize or 11, cfg.font[3]})
+
+    -- AE.ApplyFontSettings owns EVERY text field -- face, size, outline,
+    -- anchor, both offsets and colour, for both texts. Nothing here sets
+    -- style.durationPoint/stackX/etc by hand; doing so would be overwritten on
+    -- the next pass anyway.
+    --
+    -- THE SHAPE MATTERS AND FAILS SILENTLY IF WRONG. It wants
+    -- {stackSlot, durationSlot}, each being the options widget's eight-row
+    -- tuple: {name, size, outline, shadow, anchor, xOffset, yOffset, color}.
+    -- Passing a flat {face, size, flags} instead puts a STRING in slot 1,
+    -- which ApplyFontSettings treats as the plain-text-indicator shape and
+    -- returns from immediately -- no error, no text styling at all. That was
+    -- this module's original bug: the duration size slider had never worked,
+    -- not merely stopped updating.
+    --
+    -- Anchor semantics, per ApplyFontSlot: one point is used for BOTH sides of
+    -- SetPoint, so "BOTTOMRIGHT" reads as "pin the text's bottom-right to the
+    -- icon's bottom-right".
+    local face = cfg.font and cfg.font[1]
+    local flags = cfg.font and cfg.font[3]
+    if AE.ApplyFontSettings then
+        AE.ApplyFontSettings(style, {
+            {face, row.stackSize or 11, flags, nil,
+             row.stackAnchor or "BOTTOMRIGHT", row.stackX or 1, row.stackY or -1},
+            {face, row.durationSize or 11, flags, nil,
+             row.durationAnchor or "CENTER", row.durationX or 0, row.durationY or 0},
+        })
     end
     return key
 end
@@ -388,6 +407,15 @@ local function ApplyRow(frame, kind, unit)
                     math.max(1, rows * (size + (row.spacing or 2))))
     wrapper:Show()
 
+    -- Rebuilt on EVERY pass, before the container branch below -- not only
+    -- when a container is created. BuildStyle used to be reachable solely
+    -- through BuildSpec, which runs once at RequestContainer time, so the
+    -- style table kept its original values forever and RestyleSoon dutifully
+    -- re-applied the settings you had when the row first appeared. Any text
+    -- slider looked dead. UnitFrames/Auras.lua calls it unconditionally at the
+    -- top of its own ApplySettings for exactly this reason.
+    local styleKey = BuildStyle(frame._sfIndex, kind, row, cfg)
+
     local container = wrapper._container
     if not container then
         AE.RequestContainer(wrapper, unit, BuildSpec(frame._sfIndex, kind, row, cfg),
@@ -405,7 +433,7 @@ local function ApplyRow(frame, kind, unit)
     -- settings. RebindUnit no-ops when the token is unchanged, so this is
     -- cheap on a plain settings pass.
     if AE.RebindUnit then AE.RebindUnit(container, unit) end
-    AE.RestyleSoon(StyleKey(frame._sfIndex, kind))
+    AE.RestyleSoon(styleKey)
     container:ClearAllPoints()
     container:SetPoint("TOPLEFT", wrapper, "TOPLEFT", 0, 0)
     container:SetShown(true)

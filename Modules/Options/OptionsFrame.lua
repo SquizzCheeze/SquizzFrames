@@ -56,7 +56,7 @@ local pageHeights = {
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1000, -- one section at a time; cast bar is the tallest
     ["clickCasting"] = 460,
-    ["tankTracker"] = 1500, -- both icon rows expanded is the tallest state
+    ["tankTracker"] = 2100, -- both icon rows expanded, incl. duration/stack anchors + offsets
     ["nicknames"] = 780,
     ["profiles"] = 600,
 }
