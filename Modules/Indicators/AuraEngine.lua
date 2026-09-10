@@ -894,6 +894,41 @@ restyler:SetScript("OnUpdate", function(self)
     end
 end)
 
+-- Push a group spec onto an ALREADY-CREATED container.
+--
+-- Groups are add-only -- you cannot remove one -- but every property that
+-- matters IS settable afterwards, contrary to what a reasonable person
+-- concludes from AddAuraGroup taking them all up front. Confirmed in
+-- Blizzard's 12.1.5 source (Blizzard_CustomAuraContainer.lua L367-411):
+-- SetAuraGroupFilterString, SetAuraGroupCandidateFilters,
+-- SetAuraGroupMaxFrameCount and SetAuraGroupLayout all exist, and the first
+-- two call UpdateAllAuras() internally so the change takes effect at once.
+--
+-- CANDIDATE FILTERS ARE THE ONE PEOPLE MISS. They carry isBossOrRoleAura,
+-- isPriorityAura, maxDuration -- i.e. most of what actually decides which
+-- auras a group shows on 12.1, since filter-string classification tokens are
+-- ignored on the list-query path. A caller that pushes the filter string but
+-- not the candidate filters looks like it is updating the group and is not.
+--
+-- pcall'd individually so a build missing one setter degrades to "that one
+-- property needs a reload" rather than aborting the whole settings pass.
+-- Takes the SAME group table shape AE.CreateContainer consumes, so callers
+-- can hand it their existing spec.groups entries rather than a second format.
+function AE.UpdateGroup(container, g)
+    if not container or not g or not g.key then return end
+    if g.filter then
+        pcall(container.SetAuraGroupFilterString, container, g.key,
+              AE.Filter(unpack(g.filter)))
+    end
+    pcall(container.SetAuraGroupCandidateFilters, container, g.key, g.candidateFilters)
+    if g.maxFrameCount then
+        pcall(container.SetAuraGroupMaxFrameCount, container, g.key, g.maxFrameCount)
+    end
+    if g.layout then
+        pcall(container.SetAuraGroupLayout, container, g.key, g.layout)
+    end
+end
+
 function AE.RestyleSoon(styleKey)
     restyleQueue[styleKey] = true
     restyler:Show()

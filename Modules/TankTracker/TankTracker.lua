@@ -433,6 +433,23 @@ local function ApplyRow(frame, kind, unit)
     -- settings. RebindUnit no-ops when the token is unchanged, so this is
     -- cheap on a plain settings pass.
     if AE.RebindUnit then AE.RebindUnit(container, unit) end
+
+    -- PUSH THE GROUPS. This was missing entirely (user report: "do i need to
+    -- reload every time i change which debuffs are shown?" -- yes, you did).
+    -- Nothing here updated the filter, the candidate filters, the icon count
+    -- or the layout on a container that already existed, so every one of those
+    -- settings was frozen at whatever it was when the row first appeared.
+    --
+    -- Rebuilt from BuildSpec rather than a second hand-written list, so the
+    -- create path and the update path cannot describe different groups -- and
+    -- so the two-group defensive row is covered without special-casing.
+    local spec = BuildSpec(frame._sfIndex, kind, row, cfg)
+    if AE.UpdateGroup then
+        for _, g in ipairs(spec.groups) do
+            AE.UpdateGroup(container, g)
+        end
+    end
+
     AE.RestyleSoon(styleKey)
     container:ClearAllPoints()
     container:SetPoint("TOPLEFT", wrapper, "TOPLEFT", 0, 0)

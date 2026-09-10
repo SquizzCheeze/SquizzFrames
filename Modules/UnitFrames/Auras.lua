@@ -291,11 +291,20 @@ function Auras.ApplySettings(wrapper, parent, t, kind)
     -- Live container: push the changed settings rather than rebuilding it.
     -- Containers are permanent (WoW never destroys frames) and each carries a
     -- batch of pre-created buttons, so churning them is expensive and visible.
-    pcall(container.SetAuraGroupFilterString, container, groupKey,
-        AE.Filter(unpack(FilterTokens(kind, cfg))))
-    pcall(container.SetAuraGroupMaxFrameCount, container, groupKey, num)
-    pcall(container.SetAuraGroupLayout, container, groupKey,
-        { elementWidth = size, elementHeight = size })
+    -- Through AE.UpdateGroup rather than three hand-written pcalls, so this
+    -- and the tank tracker push the same set. The set used to be missing
+    -- SetAuraGroupCandidateFilters, which is latent here (these rows filter
+    -- with STRING tokens only -- HELPFUL/HARMFUL/PLAYER) but would have been a
+    -- silent no-op the moment a candidate filter was added. It is exactly what
+    -- the tank tracker's debuff row uses, and exactly what was frozen there.
+    if AE.UpdateGroup then
+        AE.UpdateGroup(container, {
+            key = groupKey,
+            filter = FilterTokens(kind, cfg),
+            maxFrameCount = num,
+            layout = { elementWidth = size, elementHeight = size },
+        })
+    end
     AE.RestyleSoon(styleKey)
     Auras.ApplyLayout(wrapper, cfg)
     container:SetShown(true)

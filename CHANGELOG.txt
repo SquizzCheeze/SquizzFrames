@@ -5,6 +5,18 @@ SquizzFrames - Changelog
 V1.18
 -----
 
+Fixed:
+
+- Tank Tracker settings needed a reload to take effect. Changing which debuffs
+  are shown, the icon count, the size or the layout did nothing to a row that
+  was already on screen - none of it was ever pushed to the live display, so
+  every one of those settings was frozen at whatever it was when the row first
+  appeared. They all apply immediately now.
+
+  This is also the most likely reason co-tank debuff rows looked empty while
+  the player's worked: the rows were showing whatever filter happened to be
+  set when each one was first built, not the one you had selected.
+
 Added:
 
 - Unit frames can have a border - thickness, padding and colour, per frame.
