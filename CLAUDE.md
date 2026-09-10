@@ -59,6 +59,7 @@ SquizzFrames/
     │   ├── Icons.lua           # Combat + leader state icons (anchor/offset/size/tint), secret-safe booleans
     │   ├── Absorbs.lua         # Shield + heal-absorb health-bar overlays; values go straight to SetValue, never touched in Lua
     │   ├── Highlights.lua     # Hover/target/aggro borders; borrows BuiltIn_Update's factory + Check functions, own per-frame settings, renders in the preview
+    │   ├── Dispels.lua        # Dispel overlay + icon; REUSES AEI.CreateDispelsIndicator with a translated settings table rather than reimplementing it
     │   ├── ResourceBar.lua     # Standalone movable player power + secondary-resource points; NOT gated on unitFrames.enabled
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames

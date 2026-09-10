@@ -2040,6 +2040,206 @@ local function SecHighlights(host, y, cfg, t)
     return y
 end
 
+-- Dispel overlay + icon. The settings live under t.dispels with OUR key names;
+-- Dispels.lua translates them for the party indicator it reuses.
+local function SecDispels(host, y, cfg, t)
+    local DP = SquizzFrames.UnitFrameDispels
+    if not DP then return y end
+
+    local function Read(field, fb)
+        local c = t and t.dispels
+        local v = c and c[field]
+        if v == nil then return fb end
+        return v
+    end
+    local function Write(field, v)
+        Set(function(c)
+            c.dispels = c.dispels or {}
+            c.dispels[field] = v
+        end)
+    end
+
+    W.CreateTitledPane(host, L["Dispels"] or "Dispels", y)
+    y = y - 35
+
+    local cbOn = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        function() return Read("enabled", false) == true end,
+        function(v) Write("enabled", v); if rebuildFields then rebuildFields() end end)
+    cbOn:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local note = host:CreateFontString(nil, "OVERLAY")
+    note:SetFontObject("GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", 32, y)
+    note:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    note:SetJustifyH("LEFT")
+    note:SetText(L["UnitDispelsNote"]
+        or "Tints the health bar by the type of dispellable debuff on the unit, and can show a matching icon. Built on the same aura engine the party frames use, so it keeps working through a whole encounter.")
+    y = y - 46
+
+    if not Read("enabled", false) then return y end
+
+    local ddMode = W.CreateStyledDropdown(host, 200, 40, L["Overlay"] or "Overlay",
+        DP.OVERLAY_MODES, function() return Read("overlay", "full") end,
+        function(v) Write("overlay", v); if rebuildFields then rebuildFields() end end)
+    ddMode:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    if Read("overlay", "full") ~= "none" then
+        local sOp = W.CreateStyledSlider(host, 200, 0.05, 1, 0.05,
+            L["Opacity"] or "Opacity",
+            function() return Read("opacity", 0.5) end,
+            function(v) Write("opacity", v) end)
+        sOp:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
+    local cbAll = W.CreateStyledCheckbox(host,
+        L["Show All Types"] or "Show All Types",
+        function() return Read("showAll", false) == true end,
+        function(v) Write("showAll", v) end)
+    cbAll:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local allNote = host:CreateFontString(nil, "OVERLAY")
+    allNote:SetFontObject("GameFontDisableSmall")
+    allNote:SetPoint("TOPLEFT", 32, y)
+    allNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    allNote:SetJustifyH("LEFT")
+    allNote:SetText(L["UnitDispelsAllNote"]
+        or "Off shows only what YOU can dispel. On shows every dispellable type - useful if you are watching a tank rather than healing.")
+    y = y - 40
+
+    local cbIcons = W.CreateStyledCheckbox(host,
+        L["Show Dispel Icon"] or "Show Dispel Icon",
+        function() return Read("showIcons", false) == true end,
+        function(v) Write("showIcons", v); if rebuildFields then rebuildFields() end end)
+    cbIcons:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
+    if Read("showIcons", false) then
+        local sSize = W.CreateStyledSlider(host, 200, 8, 40, 1, L["Icon Size"] or "Icon Size",
+            function() return Read("iconSize", 16) end,
+            function(v) Write("iconSize", v) end)
+        sSize:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sX = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset X"] or "Offset X",
+            function() return Read("iconX", 0) end,
+            function(v) Write("iconX", v) end)
+        sX:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sY = W.CreateStyledSlider(host, 200, -100, 100, 1, L["Offset Y"] or "Offset Y",
+            function() return Read("iconY", 0) end,
+            function(v) Write("iconY", v) end)
+        sY:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
+    -- Per-type enable + colour. Written only when changed, so an untouched
+    -- profile carries no copy of the game's palette to go stale.
+    W.CreateTitledPane(host, L["Dispel Types"] or "Dispel Types", y)
+    y = y - 35
+
+    for _, ty in ipairs(DP.TYPES) do
+        local cb = W.CreateStyledCheckbox(host, L[ty.label] or ty.label,
+            function()
+                local m = Read("typesEnabled", nil)
+                return (type(m) ~= "table") or (m[ty.key] ~= false)
+            end,
+            function(v)
+                Set(function(c)
+                    c.dispels = c.dispels or {}
+                    c.dispels.typesEnabled = c.dispels.typesEnabled or {}
+                    c.dispels.typesEnabled[ty.key] = v
+                end)
+            end)
+        cb:SetPoint("TOPLEFT", 15, y)
+
+        local cp = W.CreateColorPicker(host, "",
+            function()
+                local m = Read("colors", nil)
+                local c = (type(m) == "table") and m[ty.key] or nil
+                if type(c) ~= "table" then
+                    return ty.default[1], ty.default[2], ty.default[3], 1
+                end
+                return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+            end,
+            function(r, g, b, a)
+                Set(function(c)
+                    c.dispels = c.dispels or {}
+                    c.dispels.colors = c.dispels.colors or {}
+                    c.dispels.colors[ty.key] = {r, g, b, a or 1}
+                end)
+            end)
+        cp:SetPoint("TOPLEFT", 175, y)
+        y = y - 30
+    end
+
+    return y - 10
+end
+
+-- INDICATORS: one section, sub-tabs inside it.
+--
+-- Auras, Icons, Highlights, Absorbs and Dispels were five separate entries in
+-- the left sidebar, which buried the per-frame settings people actually reach
+-- for under a list that kept growing. They are now one "Indicators" section
+-- with a tab strip across the top, the same shape the party/raid Indicators
+-- page uses -- pick the indicator, then configure it.
+--
+-- The individual Sec* builders are UNCHANGED; this only decides which one runs
+-- and draws the strip. That is deliberate: each remains independently
+-- testable, and moving one back out is deleting an entry here.
+local INDICATOR_TABS = {
+    {key = "auras",      label = L["Auras"] or "Auras",           build = SecAuras},
+    {key = "dispels",    label = L["Dispels"] or "Dispels",       build = SecDispels},
+    {key = "absorbs",    label = L["Absorbs"] or "Absorbs",       build = SecAbsorbs},
+    {key = "highlights", label = L["Highlights"] or "Highlights", build = SecHighlights},
+    {key = "icons",      label = L["Icons"] or "Icons",           build = SecIcons},
+}
+
+-- Persists across page switches within a session, like activeUnit and
+-- activeSection -- you are usually adjusting one indicator over several visits.
+local activeIndicatorTab = "auras"
+
+local function SecIndicators(host, y, cfg, t)
+    local strip = CreateFrame("Frame", nil, host)
+    strip:SetPoint("TOPLEFT", 15, y)
+    strip:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    strip:SetHeight(24)
+
+    local x = 0
+    for _, tab in ipairs(INDICATOR_TABS) do
+        local btn = CreateFrame("Button", nil, strip, "BackdropTemplate")
+        btn:SetSize(76, 22)
+        btn:SetPoint("TOPLEFT", strip, "TOPLEFT", x, 0)
+        local isActive = (tab.key == activeIndicatorTab)
+        local accent = F.GetAccentColor()
+        W.StylizeFrame(btn,
+            isActive and {accent.r, accent.g, accent.b, 0.55} or {0.115, 0.115, 0.115, 1},
+            {0, 0, 0, 0})
+        local text = btn:CreateFontString(nil, "OVERLAY")
+        text:SetFont("Fonts\FRIZQT__.TTF", 11, "OUTLINE")
+        text:SetPoint("CENTER")
+        text:SetText(tab.label)
+        btn:SetScript("OnClick", function()
+            if activeIndicatorTab == tab.key then return end
+            activeIndicatorTab = tab.key
+            if rebuildFields then rebuildFields() end
+        end)
+        x = x + 79
+    end
+    y = y - 34
+
+    for _, tab in ipairs(INDICATOR_TABS) do
+        if tab.key == activeIndicatorTab and tab.build then
+            return tab.build(host, y, cfg, t)
+        end
+    end
+    return y
+end
+
 -----------------------------------------------------------------------
 -- Section registry + dispatch
 -----------------------------------------------------------------------
@@ -2054,10 +2254,9 @@ local SECTIONS = {
     {key = "text",     label = L["Text"] or "Text",         build = SecText},
     {key = "portrait", label = L["Portrait"] or "Portrait", build = SecPortrait},
     {key = "castbar",  label = L["Cast Bar"] or "Cast Bar", build = SecCastBar},
-    {key = "auras",    label = L["Auras"] or "Auras",       build = SecAuras},
-    {key = "icons",    label = L["Icons"] or "Icons",       build = SecIcons},
-    {key = "highlights", label = L["Highlights"] or "Highlights", build = SecHighlights},
-    {key = "absorbs",  label = L["Absorbs"] or "Absorbs",   build = SecAbsorbs},
+    -- Auras, Dispels, Absorbs, Highlights and Icons are now SUB-TABS inside
+    -- this one entry rather than five sidebar rows -- see SecIndicators.
+    {key = "indicators", label = L["Indicators"] or "Indicators", build = SecIndicators},
     -- Module-wide, not per-unit: it is always the player's own resources. It
     -- reads the same settings whichever unit tab happens to be selected.
     {key = "resource", label = L["Resources"] or "Resources", build = SecResource},

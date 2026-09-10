@@ -1116,6 +1116,9 @@ function ApplyLayout()
                 local HL = SquizzFrames.UnitFrameHighlights
                 if HL then HL.ApplySettings(frame, t) end
 
+                local DP = SquizzFrames.UnitFrameDispels
+                if DP then DP.ApplySettings(frame, t) end
+
                 RegisterUnitWatch(frame)
             end
 
@@ -1411,6 +1414,11 @@ function UnitFrames:OnEnable()
         local function RederiveAuras(unit)
             local A = SquizzFrames.UnitFrameAuras
             if A and A.ForceRefresh then A.ForceRefresh(unit) end
+            -- Dispels bind a container the same way and go stale the same
+            -- way, so they ride along rather than needing a second call site
+            -- at every token-change event.
+            local DPmod = SquizzFrames.UnitFrameDispels
+            if DPmod and DPmod.Refresh then DPmod.Refresh(unit) end
         end
 
         self:RegisterEvent("PLAYER_TARGET_CHANGED", function()

@@ -220,3 +220,18 @@ L["UnitHighlightsNote"] = "Target Highlight shows which frame your current targe
 L["Pulse"] = "Pulse"
 L["Pulse Speed"] = "Pulse Speed"
 L["Fade To %"] = "Fade To %"
+
+-- Unit frame dispels
+L["Dispels"] = "Dispels"
+L["Dispel Types"] = "Dispel Types"
+L["Overlay"] = "Overlay"
+L["Opacity"] = "Opacity"
+L["Show All Types"] = "Show All Types"
+L["Show Dispel Icon"] = "Show Dispel Icon"
+L["Magic"] = "Magic"
+L["Curse"] = "Curse"
+L["Disease"] = "Disease"
+L["Poison"] = "Poison"
+L["Bleed"] = "Bleed"
+L["UnitDispelsNote"] = "Tints the health bar by the type of dispellable debuff on the unit, and can show a matching icon. Built on the same aura engine the party frames use, so it keeps working through a whole encounter."
+L["UnitDispelsAllNote"] = "Off shows only what YOU can dispel. On shows every dispellable type - useful if you are watching a tank rather than healing."

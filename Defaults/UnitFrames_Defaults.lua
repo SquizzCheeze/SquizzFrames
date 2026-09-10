@@ -169,6 +169,28 @@ local function DefaultFrame(opts)
         fadeOutOfCombat = false,
         fadeAlpha = 0.35,
 
+        -- Dispel overlay + icon (Dispels.lua). The key names inside `dispels`
+        -- are OURS; Dispels.lua translates them to the party indicator's own
+        -- key names, which it reuses wholesale rather than reimplementing.
+        dispels = {
+            enabled = false,
+            -- "full" solid tint, "gradient", or "none" for icon only.
+            overlay = "full",
+            opacity = 0.5,
+            -- Off = only the types YOU can dispel. On = every dispellable
+            -- type, which is what a non-healer watching a tank usually wants.
+            showAll = false,
+            showIcons = false,
+            iconSize = 16,
+            iconX = 0,
+            iconY = 0,
+            -- nil means "every type on" and "use the game's own colours"; the
+            -- panel only writes these once you change one, so a default
+            -- profile carries no copy of Blizzard's palette to go stale.
+            typesEnabled = nil,
+            colors = nil,
+        },
+
         -- Hover / target / aggro highlights (Highlights.lua). PER FRAME and
         -- isolated from the party/raid indicator system on purpose -- see
         -- that file's header for why a third Indicators tab was rejected.

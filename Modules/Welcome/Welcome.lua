@@ -52,6 +52,7 @@ local RELEASE_NOTES = {
         "Unit frames can have a border, with its own thickness, padding and colour.",
         "Unit frame text has a font and outline picker. The setting was always there, it just had no control.",
         "Tank Tracker settings apply immediately instead of needing a reload. Changing which debuffs are shown did nothing to a row already on screen, which is also why co-tank debuff rows could come up empty.",
+        "Dispel overlay and dispel icon on the unit frames, with per-type colours.",
         "Hover, target and aggro highlights on the unit frames, with their own colour and thickness per frame, separate from the party and raid indicators.",
         "Health bars can colour by how hurt someone is - green at full, through amber, to red - as a smooth blend or hard bands. Party, raid and pet frames share one switch; unit frames have their own per frame.",
         "This window is new: a short note about what changed, once per update.",

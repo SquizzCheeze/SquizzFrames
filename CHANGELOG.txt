@@ -19,6 +19,16 @@ Fixed:
 
 Added:
 
+- Dispel overlay and dispel icon on the unit frames. Tints the health bar by
+  the type of dispellable debuff, with a matching icon, per dispel type
+  colours, and a "show all types" option for when you are watching a tank
+  rather than healing.
+
+- The unit frame indicator settings are now one Indicators section with tabs
+  across the top - Auras, Dispels, Absorbs, Highlights, Icons - instead of five
+  separate rows in the sidebar, matching how the party and raid Indicators page
+  works.
+
 - Hover, target and aggro highlights on the unit frames, each with its own
   colour and thickness, per frame. They are separate from the party and raid
   indicators, so a thick gold target highlight on your boss frames does not
