@@ -237,6 +237,17 @@ Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` t
 - **`actions/upload-artifact` skips hidden paths by default** and the packager builds into `.release/`, so the dry-run artifact needs `include-hidden-files: true`. Without it the upload finds nothing while the packaging step stays green.
 - **`release.sh` skips a missing token silently and still exits 0.** The tell is the credential line it prints near the top: `CurseForge ID: 1649203 [token set]` — that suffix is `${cf_token:+ [token set]}`, so **no suffix means the token is empty**. A green run that makes a GitHub release but nothing on CurseForge is this. A misnamed secret is not an error in Actions; it interpolates to an empty string, which is why the workflow has a dry-run-only step printing both secrets' lengths.
 
+### XML edits
+
+A prose `--` inside an `<!-- -->` comment is illegal XML and kills the WHOLE
+file, usually surfacing as an unrelated-looking Lua error. It has bitten this
+project three times. After ANY edit to a `.xml` file, including one made with
+`sed`/`perl`, run:
+
+```sh
+sh .tools/check-xml.sh
+```
+
 ### Common Commands
 | Command | Action |
 |---------|--------|

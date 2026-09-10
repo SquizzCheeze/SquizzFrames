@@ -23,6 +23,7 @@ ignore:
   - .github
   - .vscode
   - .claude
+  - .tools
   - .gitignore
   - .gitattributes
   - .pkgmeta
