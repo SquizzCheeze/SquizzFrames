@@ -353,6 +353,141 @@ end
 -- class of bug F.GetClassColor above already guards against, and which
 -- previously appeared unguarded at five separate call sites
 -- (PartyFrames/PetFrames/BuiltIn_Update).
+-----------------------------------------------------------------------
+-- Health gradient (colour driven by remaining health)
+-----------------------------------------------------------------------
+--
+-- Green at full, through amber, to red as a unit is injured.
+--
+-- THE HARD PART IS THAT YOU CANNOT COMPUTE IT. UnitHealth is a secret number
+-- on 12.1, and "percent -> colour" is arithmetic, which throws. The sanctioned
+-- route is to hand the ENGINE a colour curve and let it do the evaluation:
+--
+--   UnitHealthPercent(unit, usePredicted, curve)
+--     "If no curve is specified, a floating point percentage value. Else, the
+--      result of evaluating the curve with the percentage as the input."
+--
+-- Its curve argument is typed LuaCurveObjectBase, the shared base of the
+-- numeric LuaCurveObject and the LuaColorCurveObject built here. Lua never
+-- sees the health value, so nothing can throw on it. SetStatusBarColor is
+-- flagged SecretArguments = "AllowedWhenTainted", so addon code may pass the
+-- resulting secret colour straight through.
+--
+-- THE INPUT DOMAIN IS [0, 1], not [0, 100]. Confirmed from Blizzard's own
+-- CurveConstants.lua, where ScaleTo100 is literally a curve mapping 0.0 -> 0
+-- and 1.0 -> 100. Points below are placed accordingly.
+--
+-- UNPROVEN IN BLIZZARD'S OWN CODE. Nothing in their UI drives a bar colour
+-- this way -- their frames use flat class colours -- so while the API is
+-- documented, the exact shape of the returned value is not demonstrated
+-- anywhere. Everything below is therefore defensive: if any step fails, the
+-- caller falls back to its ordinary flat colour rather than losing the bar.
+local gradientCurves = {}
+
+local function GradientSignature(cfg)
+    local function c(t) return t and table.concat(t, ",") or "" end
+    return table.concat({
+        cfg.style or "smooth",
+        tostring(cfg.midpoint or 0.5),
+        c(cfg.low), c(cfg.mid), c(cfg.high),
+    }, "|")
+end
+
+-- Built lazily and cached by settings signature. Lazily because C_CurveUtil
+-- and Enum are not guaranteed present when this FILE loads (Utils is step 4 in
+-- the .toc), and cached because rebuilding a curve every health tick would be
+-- absurd.
+local function GetGradientCurve(cfg)
+    if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then
+        return nil
+    end
+    local sig = GradientSignature(cfg)
+    local cached = gradientCurves[sig]
+    if cached ~= nil then
+        -- false is a cached FAILURE. Distinct from nil so a build that cannot
+        -- make curves is not re-probed on every update.
+        return cached or nil
+    end
+
+    local ok, curve = pcall(C_CurveUtil.CreateColorCurve)
+    if not ok or not curve then
+        gradientCurves[sig] = false
+        return nil
+    end
+
+    -- Step snaps to the nearest defined colour (hard bands); Linear blends
+    -- between them. Both are LuaCurveType values.
+    if curve.SetType and Enum and Enum.LuaCurveType then
+        local t = (cfg.style == "bands") and Enum.LuaCurveType.Step
+            or Enum.LuaCurveType.Linear
+        pcall(curve.SetType, curve, t)
+    end
+
+    local low  = cfg.low  or {0.85, 0.15, 0.15, 1}
+    local mid  = cfg.mid  or {0.95, 0.80, 0.15, 1}
+    local high = cfg.high or {0.10, 0.85, 0.10, 1}
+    local midpoint = cfg.midpoint or 0.5
+    -- Clamped off the endpoints: two points at the same x makes the curve's
+    -- behaviour there undefined, and a midpoint of exactly 0 or 1 is a thing
+    -- a slider can produce.
+    if midpoint <= 0.01 then midpoint = 0.01 end
+    if midpoint >= 0.99 then midpoint = 0.99 end
+
+    local addOk = pcall(function()
+        curve:AddPoint(0.0, CreateColor(low[1], low[2], low[3], low[4] or 1))
+        curve:AddPoint(midpoint, CreateColor(mid[1], mid[2], mid[3], mid[4] or 1))
+        curve:AddPoint(1.0, CreateColor(high[1], high[2], high[3], high[4] or 1))
+    end)
+    if not addOk then
+        gradientCurves[sig] = false
+        return nil
+    end
+
+    gradientCurves[sig] = curve
+    return curve
+end
+
+-- Colour a status bar from a unit's remaining health. Returns true when it
+-- actually applied, so the caller knows whether to fall back.
+function F.ApplyHealthGradient(bar, unit, cfg)
+    if not (bar and unit and cfg and cfg.enabled) then return false end
+    if not UnitHealthPercent then return false end
+    local curve = GetGradientCurve(cfg)
+    if not curve then return false end
+
+    local ok, result = pcall(UnitHealthPercent, unit, true, curve)
+    if not ok or result == nil then return false end
+
+    -- The result is a colorRGBA (ColorMixin). GetRGBA is the documented way to
+    -- unpack one -- but it is a Lua method reading fields off what may be a
+    -- secret, so it is attempted rather than assumed, with the whole object
+    -- passed straight through as the fallback in case SetStatusBarColor knows
+    -- how to take it. Either way a failure returns false and the caller keeps
+    -- its flat colour.
+    if type(result) == "table" and result.GetRGBA then
+        if pcall(function() bar:SetStatusBarColor(result:GetRGBA()) end) then
+            return true
+        end
+    end
+    if pcall(bar.SetStatusBarColor, bar, result) then return true end
+    return false
+end
+
+-- Evaluate the gradient at a PLAIN fraction, for previews and mock frames.
+--
+-- This works where the live path cannot go: Evaluate/EvaluateUnpacked are
+-- SecretArguments = "AllowedWhenUntainted", so an addon may not pass them a
+-- secret -- but a preview's health is a hardcoded 0.72, which is not one.
+-- Returns nil if unavailable, so callers fall back.
+function F.EvaluateHealthGradient(cfg, fraction)
+    if not (cfg and cfg.enabled) then return nil end
+    local curve = GetGradientCurve(cfg)
+    if not curve or not curve.EvaluateUnpacked then return nil end
+    local ok, r, g, b = pcall(curve.EvaluateUnpacked, curve, fraction or 1)
+    if ok and r then return r, g, b end
+    return nil
+end
+
 function F.GetPowerColor(unit)
     local fallback = {r = 1, g = 1, b = 1}
     if not unit or not PowerBarColor then return fallback end

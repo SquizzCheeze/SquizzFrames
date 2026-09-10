@@ -19,6 +19,15 @@ Fixed:
 
 Added:
 
+- Health bars can colour by how hurt the unit is instead of by who they are -
+  green at full, through amber, to red. Choose a smooth blend or hard bands,
+  set all three colours and where the middle one sits. On the unit frames for
+  now; it will move to the party and raid frames too.
+
+  The game will not let an addon read a health value in combat any more, so
+  this hands the colours to the game and lets it pick - which means it keeps
+  working through a whole encounter.
+
 - An in-game note about what changed, shown once after each update. New
   installs get a short welcome instead. Re-open either any time with
   /sf notes.

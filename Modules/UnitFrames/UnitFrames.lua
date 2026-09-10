@@ -376,8 +376,14 @@ local function UpdateHealth(frame)
     bar:SetValue(UnitHealth(unit) or 0)
 
     local t = GetFrameConfig(unit)
-    local r, g, b = ResolveHealthColor(unit, t)
-    bar:SetStatusBarColor(r, g, b, 1)
+    -- Gradient first, flat colour as the fallback. ApplyHealthGradient returns
+    -- false when it is off OR when the engine route is unavailable on this
+    -- build, so an unsupported client silently keeps the ordinary colouring
+    -- rather than losing the bar. See its comment in Utils.lua.
+    if not (F.ApplyHealthGradient and F.ApplyHealthGradient(bar, unit, t.healthGradient)) then
+        local r, g, b = ResolveHealthColor(unit, t)
+        bar:SetStatusBarColor(r, g, b, 1)
+    end
 
     -- Disconnected/dead get a flat grey so a stale bar can't read as a live
     -- one. A plain truthiness test is safe on a secret value even if this one

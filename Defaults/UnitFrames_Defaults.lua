@@ -118,6 +118,29 @@ local function DefaultFrame(opts)
         healthCustomColor = {0.2, 0.6, 0.2, 1},
         healthBackdropColor = {0, 0, 0, 0.6},
 
+        -- HEALTH GRADIENT. Colour the bar by REMAINING HEALTH rather than by
+        -- who the unit is: green at full, through amber, to red as they drop.
+        --
+        -- Takes precedence over class/reaction/custom colouring when on --
+        -- they answer different questions ("who is this" vs "how hurt are
+        -- they") and cannot both drive one bar, so the more specific request
+        -- wins and the others stay as the fallback.
+        --
+        -- See F.ApplyHealthGradient in Utils.lua. The value never reaches Lua:
+        -- a colour curve is handed to UnitHealthPercent and the ENGINE
+        -- evaluates it, because health is a secret number on 12.1 and any
+        -- arithmetic on one throws.
+        healthGradient = {
+            enabled = false,
+            -- "smooth" blends between the three colours; "bands" snaps to the
+            -- nearest one, for people who want a clear three-state readout.
+            style = "smooth",
+            high = {0.10, 0.85, 0.10, 1},   -- at full health
+            mid  = {0.95, 0.80, 0.15, 1},   -- at `midpoint`
+            low  = {0.85, 0.15, 0.15, 1},   -- at empty
+            midpoint = 0.5,
+        },
+
         -- One entry per readout, keyed by UNITFRAME_TEXT_ELEMENTS. Name and
         -- health are on by default because a frame showing neither is not a
         -- unit frame; power and level are off, since both are usually already

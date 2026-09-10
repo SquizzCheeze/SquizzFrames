@@ -36,6 +36,12 @@ SquizzFrames.UnitFramePreview = Preview
 
 local PLACEHOLDER_ICON = [[Interface\Icons\INV_Misc_QuestionMark]]
 
+-- The mock health bar's fill, as a plain fraction. Named rather than inline
+-- because the gradient preview evaluates the colour curve at exactly this
+-- value, and the two must agree -- a bar drawn at 72% carrying the colour for
+-- 100% would be a preview that lies.
+local PREVIEW_HEALTH = 0.72
+
 -- Build the mock once; Refresh re-dresses it. Rebuilding per settings change
 -- would churn a dozen frames on every slider tick.
 function Preview.Create(parent)
@@ -51,7 +57,7 @@ function Preview.Create(parent)
     health:SetPoint("TOPLEFT")
     health:SetPoint("TOPRIGHT")
     health:SetMinMaxValues(0, 1)
-    health:SetValue(0.72)
+    health:SetValue(PREVIEW_HEALTH)
     p.healthBar = health
 
     -- Absorb overlays, pinned to the health bar the same way the real ones
@@ -263,7 +269,18 @@ function Preview.Refresh(p, t)
         end
     end
 
-    if UF and UF.ResolveHealthColor then
+    -- Health colour. The gradient is evaluated DIRECTLY here, which the real
+    -- frame cannot do: Evaluate is AllowedWhenUntainted, so an addon may not
+    -- hand it a secret -- but this mock's health is the hardcoded 0.72 below,
+    -- which is a plain number. Same curve, same colours, so what you see here
+    -- is what the bar does at 72%.
+    local gr, gg, gb
+    if F.EvaluateHealthGradient then
+        gr, gg, gb = F.EvaluateHealthGradient(t.healthGradient, PREVIEW_HEALTH)
+    end
+    if gr then
+        p.healthBar:SetStatusBarColor(gr, gg, gb, 1)
+    elseif UF and UF.ResolveHealthColor then
         local r, g, b = UF.ResolveHealthColor(unit, t)
         p.healthBar:SetStatusBarColor(r, g, b, 1)
     end

@@ -465,6 +465,85 @@ local function SecSizing(host, y, cfg, t)
 end
 
 local function SecColors(host, y, cfg, t)
+    -- HEALTH GRADIENT, above the flat-colour controls because it OVERRIDES
+    -- them when on. Putting it below would leave three live-looking colour
+    -- controls that the bar is ignoring.
+    W.CreateTitledPane(host, L["Health Gradient"] or "Health Gradient", y)
+    y = y - 35
+
+    local function GradRead(field, fb)
+        local g = t.healthGradient
+        local v = g and g[field]
+        if v == nil then return fb end
+        return v
+    end
+    local function GradWrite(field, v)
+        Set(function(c)
+            c.healthGradient = c.healthGradient or {}
+            c.healthGradient[field] = v
+        end)
+    end
+
+    local cbGrad = W.CreateStyledCheckbox(host,
+        L["Color by Health"] or "Color by Health",
+        function() return GradRead("enabled", false) == true end,
+        function(v)
+            GradWrite("enabled", v)
+            if rebuildFields then rebuildFields() end
+        end)
+    cbGrad:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local gradNote = host:CreateFontString(nil, "OVERLAY")
+    gradNote:SetFontObject("GameFontDisableSmall")
+    gradNote:SetPoint("TOPLEFT", 32, y)
+    gradNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    gradNote:SetJustifyH("LEFT")
+    gradNote:SetText(L["HealthGradientNote"]
+        or "Colours the bar by how hurt the unit is instead of who they are. Overrides the class, reaction and custom colours below while it is on.")
+    y = y - 40
+
+    if GradRead("enabled", false) then
+        local ddStyle = W.CreateStyledDropdown(host, 200, 40, L["Style"] or "Style", {
+            {value = "smooth", text = L["Smooth blend"] or "Smooth blend"},
+            {value = "bands",  text = L["Hard bands"] or "Hard bands"},
+        }, function() return GradRead("style", "smooth") end,
+           function(v) GradWrite("style", v) end)
+        ddStyle:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local function GradColor(field, dr, dg, db)
+            return function()
+                local c = GradRead(field, nil)
+                if type(c) ~= "table" then return dr, dg, db, 1 end
+                return c[1] or dr, c[2] or dg, c[3] or db, c[4] or 1
+            end,
+            function(r, g, b, a) GradWrite(field, {r, g, b, a or 1}) end
+        end
+
+        local hGet, hSet = GradColor("high", 0.10, 0.85, 0.10)
+        local cpHigh = W.CreateColorPicker(host, L["Full Health"] or "Full Health", hGet, hSet)
+        cpHigh:SetPoint("TOPLEFT", 15, y)
+        y = y - 32
+
+        local mGet, mSet = GradColor("mid", 0.95, 0.80, 0.15)
+        local cpMid = W.CreateColorPicker(host, L["Midpoint"] or "Midpoint", mGet, mSet)
+        cpMid:SetPoint("TOPLEFT", 15, y)
+        y = y - 32
+
+        local lGet, lSet = GradColor("low", 0.85, 0.15, 0.15)
+        local cpLow = W.CreateColorPicker(host, L["Empty"] or "Empty", lGet, lSet)
+        cpLow:SetPoint("TOPLEFT", 15, y)
+        y = y - 36
+
+        local sMid = W.CreateStyledSlider(host, 200, 0.05, 0.95, 0.05,
+            L["Midpoint At"] or "Midpoint At",
+            function() return GradRead("midpoint", 0.5) end,
+            function(v) GradWrite("midpoint", v) end)
+        sMid:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
     W.CreateTitledPane(host, L["Health Bar Color"] or "Health Bar Color", y)
     y = y - 35
 
