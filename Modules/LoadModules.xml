@@ -50,6 +50,10 @@
     <Script file="Nicknames/Nicknames.lua"/>
     <!-- After Nicknames + Options/Widgets: the panel is a shell over both. -->
     <Script file="Nicknames/NicknamesPanel.lua"/>
+    <!-- Release notes / first-run greeting. Must load with the other modules
+         so it can read SquizzFramesDB BEFORE Core's OnInitialize creates the
+         profile tree -- see hadSavedVariables in the file. -->
+    <Script file="Welcome/Welcome.lua"/>
     <!-- Tank Tracker. Reads SquizzFrames.UnitFrameAuras (its anchor vocabulary)
          and SquizzFrames.AuraEngine at RUNTIME, never at load, so order is
          free; kept last simply because it is the newest module. -->

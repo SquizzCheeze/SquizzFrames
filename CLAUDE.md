@@ -46,6 +46,7 @@ SquizzFrames/
     │   ├── IndicatorWidgets.lua   # Custom indicator frame factories (legacy scan-based) + shared setting widgets
     │   ├── Custom_Dispatch.lua    # Legacy aura scanner + per-type dispatch (still used for trackByName customs, text/icon customs, and all customs pre-12.1)
     │   └── IndicatorsPanel.lua    # Options UI for indicators
+    ├── Welcome/            # First-run greeting + per-version release notes; RELEASE_NOTES table is a manual per-release step (see Releasing)
     ├── TankTracker/         # Per-tank frame: boss/role debuffs above, defensives below; own AuraEngine rows, plain (non-secure) frames
     │   ├── TankTracker.lua      # Engine: tank discovery (secret-safe, fail-closed on identity), stacking, aura rows, mover
     │   └── TankTrackerPanel.lua # Options page ("tankTracker" nav entry); shell over profile.tankTracker
@@ -217,9 +218,15 @@ There is **no automated test suite**. Development is done by:
 ### Releasing
 Tagging is what publishes — pushes to `main` never reach CurseForge.
 
-1. Close the top `CHANGELOG.txt` section (date the heading) and bump `## Version:` in `SquizzFrames.toc`. **Both are manual** — the TOC keeps a literal version rather than `@project-version@` so the live dev folder doesn't show a placeholder in the in-game addon list.
-2. `git tag -a v1.7 -m "V1.7"` && `git push origin v1.7`
-3. `.github/workflows/release.yml` (BigWigsMods/packager) builds the zip, uploads it to CurseForge (project ID read from `## X-Curse-Project-ID` in the TOC) and attaches it to a GitHub release.
+1. Add a `RELEASE_NOTES["<version>"]` entry in `Modules/Welcome/Welcome.lua` --
+   a few player-facing highlights, NOT a copy of the changelog. An addon
+   cannot read its own text files at runtime, so anything shown in game has to
+   be duplicated in Lua; a handful of lines per release is worth keeping in
+   step by hand. A missing entry is not fatal (the window still appears,
+   without bullets) which is exactly why it is easy to forget.
+2. Close the top `CHANGELOG.txt` section (date the heading) and bump `## Version:` in `SquizzFrames.toc`. **Both are manual** — the TOC keeps a literal version rather than `@project-version@` so the live dev folder doesn't show a placeholder in the in-game addon list.
+3. `git tag -a v1.7 -m "V1.7"` && `git push origin v1.7`
+4. `.github/workflows/release.yml` (BigWigsMods/packager) builds the zip, uploads it to CurseForge (project ID read from `## X-Curse-Project-ID` in the TOC) and attaches it to a GitHub release.
 
 **Tags are listed newest-first by date, always.** This repo sets `tag.sort = -creatordate` locally (`git config tag.sort -creatordate`), so plain `git tag` is already correct — don't reintroduce the raw alphabetical listing by passing something else. Versions went past `1.9` into `1.10`, which sorts *before* `1.9` as plain text: an alphabetical listing shows the newest release buried in the middle, which reads as "the tag didn't push". Nothing in the release path itself is affected (`git describe` walks the commit graph, CurseForge orders by upload) — it's the human read of `git tag` that misleads. Re-run the config in a fresh clone; it's local, not committed.
 
@@ -237,6 +244,7 @@ Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` t
 | `/sf lock` / `/sf unlock` | Toggle frame lock |
 | `/sf reset` | Reset profile + reload UI |
 | `/sf healer` | Apply healer preset |
+| `/sf notes` | Re-open the current release notes (`/sf changelog` also works) |
 | `/sfhealers` | Bulk-import healer spells into a custom indicator (`Defaults/Indicator_Defaults.lua`) |
 | `/sf nick` | Nickname management (see `Modules/Nicknames/Nicknames.lua`); `/sf nick` alone prints usage |
 | `/sf nick test` | Solo self-check of the nickname sync pipeline (wire round-trip via whisper-to-self, receive path, sanitizer); `test clean` removes its entries |

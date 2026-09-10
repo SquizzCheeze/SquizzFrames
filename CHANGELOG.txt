@@ -19,6 +19,10 @@ Fixed:
 
 Added:
 
+- An in-game note about what changed, shown once after each update. New
+  installs get a short welcome instead. Re-open either any time with
+  /sf notes.
+
 - Unit frames can have a border - thickness, padding and colour, per frame.
   Every other frame type in the addon already had one; the unit frames were
   simply the one that never got it.

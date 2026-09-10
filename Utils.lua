@@ -980,6 +980,15 @@ function F.SlashHandler(msg)
         else
             SquizzFrames:Print("Nicknames module isn't loaded.")
         end
+    elseif cmd == "notes" or cmd == "changelog" then
+        -- Re-open the current release notes on demand. The window itself only
+        -- appears once per version; this is the way back to it.
+        local Welcome = SquizzFrames.Welcome
+        if Welcome and Welcome.ShowReleaseNotes then
+            Welcome.ShowReleaseNotes()
+        else
+            SquizzFrames:Print("Release notes are not available.")
+        end
     elseif cmd == "debug" then
         -- Toggles the profile-migration narration (Core.lua's
         -- MigrationPrint). Persisted account-wide, because the interesting
