@@ -238,6 +238,31 @@ function Preview.Refresh(p, t)
     local bd = t.healthBackdropColor or {0, 0, 0, 0.6}
     p.bg:SetColorTexture(bd[1] or 0, bd[2] or 0, bd[3] or 0, bd[4] or 0.6)
 
+    -- Border, on the same shared factory the real frame uses. Created lazily
+    -- for the same load-order reason: BuiltIn_Update.lua loads after this file.
+    local bcfg = t.border
+    if not p.border then
+        local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
+        if BU and BU.CreateBorderIndicator then
+            p.border = BU.CreateBorderIndicator(p, "PreviewBorder")
+            p.border:SetFrameLevel(p:GetFrameLevel() + 5)
+        end
+    end
+    if p.border then
+        if bcfg and bcfg.enabled then
+            local pad = bcfg.padding or 0
+            p.border:ClearAllPoints()
+            p.border:SetPoint("TOPLEFT", p, "TOPLEFT", -pad, pad)
+            p.border:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", pad, -pad)
+            p.border:SetThickness(bcfg.thickness or 1)
+            local bc = bcfg.color or {0, 0, 0, 1}
+            p.border:SetColor(bc[1] or 0, bc[2] or 0, bc[3] or 0, bc[4] or 1)
+            p.border:Show()
+        else
+            p.border:Hide()
+        end
+    end
+
     if UF and UF.ResolveHealthColor then
         local r, g, b = UF.ResolveHealthColor(unit, t)
         p.healthBar:SetStatusBarColor(r, g, b, 1)

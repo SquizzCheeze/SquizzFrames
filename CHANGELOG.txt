@@ -2,6 +2,21 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.18
+-----
+
+Added:
+
+- Unit frames can have a border - thickness, padding and colour, per frame.
+  Every other frame type in the addon already had one; the unit frames were
+  simply the one that never got it.
+
+- Unit frame text now has a font and outline picker. The setting was already
+  being stored and used, it just had no control anywhere, so every frame was
+  stuck on the shipped default. It applies to all four readouts on the frame;
+  each keeps its own size.
+
+
 V1.17 (2026-09-08)
 ------------------
 

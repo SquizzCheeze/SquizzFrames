@@ -146,6 +146,21 @@ local function DefaultFrame(opts)
         fadeOutOfCombat = false,
         fadeAlpha = 0.35,
 
+        -- Frame border. Every other frame type in the addon already had one --
+        -- pet buttons, the resource bar, the tank tracker, all on the shared
+        -- BU.CreateBorderIndicator factory -- and the unit frames were simply
+        -- the one that never got it (user request 2026-09-09).
+        --
+        -- padding pushes it outward from the frame's edge; at 0 it sits on the
+        -- edge itself, over the outermost pixel of the bars, matching how the
+        -- party frame border behaves.
+        border = {
+            enabled = false,
+            thickness = 1,
+            padding = 0,
+            color = {0, 0, 0, 1},
+        },
+
         -- State icons (Icons.lua). Same shape as each other so one factory and
         -- one block of options serve both.
         --

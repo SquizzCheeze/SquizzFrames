@@ -195,7 +195,15 @@ end
 -- (drawn inward from here by SetThickness) read as a true outline right at
 -- the frame's perimeter, not shading pulled in from it.
 local function CreateBorderIndicator(button, name)
-    local f = CreateFrame("Frame", button:GetName() .. name, button, "BackdropTemplate")
+    -- The global name is DERIVED from the parent's, so an UNNAMED parent used
+    -- to throw here on the concatenation ("attempt to concatenate a nil
+    -- value"). Every original caller was a named party/pet button, so it never
+    -- came up until the unit-frame options PREVIEW -- an anonymous mock frame
+    -- -- wanted a border too (2026-09-09). An anonymous border frame is
+    -- perfectly fine; the name only exists so /framestack reads nicely.
+    local parentName = button.GetName and button:GetName()
+    local f = CreateFrame("Frame", parentName and (parentName .. name) or nil,
+                          button, "BackdropTemplate")
     f:SetAllPoints(button)
     f:Hide()
     local top    = f:CreateTexture(nil, "BORDER")

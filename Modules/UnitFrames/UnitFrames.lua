@@ -1001,6 +1001,42 @@ function ApplyLayout()
                 if frame.healthBar then frame.healthBar:SetStatusBarTexture(barTexture) end
                 if frame.powerBar then frame.powerBar:SetStatusBarTexture(barTexture) end
 
+                -- Border. Created lazily rather than in OnLoad because
+                -- BuiltIn_Update.lua loads AFTER this module, so the factory
+                -- does not exist yet at frame-creation time -- but ApplyLayout
+                -- only ever runs from OnEnable, long after everything is in
+                -- memory. Same runtime-not-load-time reasoning as the resource
+                -- bar's border.
+                local bcfg = t.border
+                if not frame.border then
+                    local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
+                    if BU and BU.CreateBorderIndicator then
+                        frame.border = BU.CreateBorderIndicator(frame, "Border")
+                        -- Level 5: ABOVE the portrait (4) so the border closes
+                        -- around an inside portrait rather than being cut by
+                        -- it, and BELOW the text host (7) so the name still
+                        -- reads over it. The documented stack is
+                        -- healthBar 1 -> powerBar/absorbs 2 -> icons 3 ->
+                        -- portrait 4 -> BORDER 5 -> text 7. Do not copy the
+                        -- tank tracker's 4 here; that would collide.
+                        frame.border:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
+                    end
+                end
+                if frame.border then
+                    if bcfg and bcfg.enabled then
+                        local pad = bcfg.padding or 0
+                        frame.border:ClearAllPoints()
+                        frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -pad, pad)
+                        frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", pad, -pad)
+                        frame.border:SetThickness(bcfg.thickness or 1)
+                        local bc = bcfg.color or {0, 0, 0, 1}
+                        frame.border:SetColor(bc[1] or 0, bc[2] or 0, bc[3] or 0, bc[4] or 1)
+                        frame.border:Show()
+                    else
+                        frame.border:Hide()
+                    end
+                end
+
                 frame:SetScale(scale)
                 frame:SetSize(w, h)
                 frame:ClearAllPoints()

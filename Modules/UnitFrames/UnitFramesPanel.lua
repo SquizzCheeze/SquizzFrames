@@ -382,6 +382,59 @@ local function SecFrame(host, y, cfg, t)
         y = y - 45
     end
 
+    -- Border. Nested table, so its accessors read t.border rather than t.
+    W.CreateTitledPane(host, L["Border"] or "Border", y)
+    y = y - 35
+
+    local function BorderRead(field, fb)
+        local b = t.border
+        local v = b and b[field]
+        if v == nil then return fb end
+        return v
+    end
+    -- Materialises t.border on WRITE only. Reading must not, or merely opening
+    -- the page would write to the profile.
+    local function BorderWrite(field, v)
+        Set(function(c)
+            c.border = c.border or {}
+            c.border[field] = v
+        end)
+    end
+
+    local cbBorder = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+        function() return BorderRead("enabled", false) == true end,
+        function(v)
+            BorderWrite("enabled", v)
+            if rebuildFields then rebuildFields() end
+        end)
+    cbBorder:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
+    if BorderRead("enabled", false) then
+        local sThick = W.CreateStyledSlider(host, 200, 1, 8, 1,
+            L["Thickness"] or "Thickness",
+            function() return BorderRead("thickness", 1) end,
+            function(v) BorderWrite("thickness", v) end)
+        sThick:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local sPad = W.CreateStyledSlider(host, 200, 0, 20, 1,
+            L["Padding"] or "Padding",
+            function() return BorderRead("padding", 0) end,
+            function(v) BorderWrite("padding", v) end)
+        sPad:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 65
+
+        local cpBorder = W.CreateColorPicker(host, L["Color"] or "Color",
+            function()
+                local c = BorderRead("color", nil)
+                if type(c) ~= "table" then return 0, 0, 0, 1 end
+                return c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1
+            end,
+            function(r, g, b, a) BorderWrite("color", {r, g, b, a}) end)
+        cpBorder:SetPoint("TOPLEFT", 15, y - 6)
+        y = y - 42
+    end
 end
 
 local function SecSizing(host, y, cfg, t)
@@ -464,6 +517,53 @@ end
 -- named after anchors whose content was a dropdown -- see
 -- UNITFRAME_TEXT_ELEMENTS in UnitFrames_Defaults.lua for why that was backwards.
 local function SecText(host, y, cfg, t)
+    -- FRAME-WIDE font, before the per-readout groups. The face and outline
+    -- were already stored (t.font) and already read by ApplyFrameFont -- they
+    -- simply had no control anywhere, so every unit frame was stuck on the
+    -- shipped default (user request 2026-09-09). Size stays per readout, since
+    -- wanting the name larger than the health text is the common case.
+    W.CreateTitledPane(host, L["Font"] or "Font", y)
+    y = y - 35
+
+    local ddFace = W.CreateStyledDropdown(host, 200, 40, L["Font"] or "Font",
+        (F.GetFontDropdownItems and F.GetFontDropdownItems()) or {},
+        function() return (t.font and t.font[1]) or "Friz QT__" end,
+        function(v)
+            Set(function(c)
+                c.font = c.font or {}
+                c.font[1] = v
+            end)
+        end)
+    ddFace:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    -- "NONE" is stored but never reaches SetFont -- ApplyFrameFont converts it
+    -- to nil, because it is not a valid flag string and passing it through
+    -- yields an outline-less font with no error.
+    local ddOutline = W.CreateStyledDropdown(host, 200, 40, L["Outline"] or "Outline", {
+        {value = "NONE",         text = L["None"] or "None"},
+        {value = "OUTLINE",      text = L["Outline"] or "Outline"},
+        {value = "THICKOUTLINE", text = L["Thick Outline"] or "Thick Outline"},
+    },
+        function() return (t.font and t.font[3]) or "OUTLINE" end,
+        function(v)
+            Set(function(c)
+                c.font = c.font or {}
+                c.font[3] = v
+            end)
+        end)
+    ddOutline:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    local fontNote = host:CreateFontString(nil, "OVERLAY")
+    fontNote:SetFontObject("GameFontDisableSmall")
+    fontNote:SetPoint("TOPLEFT", 32, y)
+    fontNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    fontNote:SetJustifyH("LEFT")
+    fontNote:SetText(L["UnitFontNote"]
+        or "Applies to all four readouts on this frame. Each one keeps its own size below. The cast bar has its own font settings on its own page.")
+    y = y - 44
+
     for _, element in ipairs(SquizzFrames.UNITFRAME_TEXT_ELEMENTS or {}) do
         local acc = ElemGetters(element)
 
