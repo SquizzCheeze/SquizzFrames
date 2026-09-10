@@ -3,6 +3,9 @@
     <Include file="PartyFrames/UnitButton.xml"/>
     <Script file="PartyFrames/UnitButton.lua"/>
     <Script file="PartyFrames/PartyFrames.lua"/>
+    <!-- The Layout options page. Named for the page rather than the module,
+         since "Layout" is what it is called in the nav. -->
+    <Script file="PartyFrames/LayoutPanel.lua"/>
     <Include file="PetFrames/PetButton.xml"/>
     <Script file="PetFrames/PetButton.lua"/>
     <Script file="PetFrames/PetFrames.lua"/>

@@ -34,6 +34,7 @@ SquizzFrames/
     ├── LoadModules.xml      # Loads PartyFrames, Indicators (incl. AuraEngine), ClickCasting, Options
     ├── PartyFrames/         # Secure group header + unit buttons (party1-4 + player)
     │   ├── PartyFrames.lua  # Layout, anchoring, growth, edit mode, sizing
+    │   ├── LayoutPanel.lua  # The "layout" options page; split out of OptionsFrame 2026-09-10 (publishes IsRaidTab for the shared group preview)
     │   ├── UnitButton.lua   # Secure button OnLoad, click-casting hooks
     │   └── UnitButton.xml   # SecureUnitButtonTemplate + health/power bars, texts, icons
     ├── Indicators/          # Cell-style indicator system (built-in + custom) + 12.1 AuraEngine
@@ -273,9 +274,15 @@ already work this way (Click Casting, Indicators, Unit Frames, Tank Tracker,
 Nicknames) -- OptionsFrame keeps only a ~12-line shim that creates the frame
 and calls `Panel.Build`.
 
-Pet Frames was extracted the same way on 2026-09-10, taking ~49 accessors with
-it: **202 -> 147 main-chunk locals**. Layout, Profiles and General are still
-inline and are the remaining candidates if room is ever needed again.
+Pet Frames and Layout were extracted the same way on 2026-09-10:
+**202 -> 147 -> 59 main-chunk locals**, and the file went 3167 -> 1373 lines.
+Both ceilings now have comfortable headroom.
+
+Only **Profiles** (~470 lines) and **General** (~75) are still inline, and
+neither is near a limit. The pattern for extracting one: the block is usually
+contiguous, needs only W/L/F plus a locally re-declared `GetProfile`, and any
+state OptionsFrame still reads should be published as a small function on the
+panel (see `LayoutPanel.IsRaidTab`, which mirrors `IndicatorsPanel.IsRaidTab`).
 
 ### XML edits
 
