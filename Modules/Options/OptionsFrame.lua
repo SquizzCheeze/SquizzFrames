@@ -1035,6 +1035,14 @@ end
 --
 -- Every write goes through LayoutChanged rather than poking frames, matching
 -- how the rest of this page behaves.
+-- WRAPPED IN A do BLOCK, and that is load-bearing twice over. Lua allows a
+-- function 200 active LOCALS and 60 UPVALUES, and this file is at both
+-- ceilings; exceeding either fails the WHOLE file to load and takes the
+-- options panel with it. Locals declared inside a closed block are released at
+-- its end, so only `Grad` survives into the main chunk -- six names become
+-- one. Do the same for anything added here later.
+local Grad
+do
 local function GradCfg()
     local p = GetProfile()
     if not (p and p.appearance) then return nil end
@@ -1074,14 +1082,10 @@ local function GradColorSetter(field)
 end
 
 -- ONE table, not twelve locals, and that is a hard requirement rather than
--- tidiness: Lua allows a function at most 60 UPVALUES, and BuildLayoutFields
--- was already close to the limit. Twelve separate accessors referenced from
--- inside it pushed it over and the whole file failed to load with
--- "function at line NNNN has more than 60 upvalues".
---
--- A table costs ONE upvalue however many fields it carries. Anything else
--- added to that function later should go the same way.
-local Grad = {
+-- tidiness: BuildLayoutFields references these, and twelve separate accessors
+-- pushed it past the 60-UPVALUE ceiling. A table costs one upvalue however
+-- many fields it carries.
+Grad = {
     getEnabled  = function() return GradRead("enabled", false) == true end,
     setEnabled  = function(v) GradWrite("enabled", v) end,
     getStyle    = function() return GradRead("style", "smooth") end,
@@ -1095,6 +1099,7 @@ local Grad = {
     getLow  = GradColorGetter("low", 0.85, 0.15, 0.15),
     setLow  = GradColorSetter("low"),
 }
+end
 
 local function GetHealthClassColor()
     local p = GetProfile()

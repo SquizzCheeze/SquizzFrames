@@ -237,18 +237,39 @@ Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` t
 - **`actions/upload-artifact` skips hidden paths by default** and the packager builds into `.release/`, so the dry-run artifact needs `include-hidden-files: true`. Without it the upload finds nothing while the packaging step stays green.
 - **`release.sh` skips a missing token silently and still exits 0.** The tell is the credential line it prints near the top: `CurseForge ID: 1649203 [token set]` — that suffix is `${cf_token:+ [token set]}`, so **no suffix means the token is empty**. A green run that makes a GitHub release but nothing on CurseForge is this. A misnamed secret is not an error in Actions; it interpolates to an empty string, which is why the workflow has a dry-run-only step printing both secrets' lengths.
 
-### OptionsFrame.lua and the 60-upvalue limit
+### OptionsFrame.lua is at TWO Lua ceilings
 
-Lua allows a function at most **60 upvalues** (locals captured from an
-enclosing scope). `BuildLayoutFields` in `Modules/Options/OptionsFrame.lua`
-sits close to that ceiling, and going over does not fail gracefully -- the
-WHOLE file fails to load with *"function at line NNNN has more than 60
-upvalues"*, taking the entire options panel with it.
+This file is large enough to sit against both of Lua's per-function limits.
+Neither fails gracefully: the WHOLE file fails to load and the entire options
+panel disappears, and the reported line number is nowhere near the cause.
 
-Adding a feature to that page usually means adding a getter and a setter per
-control, which is how it gets hit. **Group them into ONE table** -- a table
-costs one upvalue no matter how many fields it holds. See the `Grad` table
-(health gradient) for the shape.
+**60 UPVALUES** (locals captured from an enclosing scope), hit by
+`BuildLayoutFields`:
+
+```
+OptionsFrame.lua:1724: function at line 1463 has more than 60 upvalues
+```
+
+**200 ACTIVE LOCALS** in the main chunk, hit by the file as a whole:
+
+```
+OptionsFrame.lua:3096: main function has more than 200 local variables
+```
+
+Adding a feature to a page normally means a getter AND a setter per control,
+which walks straight into both. Two mitigations, and use them from the start
+rather than after the file stops loading:
+
+1. **Group accessors into ONE table.** A table costs one upvalue however many
+   fields it carries. See the `Grad` table (health gradient).
+2. **Wrap the helpers in a `do ... end` block.** Locals declared in a closed
+   block are RELEASED at its end, so they stop counting against the 200. The
+   gradient block does this: six names become one surviving `Grad`.
+
+**Current headroom is about 3 locals.** When that runs out, the obvious place
+to reclaim is the ~49 `GetPet*`/`SetPet*` accessors around lines 2381-2683 --
+collapsing those into one `Pet` table the way `Grad` was done frees ~48, at
+the cost of rewriting their call sites in `BuildPetFramesFields`.
 
 ### XML edits
 
