@@ -237,6 +237,19 @@ Dry run: Actions tab → "Package and release" → Run workflow with `dry_run` t
 - **`actions/upload-artifact` skips hidden paths by default** and the packager builds into `.release/`, so the dry-run artifact needs `include-hidden-files: true`. Without it the upload finds nothing while the packaging step stays green.
 - **`release.sh` skips a missing token silently and still exits 0.** The tell is the credential line it prints near the top: `CurseForge ID: 1649203 [token set]` — that suffix is `${cf_token:+ [token set]}`, so **no suffix means the token is empty**. A green run that makes a GitHub release but nothing on CurseForge is this. A misnamed secret is not an error in Actions; it interpolates to an empty string, which is why the workflow has a dry-run-only step printing both secrets' lengths.
 
+### OptionsFrame.lua and the 60-upvalue limit
+
+Lua allows a function at most **60 upvalues** (locals captured from an
+enclosing scope). `BuildLayoutFields` in `Modules/Options/OptionsFrame.lua`
+sits close to that ceiling, and going over does not fail gracefully -- the
+WHOLE file fails to load with *"function at line NNNN has more than 60
+upvalues"*, taking the entire options panel with it.
+
+Adding a feature to that page usually means adding a getter and a setter per
+control, which is how it gets hit. **Group them into ONE table** -- a table
+costs one upvalue no matter how many fields it holds. See the `Grad` table
+(health gradient) for the shape.
+
 ### XML edits
 
 A prose `--` inside an `<!-- -->` comment is illegal XML and kills the WHOLE

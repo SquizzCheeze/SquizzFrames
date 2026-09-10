@@ -1073,19 +1073,28 @@ local function GradColorSetter(field)
     return function(r, g, b, a) GradWrite(field, {r, g, b, a or 1}) end
 end
 
-local function GetHealthGradientEnabled() return GradRead("enabled", false) == true end
-local function SetHealthGradientEnabled(v) GradWrite("enabled", v) end
-local function GetHealthGradientStyle() return GradRead("style", "smooth") end
-local function SetHealthGradientStyle(v) GradWrite("style", v) end
-local function GetGradMidpoint() return GradRead("midpoint", 0.5) end
-local function SetGradMidpoint(v) GradWrite("midpoint", v) end
-
-local GetGradHigh = GradColorGetter("high", 0.10, 0.85, 0.10)
-local SetGradHigh = GradColorSetter("high")
-local GetGradMid  = GradColorGetter("mid", 0.95, 0.80, 0.15)
-local SetGradMid  = GradColorSetter("mid")
-local GetGradLow  = GradColorGetter("low", 0.85, 0.15, 0.15)
-local SetGradLow  = GradColorSetter("low")
+-- ONE table, not twelve locals, and that is a hard requirement rather than
+-- tidiness: Lua allows a function at most 60 UPVALUES, and BuildLayoutFields
+-- was already close to the limit. Twelve separate accessors referenced from
+-- inside it pushed it over and the whole file failed to load with
+-- "function at line NNNN has more than 60 upvalues".
+--
+-- A table costs ONE upvalue however many fields it carries. Anything else
+-- added to that function later should go the same way.
+local Grad = {
+    getEnabled  = function() return GradRead("enabled", false) == true end,
+    setEnabled  = function(v) GradWrite("enabled", v) end,
+    getStyle    = function() return GradRead("style", "smooth") end,
+    setStyle    = function(v) GradWrite("style", v) end,
+    getMidpoint = function() return GradRead("midpoint", 0.5) end,
+    setMidpoint = function(v) GradWrite("midpoint", v) end,
+    getHigh = GradColorGetter("high", 0.10, 0.85, 0.10),
+    setHigh = GradColorSetter("high"),
+    getMid  = GradColorGetter("mid", 0.95, 0.80, 0.15),
+    setMid  = GradColorSetter("mid"),
+    getLow  = GradColorGetter("low", 0.85, 0.15, 0.15),
+    setLow  = GradColorSetter("low"),
+}
 
 local function GetHealthClassColor()
     local p = GetProfile()
@@ -1663,7 +1672,7 @@ local function BuildLayoutFields(frame)
 
     local cbGrad = W.CreateStyledCheckbox(fieldsHost,
         L["Color by Health"] or "Color by Health",
-        GetHealthGradientEnabled, SetHealthGradientEnabled)
+        Grad.getEnabled, Grad.setEnabled)
     cbGrad:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 24
 
@@ -1679,27 +1688,27 @@ local function BuildLayoutFields(frame)
     local ddGradStyle = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Style"] or "Style", {
         {value = "smooth", text = L["Smooth blend"] or "Smooth blend"},
         {value = "bands",  text = L["Hard bands"] or "Hard bands"},
-    }, GetHealthGradientStyle, SetHealthGradientStyle)
+    }, Grad.getStyle, Grad.setStyle)
     ddGradStyle:SetPoint("TOPLEFT", 15, yOffset - 20)
     yOffset = yOffset - 70
 
     local cpGradHigh = W.CreateColorPicker(fieldsHost, L["Full Health"] or "Full Health",
-        GetGradHigh, SetGradHigh)
+        Grad.getHigh, Grad.setHigh)
     cpGradHigh:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 30
 
     local cpGradMid = W.CreateColorPicker(fieldsHost, L["Midpoint"] or "Midpoint",
-        GetGradMid, SetGradMid)
+        Grad.getMid, Grad.setMid)
     cpGradMid:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 30
 
     local cpGradLow = W.CreateColorPicker(fieldsHost, L["Empty"] or "Empty",
-        GetGradLow, SetGradLow)
+        Grad.getLow, Grad.setLow)
     cpGradLow:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 34
 
     local sGradMid = W.CreateStyledSlider(fieldsHost, 200, 0.05, 0.95, 0.05,
-        L["Midpoint At"] or "Midpoint At", GetGradMidpoint, SetGradMidpoint)
+        L["Midpoint At"] or "Midpoint At", Grad.getMidpoint, Grad.setMidpoint)
     sGradMid:SetPoint("TOPLEFT", 15, yOffset - 20)
     yOffset = yOffset - 70
 
