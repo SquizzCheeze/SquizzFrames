@@ -27,6 +27,7 @@
     <Script file="UnitFrames/Auras.lua"/>
     <Script file="UnitFrames/Icons.lua"/>
     <Script file="UnitFrames/Absorbs.lua"/>
+    <Script file="UnitFrames/Highlights.lua"/>
     <!-- Standalone player resource bar. Reads its settings out of
          profile.unitFrames but is NOT gated on that module being enabled.
          See its header. (No prose double-dash in here: it is illegal inside

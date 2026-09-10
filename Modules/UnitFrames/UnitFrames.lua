@@ -533,6 +533,9 @@ local function UpdateFrame(frame)
     if AB and absorbSets[frame.unit] then
         AB.Update(absorbSets[frame.unit], frame.unit, t)
     end
+
+    local HL = SquizzFrames.UnitFrameHighlights
+    if HL then HL.Update(frame) end
 end
 
 local function UpdateAll()
@@ -632,8 +635,14 @@ function SquizzFramesUnitFrame_OnLoad(self)
     end
 
     -- HookScript, never SetScript -- see the template's Scripts comment.
+    -- The highlight refresh sits alongside the tooltip rather than inside
+        -- UpdateFrame: hovering changes no unit state, so nothing else would
+        -- fire, and CheckTargetHighlight reads _sfHovered for its
+        -- hover-beats-target priority.
     self:HookScript("OnEnter", function(btn)
         btn._sfHovered = true
+        local HLmod = SquizzFrames.UnitFrameHighlights
+        if HLmod then HLmod.Update(btn) end
         local prof = GetProfile()
         if prof and prof.tooltipsEnabled == false then return end
         local u = btn.unit or btn:GetAttribute("unit")
@@ -645,6 +654,8 @@ function SquizzFramesUnitFrame_OnLoad(self)
     end)
     self:HookScript("OnLeave", function(btn)
         btn._sfHovered = false
+        local HLmod = SquizzFrames.UnitFrameHighlights
+        if HLmod then HLmod.Update(btn) end
         if GameTooltip then GameTooltip:Hide() end
     end)
 end
@@ -1102,6 +1113,9 @@ function ApplyLayout()
                     AB.ApplySettings(absorbSets[unit], frame, t, barTexture)
                 end
 
+                local HL = SquizzFrames.UnitFrameHighlights
+                if HL then HL.ApplySettings(frame, t) end
+
                 RegisterUnitWatch(frame)
             end
 
@@ -1353,6 +1367,19 @@ function UnitFrames:OnEnable()
                 if frame.unit and UnitExists(frame.unit) then UpdateFrame(frame) end
             end
         end
+        -- Target highlight depends on who your TARGET is, which is a
+        -- frame-wide question rather than a per-unit one -- every frame has to
+        -- re-evaluate, not just the target frame. Threat drives the aggro
+        -- border the same way.
+        local function RefreshHighlights()
+            local HLmod = SquizzFrames.UnitFrameHighlights
+            if not HLmod then return end
+            for _, f in pairs(frames) do
+                if f.unit and UnitExists(f.unit) then HLmod.Update(f) end
+            end
+        end
+        self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", RefreshHighlights)
+
         self:RegisterEvent("PLAYER_REGEN_DISABLED", RefreshAll)
         self:RegisterEvent("PLAYER_REGEN_ENABLED", RefreshAll)
         self:RegisterEvent("GROUP_ROSTER_UPDATE", RefreshAll)
@@ -1393,6 +1420,12 @@ function UnitFrames:OnEnable()
             RederiveCast("targettarget")
             RederiveAuras("target")
             RederiveAuras("targettarget")
+            local HLmod = SquizzFrames.UnitFrameHighlights
+            if HLmod then
+                for _, f in pairs(frames) do
+                    if f.unit and UnitExists(f.unit) then HLmod.Update(f) end
+                end
+            end
             EnsureTotPoller()
         end)
         self:RegisterEvent("PLAYER_FOCUS_CHANGED", function()

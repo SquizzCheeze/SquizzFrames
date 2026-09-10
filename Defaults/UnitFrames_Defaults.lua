@@ -169,6 +169,18 @@ local function DefaultFrame(opts)
         fadeOutOfCombat = false,
         fadeAlpha = 0.35,
 
+        -- Hover / target / aggro highlights (Highlights.lua). PER FRAME and
+        -- isolated from the party/raid indicator system on purpose -- see
+        -- that file's header for why a third Indicators tab was rejected.
+        --
+        -- All default OFF: these are new to the unit frames, and nobody's
+        -- layout should change under them on update.
+        highlights = {
+            hover  = {enabled = false, color = {1, 1, 1, 1},       thickness = 2},
+            target = {enabled = false, color = {1, 0.82, 0, 1},    thickness = 2},
+            aggro  = {enabled = false, color = {0.9, 0.1, 0.1, 1}, thickness = 2},
+        },
+
         -- Frame border. Every other frame type in the addon already had one --
         -- pet buttons, the resource bar, the tank tracker, all on the shared
         -- BU.CreateBorderIndicator factory -- and the unit frames were simply

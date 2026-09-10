@@ -19,6 +19,15 @@ Fixed:
 
 Added:
 
+- Hover, target and aggro highlights on the unit frames, each with its own
+  colour and thickness, per frame. They are separate from the party and raid
+  indicators, so a thick gold target highlight on your boss frames does not
+  change your raid frames.
+
+  Target Highlight shows which frame your current target is on, which is most
+  useful on boss, focus and target-of-target. All three render live on the 1:1
+  preview as you adjust them.
+
 - Health bars can colour by how hurt someone is instead of by who they are -
   green at full, through amber, to red. Choose a smooth blend or hard bands,
   set all three colours and where the middle one sits.

@@ -386,6 +386,12 @@ function Preview.Refresh(p, t)
         end
     end
 
+    -- Highlights, on the same shared code the real frames use. Everything
+    -- enabled draws at full strength here regardless of hover/target/threat
+    -- state -- see Highlights.Preview for why.
+    local HL = SquizzFrames.UnitFrameHighlights
+    if HL then HL.Preview(p, t) end
+
     -- Cast bar
     local cb = t.castBar
     if cb and cb.enabled then

@@ -210,3 +210,10 @@ L["Midpoint"] = "Midpoint"
 L["Empty"] = "Empty"
 L["Midpoint At"] = "Midpoint At"
 L["HealthGradientPartyNote"] = "Colours party, raid and pet health bars by how hurt someone is instead of by their class. Overrides the colours below while it is on."
+
+-- Unit frame highlights
+L["Highlights"] = "Highlights"
+L["Hover Highlight"] = "Hover Highlight"
+L["Target Highlight"] = "Target Highlight"
+L["Aggro Warning"] = "Aggro Warning"
+L["UnitHighlightsNote"] = "Target Highlight shows which frame your current target is on - useful on boss, focus and target-of-target, and always lit on the target frame itself. These are separate from the party and raid indicators so each can be set independently."

@@ -1921,6 +1921,74 @@ local function SecResource(host, y, cfg, t)
     return y
 end
 
+-- Hover / target / aggro highlights. Isolated from the party/raid indicator
+-- system on purpose -- see Highlights.lua's header. Every change goes through
+-- Changed(), so the 1:1 preview updates live alongside the real frames.
+local function SecHighlights(host, y, cfg, t)
+    local HL = SquizzFrames.UnitFrameHighlights
+    if not HL then return y end
+
+    local function Read(key, field, fb)
+        local c = HL.Get(t, key)
+        local v = c and c[field]
+        if v == nil then return fb end
+        return v
+    end
+    local function Write(key, field, v)
+        Set(function(c)
+            c.highlights = c.highlights or {}
+            c.highlights[key] = c.highlights[key] or {}
+            c.highlights[key][field] = v
+        end)
+    end
+
+    for _, def in ipairs(HL.KINDS) do
+        W.CreateTitledPane(host, L[def.label] or def.label, y)
+        y = y - 35
+
+        local cbOn = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+            function() return Read(def.key, "enabled", false) == true end,
+            function(v)
+                Write(def.key, "enabled", v)
+                if rebuildFields then rebuildFields() end
+            end)
+        cbOn:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+
+        if Read(def.key, "enabled", false) then
+            local sThick = W.CreateStyledSlider(host, 200, 1, 8, 1,
+                L["Thickness"] or "Thickness",
+                function() return Read(def.key, "thickness", 2) end,
+                function(v) Write(def.key, "thickness", v) end)
+            sThick:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local cp = W.CreateColorPicker(host, L["Color"] or "Color",
+                function()
+                    local c = Read(def.key, "color", nil)
+                    if type(c) ~= "table" then
+                        return def.default[1], def.default[2], def.default[3], def.default[4]
+                    end
+                    return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+                end,
+                function(r, g, b, a) Write(def.key, "color", {r, g, b, a or 1}) end)
+            cp:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 42
+        end
+    end
+
+    local note = host:CreateFontString(nil, "OVERLAY")
+    note:SetFontObject("GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", 15, y)
+    note:SetPoint("RIGHT", host, "RIGHT", -20, 0)
+    note:SetJustifyH("LEFT")
+    note:SetText(L["UnitHighlightsNote"]
+        or "Target Highlight shows which frame your current target is on - useful on boss, focus and target-of-target, and always lit on the target frame itself. These are separate from the party and raid indicators so each can be set independently.")
+    y = y - 46
+
+    return y
+end
+
 -----------------------------------------------------------------------
 -- Section registry + dispatch
 -----------------------------------------------------------------------
@@ -1937,6 +2005,7 @@ local SECTIONS = {
     {key = "castbar",  label = L["Cast Bar"] or "Cast Bar", build = SecCastBar},
     {key = "auras",    label = L["Auras"] or "Auras",       build = SecAuras},
     {key = "icons",    label = L["Icons"] or "Icons",       build = SecIcons},
+    {key = "highlights", label = L["Highlights"] or "Highlights", build = SecHighlights},
     {key = "absorbs",  label = L["Absorbs"] or "Absorbs",   build = SecAbsorbs},
     -- Module-wide, not per-unit: it is always the player's own resources. It
     -- reads the same settings whichever unit tab happens to be selected.
