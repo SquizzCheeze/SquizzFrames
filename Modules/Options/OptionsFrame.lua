@@ -344,6 +344,14 @@ local function CreateOptionsFrame()
     resizeGrip:SetScript("OnMouseUp", function()
         optionsFrame:StopMovingOrSizing()
         if scrollFrame and currentPageId then ShowPage(currentPageId) end
+        -- Unit Frames' indicator sub-tab strip wraps to however many columns
+        -- its pane currently fits, computed from the strip's width at build
+        -- time -- ShowPage above only resizes scrollChild, so the strip needs
+        -- its own re-measure once the drag has actually settled.
+        if currentPageId == "unitFrames" then
+            local UFP = SquizzFrames.UnitFramesPanel
+            if UFP and UFP.Rebuild then UFP.Rebuild() end
+        end
     end)
 
     -- Sidebar (left)

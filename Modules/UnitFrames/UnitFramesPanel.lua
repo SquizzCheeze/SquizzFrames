@@ -2203,17 +2203,40 @@ local INDICATOR_TABS = {
 -- activeSection -- you are usually adjusting one indicator over several visits.
 local activeIndicatorTab = "auras"
 
+-- Fixed button geometry the wrap below packs into however many columns the
+-- pane's current width actually has room for.
+local INDICATOR_TAB_BTN_W = 76
+local INDICATOR_TAB_BTN_H = 22
+local INDICATOR_TAB_GAP_X = 3
+local INDICATOR_TAB_GAP_Y = 3
+
 local function SecIndicators(host, y, cfg, t)
     local strip = CreateFrame("Frame", nil, host)
     strip:SetPoint("TOPLEFT", 15, y)
     strip:SetPoint("RIGHT", host, "RIGHT", -20, 0)
-    strip:SetHeight(24)
 
-    local x = 0
-    for _, tab in ipairs(INDICATOR_TABS) do
+    -- WRAPPED, not a fixed 5-across row: at a narrower/default window size
+    -- the strip's own width (host's, minus the sidebar/preview insets) is
+    -- less than 5 tabs need, and the trailing ones used to run past the
+    -- strip's right edge and under the preview pane -- present, but
+    -- unclickable. GetWidth() is valid immediately here because the whole
+    -- parent chain up to the options window is already laid out by the time
+    -- BuildFields runs (same assumption IndicatorsPanel.lua's listScroll and
+    -- settingsScroll make with the identical GetWidth()-right-after-SetPoint
+    -- pattern).
+    local availWidth = strip:GetWidth()
+    local stepX = INDICATOR_TAB_BTN_W + INDICATOR_TAB_GAP_X
+    local perRow = math.max(1, math.floor((availWidth + INDICATOR_TAB_GAP_X) / stepX))
+
+    local x, row = 0, 0
+    for i, tab in ipairs(INDICATOR_TABS) do
+        if i > 1 and (i - 1) % perRow == 0 then
+            row = row + 1
+            x = 0
+        end
         local btn = CreateFrame("Button", nil, strip, "BackdropTemplate")
-        btn:SetSize(76, 22)
-        btn:SetPoint("TOPLEFT", strip, "TOPLEFT", x, 0)
+        btn:SetSize(INDICATOR_TAB_BTN_W, INDICATOR_TAB_BTN_H)
+        btn:SetPoint("TOPLEFT", strip, "TOPLEFT", x, -row * (INDICATOR_TAB_BTN_H + INDICATOR_TAB_GAP_Y))
         local isActive = (tab.key == activeIndicatorTab)
         local accent = F.GetAccentColor()
         W.StylizeFrame(btn,
@@ -2228,9 +2251,16 @@ local function SecIndicators(host, y, cfg, t)
             activeIndicatorTab = tab.key
             if rebuildFields then rebuildFields() end
         end)
-        x = x + 79
+        x = x + stepX
     end
-    y = y - 34
+
+    -- Height reflects however many rows the wrap actually produced, so
+    -- content below the strip (the selected sub-tab's own fields) starts
+    -- right after it rather than at a height that only fit one row.
+    local rows = row + 1
+    local stripHeight = rows * INDICATOR_TAB_BTN_H + (rows - 1) * INDICATOR_TAB_GAP_Y
+    strip:SetHeight(stripHeight)
+    y = y - stripHeight - 10
 
     for _, tab in ipairs(INDICATOR_TABS) do
         if tab.key == activeIndicatorTab and tab.build then
@@ -2519,4 +2549,13 @@ function Panel.Build(frame)
     F.NewMessageOwner():RegisterMessage("ProfileChanged", function()
         rebuildFields()
     end)
+end
+
+-- Called by OptionsFrame.lua's resize-grip handler once the window has
+-- actually settled at its new size (not during the drag itself -- the grip
+-- only resizes scrollChild, and therefore this page, on mouse-up). Re-running
+-- BuildFields re-measures the indicator tab strip's width and rewraps it,
+-- same as any other section rebuild; a no-op before Panel.Build has run.
+function Panel.Rebuild()
+    if rebuildFields then rebuildFields() end
 end
