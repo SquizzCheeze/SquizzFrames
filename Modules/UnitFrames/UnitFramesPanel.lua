@@ -2220,7 +2220,7 @@ local function SecIndicators(host, y, cfg, t)
             isActive and {accent.r, accent.g, accent.b, 0.55} or {0.115, 0.115, 0.115, 1},
             {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
-        text:SetFont("Fonts\FRIZQT__.TTF", 11, "OUTLINE")
+        text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         text:SetPoint("CENTER")
         text:SetText(tab.label)
         btn:SetScript("OnClick", function()
