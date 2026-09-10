@@ -52,7 +52,7 @@ local NAV_ITEMS = {
 -- needed). Indicators pages manage their own layout and aren't part of this.
 local pageHeights = {
     ["general"] = 220, -- -30: Edit Mode's button moved to the title bar
-    ["layout"] = 1335, -- +115 Copy Between Modes, +70 raid-only Group Growth
+    ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- +250 Colors gained the Health Gradient group
     ["clickCasting"] = 460,
@@ -1029,6 +1029,64 @@ end
 -- color was turned on, since fullColor got overwritten to {"class_color",
 -- "any"} with nothing preserving the prior custom values for when it was
 -- turned off again).
+-- Health gradient accessors. One shared setting under appearance.healthBar, so
+-- party, raid and pet bars move together -- nobody wants their party frames
+-- green-to-red while their raid frames stay class-coloured.
+--
+-- Every write goes through LayoutChanged rather than poking frames, matching
+-- how the rest of this page behaves.
+local function GradCfg()
+    local p = GetProfile()
+    if not (p and p.appearance) then return nil end
+    p.appearance.healthBar = p.appearance.healthBar or {}
+    p.appearance.healthBar.gradient = p.appearance.healthBar.gradient or {}
+    return p.appearance.healthBar.gradient
+end
+
+-- Deliberately does NOT materialise the table: opening the page should not
+-- write to the profile.
+local function GradRead(field, fallback)
+    local p = GetProfile()
+    local g = p and p.appearance and p.appearance.healthBar
+        and p.appearance.healthBar.gradient
+    local v = g and g[field]
+    if v == nil then return fallback end
+    return v
+end
+
+local function GradWrite(field, v)
+    local g = GradCfg()
+    if not g then return end
+    g[field] = v
+    SquizzFrames:Fire("LayoutChanged")
+end
+
+local function GradColorGetter(field, dr, dg, db)
+    return function()
+        local c = GradRead(field, nil)
+        if type(c) ~= "table" then return dr, dg, db, 1 end
+        return c[1] or dr, c[2] or dg, c[3] or db, c[4] or 1
+    end
+end
+
+local function GradColorSetter(field)
+    return function(r, g, b, a) GradWrite(field, {r, g, b, a or 1}) end
+end
+
+local function GetHealthGradientEnabled() return GradRead("enabled", false) == true end
+local function SetHealthGradientEnabled(v) GradWrite("enabled", v) end
+local function GetHealthGradientStyle() return GradRead("style", "smooth") end
+local function SetHealthGradientStyle(v) GradWrite("style", v) end
+local function GetGradMidpoint() return GradRead("midpoint", 0.5) end
+local function SetGradMidpoint(v) GradWrite("midpoint", v) end
+
+local GetGradHigh = GradColorGetter("high", 0.10, 0.85, 0.10)
+local SetGradHigh = GradColorSetter("high")
+local GetGradMid  = GradColorGetter("mid", 0.95, 0.80, 0.15)
+local SetGradMid  = GradColorSetter("mid")
+local GetGradLow  = GradColorGetter("low", 0.85, 0.15, 0.15)
+local SetGradLow  = GradColorSetter("low")
+
 local function GetHealthClassColor()
     local p = GetProfile()
     return p and p.appearance and p.appearance.healthBar and p.appearance.healthBar.fullColor and p.appearance.healthBar.fullColor[1] == "class_color"
@@ -1595,6 +1653,54 @@ local function BuildLayoutFields(frame)
     local textureDropdown = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Bar Texture"] or "Bar Texture",
         GetBarTextureItems(), GetBarTexture, SetBarTexture, "statusbar")
     textureDropdown:SetPoint("TOPLEFT", 15, yOffset - 20)
+    yOffset = yOffset - 70
+
+    -- HEALTH GRADIENT, above the flat-colour controls because it OVERRIDES
+    -- them. Below, and you would be looking at two live-looking colour
+    -- controls the bars are ignoring.
+    W.CreateTitledPane(fieldsHost, L["Health Gradient"] or "Health Gradient", yOffset)
+    yOffset = yOffset - 35
+
+    local cbGrad = W.CreateStyledCheckbox(fieldsHost,
+        L["Color by Health"] or "Color by Health",
+        GetHealthGradientEnabled, SetHealthGradientEnabled)
+    cbGrad:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 24
+
+    local gradNote = fieldsHost:CreateFontString(nil, "OVERLAY")
+    gradNote:SetFontObject("GameFontDisableSmall")
+    gradNote:SetPoint("TOPLEFT", 32, yOffset)
+    gradNote:SetPoint("RIGHT", fieldsHost, "RIGHT", -20, 0)
+    gradNote:SetJustifyH("LEFT")
+    gradNote:SetText(L["HealthGradientPartyNote"]
+        or "Colours party, raid and pet health bars by how hurt someone is instead of by their class. Overrides the colours below while it is on.")
+    yOffset = yOffset - 40
+
+    local ddGradStyle = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Style"] or "Style", {
+        {value = "smooth", text = L["Smooth blend"] or "Smooth blend"},
+        {value = "bands",  text = L["Hard bands"] or "Hard bands"},
+    }, GetHealthGradientStyle, SetHealthGradientStyle)
+    ddGradStyle:SetPoint("TOPLEFT", 15, yOffset - 20)
+    yOffset = yOffset - 70
+
+    local cpGradHigh = W.CreateColorPicker(fieldsHost, L["Full Health"] or "Full Health",
+        GetGradHigh, SetGradHigh)
+    cpGradHigh:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 30
+
+    local cpGradMid = W.CreateColorPicker(fieldsHost, L["Midpoint"] or "Midpoint",
+        GetGradMid, SetGradMid)
+    cpGradMid:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 30
+
+    local cpGradLow = W.CreateColorPicker(fieldsHost, L["Empty"] or "Empty",
+        GetGradLow, SetGradLow)
+    cpGradLow:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 34
+
+    local sGradMid = W.CreateStyledSlider(fieldsHost, 200, 0.05, 0.95, 0.05,
+        L["Midpoint At"] or "Midpoint At", GetGradMidpoint, SetGradMidpoint)
+    sGradMid:SetPoint("TOPLEFT", 15, yOffset - 20)
     yOffset = yOffset - 70
 
     W.CreateTitledPane(fieldsHost, L["Health Bar Colors"] or "Health Bar Colors", yOffset)

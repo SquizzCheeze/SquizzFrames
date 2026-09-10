@@ -219,16 +219,25 @@ local function UpdatePetButton(button)
         button.healthBar:SetStatusBarTexture(barTexture)
 
         local prof = GetProfile()
-        local col = prof and prof.appearance and prof.appearance.petHealthBar and prof.appearance.petHealthBar.fullColor
-        local r, g, b = 0.2, 0.8, 0.2
-        if col and col[1] == "owner_class_color" then
-            local ownerUnit = GetOwnerUnitForPet(unit)
-            local cc = ownerUnit and F.GetClassColor(ownerUnit)
-            if cc then r, g, b = cc.r, cc.g, cc.b end
-        elseif col and col[1] == "custom_color" then
-            r, g, b = col[2] or 0.2, col[3] or 0.8, col[4] or 0.2
+        -- Health gradient reads the SHARED appearance.healthBar.gradient, not a
+        -- pet-specific one -- unlike fullColor just below it, which is separate
+        -- precisely because a pet has no class of its own. That reasoning does
+        -- not carry: "how hurt is this thing" means the same for a pet as for
+        -- a player, so one switch covers party, raid and pets together.
+        local grad = prof and prof.appearance and prof.appearance.healthBar
+            and prof.appearance.healthBar.gradient
+        if not (F.ApplyHealthGradient and F.ApplyHealthGradient(button.healthBar, unit, grad)) then
+            local col = prof and prof.appearance and prof.appearance.petHealthBar and prof.appearance.petHealthBar.fullColor
+            local r, g, b = 0.2, 0.8, 0.2
+            if col and col[1] == "owner_class_color" then
+                local ownerUnit = GetOwnerUnitForPet(unit)
+                local cc = ownerUnit and F.GetClassColor(ownerUnit)
+                if cc then r, g, b = cc.r, cc.g, cc.b end
+            elseif col and col[1] == "custom_color" then
+                r, g, b = col[2] or 0.2, col[3] or 0.8, col[4] or 0.2
+            end
+            button.healthBar:SetStatusBarColor(r, g, b, 1)
         end
-        button.healthBar:SetStatusBarColor(r, g, b, 1)
     end
 
     -- Power bar: class_color has no meaning for a pet, so only custom_color

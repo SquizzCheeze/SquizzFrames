@@ -1208,12 +1208,26 @@ local function UpdateHealth(button)
             button.healthBar:SetValue(button._sfFakeHealth or maxHP)
             button.healthBar:SetStatusBarTexture(GetBarTexture())
             local prof = GetProfile()
+            local grad = prof and prof.appearance and prof.appearance.healthBar
+                and prof.appearance.healthBar.gradient
+            -- The mock evaluates the curve DIRECTLY, which the live path may
+            -- not: Evaluate is AllowedWhenUntainted, so an addon cannot hand
+            -- it a secret -- but these are fake numbers, so the fraction is
+            -- plain. Same curve and colours, so the preview shows what a real
+            -- bar does at that health.
+            local gr, gg, gb
+            if F.EvaluateHealthGradient then
+                gr, gg, gb = F.EvaluateHealthGradient(grad,
+                    (button._sfFakeHealth or maxHP) / math.max(1, maxHP))
+            end
             local useClass = prof and prof.appearance and prof.appearance.healthBar
                 and prof.appearance.healthBar.fullColor
                 and prof.appearance.healthBar.fullColor[1] == "class_color"
             local col = prof and prof.appearance and prof.appearance.healthBar
                 and prof.appearance.healthBar.fullColor
-            if useClass and button._sfFakeClass then
+            if gr then
+                button.healthBar:SetStatusBarColor(gr, gg, gb, 1)
+            elseif useClass and button._sfFakeClass then
                 local cc = RAID_CLASS_COLORS and RAID_CLASS_COLORS[button._sfFakeClass]
                 if cc then button.healthBar:SetStatusBarColor(cc.r, cc.g, cc.b, 1) end
             else
@@ -1263,19 +1277,26 @@ local function UpdateHealth(button)
         button.healthBar:SetStatusBarTexture(GetBarTexture())
 
         local prof = GetProfile()
-        local useClass = prof and prof.appearance and prof.appearance.healthBar
-            and prof.appearance.healthBar.fullColor
-            and prof.appearance.healthBar.fullColor[1] == "class_color"
-        if useClass then
-            local cc = F.GetClassColor(unit)
-            button.healthBar:SetStatusBarColor(cc.r, cc.g, cc.b, 1)
-        else
-            local col = prof and prof.appearance and prof.appearance.healthBar
+        local grad = prof and prof.appearance and prof.appearance.healthBar
+            and prof.appearance.healthBar.gradient
+        -- Gradient first; it returns false when off or unavailable on this
+        -- build, so the flat colour below stays the fallback rather than
+        -- something that has to be kept in step.
+        if not (F.ApplyHealthGradient and F.ApplyHealthGradient(button.healthBar, unit, grad)) then
+            local useClass = prof and prof.appearance and prof.appearance.healthBar
                 and prof.appearance.healthBar.fullColor
-            local r = col and col[2] or 0.2
-            local g = col and col[3] or 0.8
-            local b = col and col[4] or 0.2
-            button.healthBar:SetStatusBarColor(r, g, b, 1)
+                and prof.appearance.healthBar.fullColor[1] == "class_color"
+            if useClass then
+                local cc = F.GetClassColor(unit)
+                button.healthBar:SetStatusBarColor(cc.r, cc.g, cc.b, 1)
+            else
+                local col = prof and prof.appearance and prof.appearance.healthBar
+                    and prof.appearance.healthBar.fullColor
+                local r = col and col[2] or 0.2
+                local g = col and col[3] or 0.8
+                local b = col and col[4] or 0.2
+                button.healthBar:SetStatusBarColor(r, g, b, 1)
+            end
         end
     end
 

@@ -51,6 +51,27 @@ profile.appearance = {
         fullColor = {"class_color", "any"},
         lossColor = {"class_color_dark", "any"},
         deathColor = {"custom_color", 0.4, 0.4, 0.4, 1},
+
+        -- HEALTH GRADIENT: colour the bar by REMAINING HEALTH rather than by
+        -- who the unit is. Green at full, through amber, to red.
+        --
+        -- Lives here, in appearance, NOT under layout.main/.raid -- same
+        -- reasoning as fullColor above it: this is how bars look, and nobody
+        -- wants their party frames green-to-red while their raid frames stay
+        -- class-coloured. One setting drives party, raid and pets together.
+        --
+        -- Takes precedence over fullColor when on. See F.ApplyHealthGradient
+        -- in Utils.lua for why the value never reaches Lua -- health is a
+        -- secret number on 12.1, so a colour curve is handed to the engine and
+        -- IT does the evaluating.
+        gradient = {
+            enabled = false,
+            style = "smooth",               -- "smooth" blend | "bands" snap
+            high = {0.10, 0.85, 0.10, 1},   -- at full health
+            mid  = {0.95, 0.80, 0.15, 1},   -- at `midpoint`
+            low  = {0.85, 0.15, 0.15, 1},   -- at empty
+            midpoint = 0.5,
+        },
     },
     powerBar = {
         -- #1612FF
