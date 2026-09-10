@@ -6,6 +6,9 @@
     <Include file="PetFrames/PetButton.xml"/>
     <Script file="PetFrames/PetButton.lua"/>
     <Script file="PetFrames/PetFrames.lua"/>
+    <!-- Options page for the above. Loaded after it, and after
+         Options/Widgets.lua from the .toc, since it is a shell over both. -->
+    <Script file="PetFrames/PetFramesPanel.lua"/>
     <!-- Standalone single-unit frames (player/target/ToT/focus/focustarget).
          Loaded before ClickCasting so CollectButtons can see them on the very
          first ApplyToAll rather than waiting for a later re-apply. -->

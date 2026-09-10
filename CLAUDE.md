@@ -61,6 +61,7 @@ SquizzFrames/
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames
     ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame
+    │   └── PetFramesPanel.lua  # Options page ("petFrames" nav entry); split out of OptionsFrame 2026-09-10 to escape its Lua ceilings
     │   ├── PetFrames.lua       # Layout/anchoring/edit mode, roster + unit events, RefreshBorders
     │   └── PetButton.lua       # Secure pet button OnLoad + PetButton_ApplyBorders
     ├── ClickCasting/        # Cell-style click-casting on SecureActionButtonTemplate
@@ -266,10 +267,15 @@ rather than after the file stops loading:
    block are RELEASED at its end, so they stop counting against the 200. The
    gradient block does this: six names become one surviving `Grad`.
 
-**Current headroom is about 3 locals.** When that runs out, the obvious place
-to reclaim is the ~49 `GetPet*`/`SetPet*` accessors around lines 2381-2683 --
-collapsing those into one `Pet` table the way `Grad` was done frees ~48, at
-the cost of rewriting their call sites in `BuildPetFramesFields`.
+**The real fix is to move a page into its OWN FILE**, because each Lua file is
+its own main function and therefore gets its own 200-local budget. Five pages
+already work this way (Click Casting, Indicators, Unit Frames, Tank Tracker,
+Nicknames) -- OptionsFrame keeps only a ~12-line shim that creates the frame
+and calls `Panel.Build`.
+
+Pet Frames was extracted the same way on 2026-09-10, taking ~49 accessors with
+it: **202 -> 147 main-chunk locals**. Layout, Profiles and General are still
+inline and are the remaining candidates if room is ever needed again.
 
 ### XML edits
 
