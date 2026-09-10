@@ -1974,6 +1974,57 @@ local function SecHighlights(host, y, cfg, t)
                 function(r, g, b, a) Write(def.key, "color", {r, g, b, a or 1}) end)
             cp:SetPoint("TOPLEFT", 15, y - 6)
             y = y - 42
+
+            -- Pulse, aggro only -- matching the party/raid Aggro (border),
+            -- which is the only one of the three that pulses there either. A
+            -- hover or target highlight that throbbed would be noise.
+            --
+            -- blinkOptions is POSITIONAL ({speed, fadePercent, on}) because
+            -- that is the shape BU.AttachBlinkBehaviour's SetBlinkOptions
+            -- takes; these accessors read and write slots, not named keys.
+            if def.key == "aggro" then
+                local function Blink(i, fb)
+                    local o = Read("aggro", "blinkOptions", nil)
+                    local v = (type(o) == "table") and o[i] or nil
+                    if v == nil then return fb end
+                    return v
+                end
+                local function SetBlink(i, v)
+                    Set(function(c)
+                        c.highlights = c.highlights or {}
+                        c.highlights.aggro = c.highlights.aggro or {}
+                        local o = c.highlights.aggro.blinkOptions
+                        if type(o) ~= "table" then o = {0.5, 25, false} end
+                        o[i] = v
+                        c.highlights.aggro.blinkOptions = o
+                    end)
+                end
+
+                local cbPulse = W.CreateStyledCheckbox(host, L["Pulse"] or "Pulse",
+                    function() return Blink(3, false) == true end,
+                    function(v)
+                        SetBlink(3, v)
+                        if rebuildFields then rebuildFields() end
+                    end)
+                cbPulse:SetPoint("TOPLEFT", 15, y)
+                y = y - 30
+
+                if Blink(3, false) then
+                    local sSpeed = W.CreateStyledSlider(host, 200, 0.1, 2, 0.05,
+                        L["Pulse Speed"] or "Pulse Speed",
+                        function() return Blink(1, 0.5) end,
+                        function(v) SetBlink(1, v) end)
+                    sSpeed:SetPoint("TOPLEFT", 15, y - 20)
+                    y = y - 65
+
+                    local sFaint = W.CreateStyledSlider(host, 200, 0, 90, 5,
+                        L["Fade To %"] or "Fade To %",
+                        function() return Blink(2, 25) end,
+                        function(v) SetBlink(2, v) end)
+                    sFaint:SetPoint("TOPLEFT", 15, y - 20)
+                    y = y - 70
+                end
+            end
         end
     end
 

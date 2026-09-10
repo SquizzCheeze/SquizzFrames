@@ -178,7 +178,13 @@ local function DefaultFrame(opts)
         highlights = {
             hover  = {enabled = false, color = {1, 1, 1, 1},       thickness = 2},
             target = {enabled = false, color = {1, 0.82, 0, 1},    thickness = 2},
-            aggro  = {enabled = false, color = {0.9, 0.1, 0.1, 1}, thickness = 2},
+            -- blinkOptions is POSITIONAL, matching the party indicators' own
+            -- format so BU.AttachBlinkBehaviour's SetBlinkOptions takes it
+            -- unchanged: {seconds per half-pulse, percent to fade down to,
+            -- pulse on/off}. Pulse defaults OFF here exactly as it does on the
+            -- party Aggro (border).
+            aggro  = {enabled = false, color = {0.9, 0.1, 0.1, 1}, thickness = 2,
+                      blinkOptions = {0.5, 25, false}},
         },
 
         -- Frame border. Every other frame type in the addon already had one --

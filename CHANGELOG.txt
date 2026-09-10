@@ -26,7 +26,8 @@ Added:
 
   Target Highlight shows which frame your current target is on, which is most
   useful on boss, focus and target-of-target. All three render live on the 1:1
-  preview as you adjust them.
+  preview as you adjust them. The aggro highlight can pulse, with its own
+  speed and fade depth, the same as the party and raid version.
 
 - Health bars can colour by how hurt someone is instead of by who they are -
   green at full, through amber, to red. Choose a smooth blend or hard bands,
