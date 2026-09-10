@@ -2055,11 +2055,65 @@ local function BuildDispelStyleForType(t, def)
     }
 end
 
+-- The dispel-type table itself, for a preview that has to draw the symbols
+-- without an AuraContainer to get them from. Read-only by convention.
+AEI.DISPEL_TYPES = DISPEL_TYPES
+
+-- Preview-only: paint the dispel overlay for the first ENABLED type onto a
+-- plain mock frame, with no AuraContainer and no real aura behind it.
+--
+-- Exported because the unit frames' 1:1 preview (UnitFrames/Preview.lua) needs
+-- exactly what CreateDispelsIndicator's own isPreview branch does, on a mock
+-- it owns rather than one this file builds. Sharing the real
+-- ApplyDispelSlotStyle/BuildDispelStyleForType pair is the whole point: a
+-- preview carrying its own copy of the painting rules starts lying the first
+-- time the real one changes, and those rules already encode the power-bar and
+-- border insets, the full-mode opacity cap and the SetGradient workaround.
+--
+-- WHICH type is showing is not a preview-able question -- it's secret at
+-- runtime (see the IsShown-polling this replaced) -- so it always draws the
+-- first enabled one, unconditionally. `ctx` is a table the CALLER keeps: the
+-- textures are cached on it across calls, exactly as the live slot's are.
+--
+-- Returns the def it drew, or nil if it drew nothing.
+function AEI.PreviewDispelOverlay(host, ctx, t)
+    if not (host and ctx and t) then return nil end
+    if t.enabled ~= false then
+        for _, def in ipairs(DISPEL_TYPES) do
+            local on = not t.dispelTypesEnabled or t.dispelTypesEnabled[def.colorKey] ~= false
+            if on then
+                ApplyDispelSlotStyle(host, ctx, BuildDispelStyleForType(t, def))
+                return def
+            end
+        end
+    end
+    -- Disabled, or every type switched off.
+    if ctx.overlay then ctx.overlay:Hide() end
+    if ctx.gradientOverlay then ctx.gradientOverlay:Hide() end
+    if ctx.border then
+        for _, edge in pairs(ctx.border) do edge:Hide() end
+    end
+    return nil
+end
+
 function AEI.CreateDispelsIndicator(button, t)
     if not button then return nil end
     local AE = SquizzFrames.AuraEngine
     if not AE then return nil end
     local health = button.healthBar or button
+
+    -- AE.styles is ONE global table keyed by style name, so every dispel
+    -- indicator built from the same keys shares one set of styles: the last
+    -- one to rebuild wins, for all of them. That's correct for party/raid,
+    -- where every button genuinely does share one settings table -- but the
+    -- unit frames configure dispels PER FRAME, and without a namespace their
+    -- overlay silently rendered the party list's mode and opacity instead of
+    -- their own (user report 2026-09-10: "gradient selected but the live
+    -- frame just tints with health", i.e. the party default "fill").
+    -- `t._sfStyleNS` lets such a caller claim its own keys; absent (the party
+    -- path) the keys are byte-identical to before.
+    local ns = t._sfStyleNS or ""
+    local function StyleKey(def) return DISPEL_STYLE_PREFIX .. ns .. def.key end
 
     -- No frame-level bump needed: health/power bar are children whose frame
     -- level DYNAMICALLY TRACKS the button's own level (confirmed by
@@ -2126,7 +2180,7 @@ function AEI.CreateDispelsIndicator(button, t)
         for _, def in ipairs(DISPEL_TYPES) do
             local enabled = not t.dispelTypesEnabled or t.dispelTypesEnabled[def.colorKey] ~= false
             if enabled then
-                local style = AE.styles[DISPEL_STYLE_PREFIX .. def.key]
+                local style = AE.styles[StyleKey(def)]
                 if style then ApplyDispelSlotStyle(fallbackHost, fallbackCtx, style) end
                 return
             end
@@ -2141,7 +2195,7 @@ function AEI.CreateDispelsIndicator(button, t)
 
     local function RebuildStyles()
         for _, def in ipairs(DISPEL_TYPES) do
-            local key = DISPEL_STYLE_PREFIX .. def.key
+            local key = StyleKey(def)
             AE.styles[key] = BuildDispelStyleForType(t, def)
             AE.RestyleSoon(key)
         end
@@ -2162,7 +2216,7 @@ function AEI.CreateDispelsIndicator(button, t)
     -- so an outside caller can't reach it through AE.RestyleSoon alone.
     function wrapper:RefreshBorderInset()
         for _, def in ipairs(DISPEL_TYPES) do
-            AE.RestyleSoon(DISPEL_STYLE_PREFIX .. def.key)
+            AE.RestyleSoon(StyleKey(def))
         end
         RefreshFallbackVisuals()
     end
@@ -2226,7 +2280,7 @@ function AEI.CreateDispelsIndicator(button, t)
     end
     local slots = {}
     for _, def in ipairs(DISPEL_TYPES) do
-        local styleKey = DISPEL_STYLE_PREFIX .. def.key
+        local styleKey = StyleKey(def)
         AE.styles[styleKey] = BuildDispelStyleForType(t, def)
         slots[#slots + 1] = {
             key = def.key,
@@ -2287,7 +2341,7 @@ function AEI.CreateDispelsIndicator(button, t)
         health._sfDispelGradientResizeHooked = true
         health:HookScript("OnSizeChanged", function()
             for _, def in ipairs(DISPEL_TYPES) do
-                AE.RestyleSoon(DISPEL_STYLE_PREFIX .. def.key)
+                AE.RestyleSoon(StyleKey(def))
             end
         end)
     end
@@ -2398,6 +2452,19 @@ function AEI.CreateDispelIconsIndicator(button, t)
     local w, h = ExtractSize(t)
     wrapper:SetSize(w, h)
 
+    -- Own style keys for a caller that doesn't share the party list's
+    -- settings -- see the identical note in CreateDispelsIndicator.
+    local ns = t._sfStyleNS or ""
+    local function StyleKey(def) return DISPEL_ICONS_STYLE_PREFIX .. ns .. def.key end
+
+    -- Explicit tier for callers outside the party indicator system (the unit
+    -- frames), which have no generic frameLevel dispatch to place the wrapper
+    -- for them. Set BEFORE the container is requested: extraInit below reads
+    -- the wrapper's strata/level when the engine creates its buttons, and
+    -- 12.1 forbids re-tiering a managed button after that window.
+    if t._sfStrata then wrapper:SetFrameStrata(t._sfStrata) end
+    if t._sfLevel then wrapper:SetFrameLevel(t._sfLevel) end
+
     -- ALWAYS read settings through this, never the captured `t`.
     --
     -- The wrapper is created ONCE, against whichever indicator list was active
@@ -2489,7 +2556,7 @@ function AEI.CreateDispelIconsIndicator(button, t)
 
     local groups = {}
     for i, def in ipairs(DISPEL_TYPES) do
-        local styleKey = DISPEL_ICONS_STYLE_PREFIX .. def.key
+        local styleKey = StyleKey(def)
         AE.styles[styleKey] = BuildDispelIconsStyle(t, def)
         groups[#groups + 1] = {
             key = DispelIconsGroupKey(def),
@@ -2521,7 +2588,7 @@ function AEI.CreateDispelIconsIndicator(button, t)
         local iw, ih = ExtractSize(Cfg())
         local filterStr = AE.Filter(unpack(DispelFilterTokens(Cfg())))
         for i, def in ipairs(DISPEL_TYPES) do
-            local styleKey = DISPEL_ICONS_STYLE_PREFIX .. def.key
+            local styleKey = StyleKey(def)
             AE.styles[styleKey] = BuildDispelIconsStyle(Cfg(), def)
             AE.RestyleSoon(styleKey)
             if container then

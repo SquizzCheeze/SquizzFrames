@@ -166,6 +166,34 @@ function Preview.Create(parent)
     -- solved the same way (a static icon row standing in for the real thing).
     p.auraIcons = { buffs = {}, debuffs = {} }
 
+    -- Dispels. Same constraint as the aura rows -- no fake aura can reach an
+    -- AuraContainer -- but the OVERLAY is painted by a plain function over the
+    -- health bar, so the preview runs the real one (AEI.PreviewDispelOverlay)
+    -- on this host instead of imitating it. `dispelCtx` is the per-slot cache
+    -- that function keeps its textures on, exactly as a live slot button does.
+    --
+    -- Above the absorb overlays (health + 1) and below the text host (p + 5),
+    -- which is the order the live frame draws them in.
+    local dispelHost = CreateFrame("Frame", nil, p)
+    dispelHost:SetAllPoints(p)
+    dispelHost:SetFrameLevel((health:GetFrameLevel() or 1) + 2)
+    p.dispelHost = dispelHost
+    p.dispelCtx = { health = health }
+
+    -- The type symbols are a separate indicator on the live frame, and static
+    -- art here. Two of them: which types are up is secret at runtime and
+    -- unknowable in a preview, and five at once is not a state anyone sees --
+    -- the same call the party Designer's own dispel-icon mock makes.
+    local dispelIconHost = CreateFrame("Frame", nil, p)
+    dispelIconHost:SetAllPoints(p)
+    dispelIconHost:SetFrameLevel(p:GetFrameLevel() + 8)
+    p.dispelIcons = {}
+    for i = 1, 2 do
+        local tex = dispelIconHost:CreateTexture(nil, "OVERLAY")
+        tex:Hide()
+        p.dispelIcons[i] = tex
+    end
+
     return p
 end
 
@@ -223,6 +251,58 @@ local function RefreshAuraRow(p, kind, cfg)
         tex:Show()
     end
     for i = shown + 1, #pool do pool[i]:Hide() end
+end
+
+-- Dispel overlay + type symbols. The overlay goes through the REAL painter
+-- (see Create), translated by the REAL settings translation
+-- (Dispels.BuildSettings) -- neither is reimplemented here, which matters
+-- doubly for the opacity, whose scale differs between our config and the
+-- party indicator's and has been got wrong once already.
+local function RefreshDispels(p, t)
+    local AEI = SquizzFrames.AuraEngineIndicators
+    local DP = SquizzFrames.UnitFrameDispels
+    local c = t.dispels
+
+    if AEI and AEI.PreviewDispelOverlay and DP and DP.BuildSettings and p.dispelHost then
+        -- "preview" as the unit: BuildSettings only uses it to name an
+        -- AE.styles namespace, and nothing here ever registers a style.
+        AEI.PreviewDispelOverlay(p.dispelHost, p.dispelCtx, DP.BuildSettings(t, "preview"))
+    end
+
+    local icons = p.dispelIcons
+    if not icons then return end
+    if not (c and c.enabled and c.showIcons and AEI and AEI.DISPEL_TYPES) then
+        for _, tex in ipairs(icons) do tex:Hide() end
+        return
+    end
+
+    -- Whichever types are enabled, in the same priority order the live groups
+    -- flow in -- so switching one off visibly drops it out of the row.
+    local size = c.iconSize or 16
+    local shown = 0
+    for _, def in ipairs(AEI.DISPEL_TYPES) do
+        local on = not c.typesEnabled or c.typesEnabled[def.colorKey] ~= false
+        if on and shown < #icons then
+            shown = shown + 1
+            local tex = icons[shown]
+            tex:SetSize(size, size)
+            tex:ClearAllPoints()
+            -- Matches PlaceIcons + the live flow: the wrapper sits at the
+            -- health bar's top-right corner and the row grows RIGHT from
+            -- there, so the first symbol is the anchored one.
+            tex:SetPoint("TOPRIGHT", p.healthBar, "TOPRIGHT",
+                (c.iconX or 0) + (shown - 1) * (size + 1), c.iconY or 0)
+            if c.useSpellIcons then
+                tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                tex:SetTexture(PLACEHOLDER_ICON)
+            else
+                tex:SetTexCoord(0, 1, 0, 1)
+                tex:SetAtlas(def.atlas)
+            end
+            tex:Show()
+        end
+    end
+    for i = shown + 1, #icons do icons[i]:Hide() end
 end
 
 -- Re-dress the mock for a settings table. Called on every rebuild of the
@@ -451,4 +531,8 @@ function Preview.Refresh(p, t)
 
     RefreshAuraRow(p, "buffs", t.buffs)
     RefreshAuraRow(p, "debuffs", t.debuffs)
+
+    -- LAST, and deliberately: the overlay measures the health bar's height and
+    -- reads whether the power bar is shown, both of which are decided above.
+    RefreshDispels(p, t)
 end

@@ -2,10 +2,30 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.18
------
+V1.18 (2026-09-10)
+------------------
 
 Fixed:
+
+- The unit frames' dispel overlay ignored its own settings and showed no icon
+  at all. Three separate faults: the overlay shared its styling with the
+  party/raid Dispels indicator, so whichever was applied last won for both
+  (which is why picking Gradient still tinted the bar the party list's way);
+  the opacity slider was passed through at a hundredth of its value, leaving
+  the overlay effectively invisible; and the dispel-type icon was never built,
+  because the icons became their own indicator and the unit frames were still
+  asking the overlay for them. Each frame now styles its dispels independently
+  of the party frames and of the other unit frames.
+
+  The unit frames also gained the two overlay styles they were missing (Fill
+  and Blizzard Strong Top), the gradient height/fade sliders, and the icon's
+  own look options - debuff art instead of the type symbol, cooldown swipe,
+  and border.
+
+  The 1:1 preview on the options page draws dispels now too - it never did,
+  so the overlay and icon could only be judged by going and finding something
+  dispellable. It paints through the same code the live frame uses, so the
+  two cannot drift.
 
 - Tank Tracker settings needed a reload to take effect. Changing which debuffs
   are shown, the icon count, the size or the layout did nothing to a row that

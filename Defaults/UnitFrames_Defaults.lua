@@ -174,16 +174,33 @@ local function DefaultFrame(opts)
         -- key names, which it reuses wholesale rather than reimplementing.
         dispels = {
             enabled = false,
-            -- "full" solid tint, "gradient", or "none" for icon only.
+            -- The same five the party indicator offers -- see
+            -- Dispels.OVERLAY_MODES: "none"|"fill"|"full"|"gradient"|
+            -- "gradientTop". "none" leaves the icon (below) on its own.
             overlay = "full",
+            -- 0-1 HERE, but a percentage on the party indicator; Dispels.lua
+            -- scales it on the way through.
             opacity = 0.5,
+            -- Gradient modes only, both percentages. Height = how much of the
+            -- bar the ramp spans from its strong edge; fade = the faint end's
+            -- alpha as a percentage OF opacity, so the two can't invert.
+            gradientHeight = 50,
+            gradientWeakAlpha = 50,
             -- Off = only the types YOU can dispel. On = every dispellable
             -- type, which is what a non-healer watching a tank usually wants.
             showAll = false,
+            -- The dispel-type symbols are their OWN indicator (one icon per
+            -- active type, deduped), not part of the overlay above.
             showIcons = false,
             iconSize = 16,
             iconX = 0,
             iconY = 0,
+            -- Icon look. All off: these are Blizzard's dispel-type atlases,
+            -- shaped artwork on transparency that the usual icon furniture
+            -- fights. useSpellIcons swaps the symbol for the debuff's own art.
+            useSpellIcons = false,
+            showSwipe = false,
+            showIconBorder = false,
             -- nil means "every type on" and "use the game's own colours"; the
             -- panel only writes these once you change one, so a default
             -- profile carries no copy of Blizzard's palette to go stale.

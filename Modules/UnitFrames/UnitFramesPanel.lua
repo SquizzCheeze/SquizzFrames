@@ -2085,12 +2085,35 @@ local function SecDispels(host, y, cfg, t)
     ddMode:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
-    if Read("overlay", "full") ~= "none" then
+    local mode = Read("overlay", "full")
+    if mode ~= "none" then
         local sOp = W.CreateStyledSlider(host, 200, 0.05, 1, 0.05,
             L["Opacity"] or "Opacity",
             function() return Read("opacity", 0.5) end,
             function(v) Write("opacity", v) end)
         sOp:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
+    -- Gradient shape. Only the two ramp modes read these, so they're only
+    -- offered there -- unlike the party page, which always shows them.
+    if mode == "gradient" or mode == "gradientTop" then
+        -- Floor of 5 rather than 0: a 0% ramp is an invisible overlay, which
+        -- "None" already says more clearly.
+        local sH = W.CreateStyledSlider(host, 200, 5, 100, 1,
+            L["Gradient Height"] or "Gradient Height",
+            function() return Read("gradientHeight", 50) end,
+            function(v) Write("gradientHeight", v) end)
+        sH:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        -- The faint end, as a percentage OF the opacity above, so the two
+        -- can never invert. 0 = fades right out, 100 = flat tint, no ramp.
+        local sW = W.CreateStyledSlider(host, 200, 0, 100, 1,
+            L["Gradient Fade"] or "Gradient Fade",
+            function() return Read("gradientWeakAlpha", 50) end,
+            function(v) Write("gradientWeakAlpha", v) end)
+        sW:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 70
     end
 
@@ -2135,6 +2158,31 @@ local function SecDispels(host, y, cfg, t)
             function(v) Write("iconY", v) end)
         sY:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 70
+
+        -- The same three the party's Dispel Icons indicator offers. All three
+        -- default OFF: these are Blizzard's dispel-type atlases, already
+        -- shaped artwork on transparency, which the usual icon furniture
+        -- fights.
+        local cbSpell = W.CreateStyledCheckbox(host,
+            L["Use Debuff Icon"] or "Use Debuff Icon",
+            function() return Read("useSpellIcons", false) == true end,
+            function(v) Write("useSpellIcons", v) end)
+        cbSpell:SetPoint("TOPLEFT", 15, y)
+        y = y - 26
+
+        local cbSwipe = W.CreateStyledCheckbox(host,
+            L["Show Cooldown Swipe"] or "Show Cooldown Swipe",
+            function() return Read("showSwipe", false) == true end,
+            function(v) Write("showSwipe", v) end)
+        cbSwipe:SetPoint("TOPLEFT", 15, y)
+        y = y - 26
+
+        local cbBorder = W.CreateStyledCheckbox(host,
+            L["Show Icon Border"] or "Show Icon Border",
+            function() return Read("showIconBorder", false) == true end,
+            function(v) Write("showIconBorder", v) end)
+        cbBorder:SetPoint("TOPLEFT", 15, y)
+        y = y - 32
     end
 
     -- Per-type enable + colour. Written only when changed, so an untouched
