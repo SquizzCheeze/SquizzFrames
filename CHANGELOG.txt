@@ -2,6 +2,30 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.20
+-----
+
+Added:
+
+- The unit frame preview shows duration and stack text on its mock aura
+  icons, so the anchor and offset sliders for both can be judged without
+  going to find something with a debuff on it. They are drawn from the same
+  settings the real icons use, including font, size and colour, and update as
+  you drag.
+
+Changed:
+
+- Unit frame aura duration text now sits in the middle of its icon by
+  default, instead of hanging underneath it.
+
+- The dispel gradient overlay now spans the whole health bar by default
+  instead of half of it, on the party, raid and unit frames alike.
+
+  Both of these are default changes, so they are carried across once for an
+  existing profile that had not moved them. Anything you had set yourself is
+  left alone, and either can be set back from its own sliders.
+
+
 V1.19 (2026-09-11)
 ------------------
 

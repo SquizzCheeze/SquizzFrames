@@ -108,7 +108,7 @@ function Dispels.BuildSettings(t, unit)
         -- through raw made every overlay 0.5% opaque, i.e. invisible.
         dispelOverlayOpacity = (c.opacity or 0.5) * 100,
         -- Gradient-mode shape, in percent, ignored by the other modes.
-        dispelGradientHeight = c.gradientHeight or 50,
+        dispelGradientHeight = c.gradientHeight or 100,
         dispelGradientWeakAlpha = c.gradientWeakAlpha or 50,
     }
 end

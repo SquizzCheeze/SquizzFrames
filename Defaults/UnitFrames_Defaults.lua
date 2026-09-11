@@ -193,7 +193,11 @@ local function DefaultFrame(opts)
             -- Gradient modes only, both percentages. Height = how much of the
             -- bar the ramp spans from its strong edge; fade = the faint end's
             -- alpha as a percentage OF opacity, so the two can't invert.
-            gradientHeight = 50,
+            --
+            -- Height 100 (the whole bar) as of 2026-09-11, matching the
+            -- party/raid indicator's own default -- the two describe the same
+            -- overlay and should not disagree about its shape.
+            gradientHeight = 100,
             gradientWeakAlpha = 50,
             -- Off = only the types YOU can dispel. On = every dispellable
             -- type, which is what a non-healer watching a tank usually wants.
@@ -323,15 +327,22 @@ local function DefaultFrame(opts)
             showStack = true,
             showBorder = true,
             -- Text placement, passed straight through to the AuraEngine style
-            -- (see Auras.lua's BuildStyle). Duration takes TWO points -- its
+            -- (see Auras.lua's StyleFields). Duration takes TWO points -- its
             -- own and the icon's -- which is what lets it sit outside the icon
-            -- (TOP anchored to the icon's BOTTOM, the default) as well as on
-            -- it. Stacks take one point, used for both sides, because that is
-            -- all the engine's style honours for them.
-            durationPoint = "TOP",
-            durationRelPoint = "BOTTOM",
+            -- (pair TOP with the icon's BOTTOM) as well as on it. Stacks take
+            -- one point, used for both sides, because that is all the engine's
+            -- style honours for them.
+            --
+            -- CENTRED ON THE ICON as of 2026-09-11 (user request), which is
+            -- where nearly every aura addon puts a countdown and what reads
+            -- best at these sizes -- the old default hung it under the icon,
+            -- outside the row's own footprint. An existing profile that never
+            -- moved it is carried across by Core.lua's
+            -- MigrateUnitFrameAuraDuration.
+            durationPoint = "CENTER",
+            durationRelPoint = "CENTER",
             durationX = 0,
-            durationY = -2,
+            durationY = 0,
             stackPoint = "BOTTOMRIGHT",
             stackX = 1,
             stackY = -1,
@@ -350,15 +361,22 @@ local function DefaultFrame(opts)
             showStack = true,
             showBorder = true,
             -- Text placement, passed straight through to the AuraEngine style
-            -- (see Auras.lua's BuildStyle). Duration takes TWO points -- its
+            -- (see Auras.lua's StyleFields). Duration takes TWO points -- its
             -- own and the icon's -- which is what lets it sit outside the icon
-            -- (TOP anchored to the icon's BOTTOM, the default) as well as on
-            -- it. Stacks take one point, used for both sides, because that is
-            -- all the engine's style honours for them.
-            durationPoint = "TOP",
-            durationRelPoint = "BOTTOM",
+            -- (pair TOP with the icon's BOTTOM) as well as on it. Stacks take
+            -- one point, used for both sides, because that is all the engine's
+            -- style honours for them.
+            --
+            -- CENTRED ON THE ICON as of 2026-09-11 (user request), which is
+            -- where nearly every aura addon puts a countdown and what reads
+            -- best at these sizes -- the old default hung it under the icon,
+            -- outside the row's own footprint. An existing profile that never
+            -- moved it is carried across by Core.lua's
+            -- MigrateUnitFrameAuraDuration.
+            durationPoint = "CENTER",
+            durationRelPoint = "CENTER",
             durationX = 0,
-            durationY = -2,
+            durationY = 0,
             stackPoint = "BOTTOMRIGHT",
             stackX = 1,
             stackY = -1,
@@ -446,6 +464,12 @@ profile.unitFrames = {
     -- frames when it runs, which is far too invasive to inflict on an existing
     -- user who updates the addon and never asked for it.
     enabled = false,
+
+    -- Migration marker, not a setting: the aura duration text's default moved
+    -- onto the icon on 2026-09-11, and Core.lua's MigrateUnitFrameAuraDuration
+    -- carries an existing profile across exactly once. See its comment for why
+    -- this one needs a flag when the others get by on value detection.
+    auraDurationCentred = true,
 
     -- Mirror the player and target frames across the screen's vertical centre
     -- line: drag either one and the other takes the opposite X at the same Y.

@@ -48,6 +48,11 @@ local hadSavedVariables = SquizzFramesDB ~= nil
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.20"] = {
+        "The unit frame preview now shows duration and stack text on its mock aura icons, so you can place them without going to find something with a debuff on it.",
+        "Unit frame aura duration text sits in the middle of its icon by default, rather than under it.",
+        "The dispel gradient overlay spans the whole health bar by default rather than half of it. Both default changes carry across once; anything you had set yourself is left alone.",
+    },
     ["1.19"] = {
         "Every target could show the same person's nickname for a whole dungeon. Nickname lookups were remembered against the unit token, and \"target\" means something different every time you click - so the first target with a nickname became the name on every target after it, until the run ended.",
         "Nicknames now apply to your own frame only. The checkbox was only ever on the player frame, but target, focus and boss frames were quietly using them too.",

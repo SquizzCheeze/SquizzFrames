@@ -329,7 +329,11 @@ profile.layout.indicators = {
         -- Gradient modes only. Height = % of the health bar the ramp spans,
         -- measured from its strong (pinned) edge. WeakAlpha = the faint end's
         -- alpha as a % OF dispelOverlayOpacity, so the two can't invert.
-        dispelGradientHeight = 50,
+        --
+        -- Height 100 (the full bar) as of 2026-09-11, user request. A half
+        -- height leaves the top of the bar untinted, which reads as the
+        -- overlay being broken rather than as a deliberate ramp.
+        dispelGradientHeight = 100,
         dispelGradientWeakAlpha = 50,
     },
     -- 17: Missing Buffs

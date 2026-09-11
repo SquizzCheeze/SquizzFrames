@@ -332,6 +332,99 @@ local function MigrateUnitFrameTexts(profile)
     end
 end
 
+-- Move unit-frame aura duration text onto the icon (2026-09-11, user request).
+--
+-- The default changed from "hanging under the icon" (TOP anchored to the
+-- icon's BOTTOM, 2px clear) to centred on it. A profile is a DEEP COPY of the
+-- defaults rather than an AceDB metatable overlay -- EnsurePetFramesDefaults
+-- and ProfileStore's DeepFillDefaults both materialise the whole tree -- so
+-- changing the default alone moves nobody who has ever loaded the addon.
+--
+-- Only the EXACT old default tuple is rewritten. Someone who deliberately set
+-- those four values is indistinguishable from someone who never touched them,
+-- but that combination IS the old default and moving it is precisely what
+-- "change the default" was asked to do; any other arrangement is a choice and
+-- is left alone.
+--
+-- ONE SHOT, via a flag, unlike the value-detecting migrations above. Those can
+-- run every load harmlessly because their old shape is unreachable once
+-- converted; this one's is not -- TOP/BOTTOM/0/-2 is still a perfectly valid
+-- thing to choose from the dropdowns, and without the flag choosing it would
+-- silently snap back to centre on the next reload. A setting that will not
+-- stick is the failure this codebase keeps getting bitten by.
+local function MigrateUnitFrameAuraDuration(profile)
+    local uf = profile and profile.unitFrames
+    if not uf or uf.auraDurationCentred then return end
+    uf.auraDurationCentred = true
+    local changed = false
+
+    local function MoveRow(row)
+        if type(row) ~= "table" then return end
+        if row.durationPoint == "TOP" and row.durationRelPoint == "BOTTOM"
+            and (row.durationX or 0) == 0 and (row.durationY or -2) == -2 then
+            row.durationPoint = "CENTER"
+            row.durationRelPoint = "CENTER"
+            row.durationX = 0
+            row.durationY = 0
+            changed = true
+        end
+    end
+
+    local function MoveFrame(t)
+        if type(t) ~= "table" then return end
+        MoveRow(t.buffs)
+        MoveRow(t.debuffs)
+    end
+
+    for _, t in pairs(uf.frames or {}) do MoveFrame(t) end
+    -- Boss frames are a single shared table alongside .frames, not inside it.
+    MoveFrame(uf.boss)
+
+    if changed then
+        MigrationPrint("centred the unit frames' aura duration text on its icon")
+    end
+end
+
+-- Move the dispel gradient's height default from half the health bar to all of
+-- it (2026-09-11, user request), for the party/raid indicator lists AND the
+-- unit frames -- the two describe the same overlay and must not disagree.
+--
+-- Same shape and same reasoning as MigrateUnitFrameAuraDuration above: a
+-- profile is a deep copy, so the new default reaches nobody who has already
+-- played, and 50 stays a perfectly choosable value afterwards -- hence the
+-- one-shot flag rather than value detection alone.
+local function MigrateDispelGradientHeight(profile)
+    if not profile or profile.dispelGradientHeightFull then return end
+    profile.dispelGradientHeightFull = true
+    local changed = false
+
+    for _, listKey in ipairs({"indicators", "indicatorsRaid"}) do
+        for _, ind in ipairs((profile.layout and profile.layout[listKey]) or {}) do
+            if ind.indicatorName == "dispels" and ind.dispelGradientHeight == 50 then
+                ind.dispelGradientHeight = 100
+                changed = true
+            end
+        end
+    end
+
+    local uf = profile.unitFrames
+    local function MoveFrame(t)
+        if type(t) == "table" and type(t.dispels) == "table"
+            and t.dispels.gradientHeight == 50 then
+            t.dispels.gradientHeight = 100
+            changed = true
+        end
+    end
+    if uf then
+        for _, t in pairs(uf.frames or {}) do MoveFrame(t) end
+        MoveFrame(uf.boss)
+    end
+
+    if changed then
+        MigrationPrint("dispel gradient now spans the whole health bar (was half)")
+    end
+end
+
 -- Purge `useNicknames` from every unit frame except the player's.
 --
 -- It shipped as part of every frame's default table, but the options page has
@@ -683,6 +776,8 @@ local function EnsureIndicatorLists(profile)
     MigrateHideBlizzardSwitches(profile)
     MigrateUnitFrameTexts(profile)
     MigrateUnitFrameNicknames(profile)
+    MigrateUnitFrameAuraDuration(profile)
+    MigrateDispelGradientHeight(profile)
 end
 
 -- Print with addon prefix

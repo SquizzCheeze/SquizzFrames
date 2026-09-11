@@ -564,6 +564,55 @@ local FALLBACK_ICON_GAP = 1
 -- configured. Two digits so the text block is roughly its real worst-case
 -- width, which is what matters when judging placement.
 local FALLBACK_DURATION_SAMPLE = "12"
+
+-- Style ONE mock duration FontString from a style table, exactly as
+-- ApplyStyleToRegions (AuraEngine.lua) styles the real engine-drawn one.
+--
+-- Takes a style TABLE rather than a style key on purpose: the unit frames'
+-- options preview has to render settings for a row whose live style may not
+-- exist yet (the frame can be disabled, or the row never anchored), so it
+-- builds a throwaway table from the config being edited and passes that. The
+-- party fallback row hands in AE.styles[...] and gets identical treatment.
+--
+-- `mode` is the Show Duration value: "never", a number of seconds (threshold
+-- modes, previewed with that exact number, which doubles as a reminder of
+-- which threshold is on), or anything else for always.
+function AEI.ApplyMockDurationText(fs, host, style, mode)
+    local AE = SquizzFrames.AuraEngine
+    if not (fs and host and AE) then return end
+    style = style or {}
+    local threshold = tonumber(mode)
+    fs:SetFont(AE.ResolveFont(style.durationFont), style.durationFontSize or 11,
+        style.durationFontFlags or "OUTLINE")
+    local c = style.durationColor
+    if c then fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
+    fs:ClearAllPoints()
+    fs:SetPoint(style.durationPoint or "TOP", host, style.durationRelPoint or "BOTTOM",
+        style.durationX or 0, style.durationY or -2)
+    fs:SetText(threshold and tostring(threshold) or FALLBACK_DURATION_SAMPLE)
+    fs:SetShown(mode ~= "never" and style.showDuration ~= false)
+end
+
+-- The stack-count half of the same job.
+--
+-- "2" as the sample: on a live frame the engine only writes a count when there
+-- is actually more than one application, so a single digit is the honest
+-- common case and the right width to judge placement against.
+function AEI.ApplyMockStackText(fs, host, style, show)
+    local AE = SquizzFrames.AuraEngine
+    if not (fs and host and AE) then return end
+    style = style or {}
+    fs:SetFont(AE.ResolveFont(style.stackFont), style.stackFontSize or 12,
+        style.stackFontFlags or "OUTLINE")
+    local c = style.stackColor
+    if c then fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
+    fs:ClearAllPoints()
+    fs:SetPoint(style.stackPoint or "BOTTOMRIGHT", host,
+        style.stackRelPoint or style.stackPoint or "BOTTOMRIGHT",
+        style.stackX or 1, style.stackY or -1)
+    fs:SetText("2")
+    fs:SetShown(show ~= false and style.showStack ~= false)
+end
 local function CreateFallbackIconRow(wrapper, count, iconPaths, defaultW, defaultH, styleKey)
     local icons = {}
     local function ApplyIcons(paths)
@@ -595,57 +644,24 @@ local function CreateFallbackIconRow(wrapper, count, iconPaths, defaultW, defaul
     local function SetBorderShown(show)
         for _, f in ipairs(icons) do F.SetBorderShown(f, show) end
     end
-    -- Restyle + reposition the mock duration text from the SAME style fields
-    -- the live engine path reads (see ApplyStyleToRegions in AuraEngine.lua),
-    -- so the preview tracks font/colour/offset changes rather than drifting
-    -- from what the real icons will look like.
+    -- Both of these style the mock text from the SAME style fields the live
+    -- engine path reads (see ApplyStyleToRegions in AuraEngine.lua), so the
+    -- preview tracks font/colour/offset changes rather than drifting from what
+    -- the real icons will look like -- one shared implementation, which the
+    -- unit frames' own 1:1 preview calls too.
     local function RefreshDuration(mode)
         local AE = SquizzFrames.AuraEngine
-        if not AE then return end
-        local style = (styleKey and AE.styles[styleKey]) or {}
-        -- A threshold mode only ever renders at or below that many seconds, so
-        -- preview it with that exact number -- it doubles as a reminder of
-        -- which threshold is active.
-        local threshold = tonumber(mode)
-        local text = threshold and tostring(threshold) or FALLBACK_DURATION_SAMPLE
-        local shown = (mode ~= "never") and (style.showDuration ~= false)
+        local style = (AE and styleKey and AE.styles[styleKey]) or {}
         for _, f in ipairs(icons) do
-            local fs = f.duration
-            fs:SetFont(AE.ResolveFont(style.durationFont), style.durationFontSize or 11,
-                style.durationFontFlags or "OUTLINE")
-            local c = style.durationColor
-            if c then fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
-            fs:ClearAllPoints()
-            fs:SetPoint(style.durationPoint or "TOP", f, style.durationRelPoint or "BOTTOM",
-                style.durationX or 0, style.durationY or -2)
-            fs:SetText(text)
-            fs:SetShown(shown)
+            AEI.ApplyMockDurationText(f.duration, f, style, mode)
         end
     end
 
-    -- Stack-count text, same deal as the duration text above: styled from the
-    -- SAME style.stack* fields ApplyStyleToRegions reads, so the preview and
-    -- the real icons agree on font, anchor, offset and colour.
-    --
-    -- "2" as the sample: on a live frame the engine only writes a count when
-    -- there is actually more than one application, so a single digit is the
-    -- honest common case and is the right width to judge placement against.
     local function RefreshStacks(show)
         local AE = SquizzFrames.AuraEngine
-        if not AE then return end
-        local style = (styleKey and AE.styles[styleKey]) or {}
+        local style = (AE and styleKey and AE.styles[styleKey]) or {}
         for _, f in ipairs(icons) do
-            local fs = f.stack
-            fs:SetFont(AE.ResolveFont(style.stackFont), style.stackFontSize or 12,
-                style.stackFontFlags or "OUTLINE")
-            local c = style.stackColor
-            if c then fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
-            fs:ClearAllPoints()
-            fs:SetPoint(style.stackPoint or "BOTTOMRIGHT", f,
-                style.stackRelPoint or style.stackPoint or "BOTTOMRIGHT",
-                style.stackX or 1, style.stackY or -1)
-            fs:SetText("2")
-            fs:SetShown(show ~= false and style.showStack ~= false)
+            AEI.ApplyMockStackText(f.stack, f, style, show)
         end
     end
     local function Reposition()
@@ -1766,8 +1782,10 @@ local STRATA_ORDER = {
 
 local DISPEL_GRADIENT_WEAK_ALPHA_DEFAULT = 50
 -- Percentage of the health bar's height the ramp spans, measured from the
--- strong (pinned) edge.
-local DISPEL_GRADIENT_HEIGHT_DEFAULT = 50
+-- strong (pinned) edge. 100 (the whole bar) as of 2026-09-11, user request --
+-- a half-height ramp leaves the far end of the bar untinted, which reads as
+-- the overlay being broken rather than as a deliberate fade.
+local DISPEL_GRADIENT_HEIGHT_DEFAULT = 100
 
 -- The health bar spans the FULL button height (UnitButton.xml anchors it
 -- TOPLEFT *and* BOTTOMLEFT to the button), and the power bar is a short strip

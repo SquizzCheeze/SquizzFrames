@@ -160,10 +160,20 @@ function Preview.Create(parent)
     cast:Hide()
     p.castBar = cast
 
-    -- Aura rows. Plain textures, not AuraContainers: the engine renders
+    -- Aura rows. Static mock icons, not AuraContainers: the engine renders
     -- C-side from a real unit's real auras and there is no way to feed it
     -- fake ones, which is the same limitation the Indicators preview hit and
-    -- solved the same way (a static icon row standing in for the real thing).
+    -- solved the same way. Each icon carries mock duration and stack text so
+    -- those can be positioned here too -- see RefreshAuraRow.
+    --
+    -- Their own host, above the bars: the rows hang OUTSIDE the frame for most
+    -- anchors, but "left"/"right" and a negative offset can put them over it,
+    -- and text that disappears under the health bar while you are dragging it
+    -- is worse than no preview.
+    local auraHost = CreateFrame("Frame", nil, p)
+    auraHost:SetAllPoints(p)
+    auraHost:SetFrameLevel(p:GetFrameLevel() + 7)
+    p.auraHost = auraHost
     p.auraIcons = { buffs = {}, debuffs = {} }
 
     -- Dispels. Same constraint as the aura rows -- no fake aura can reach an
@@ -218,7 +228,7 @@ local function RefreshAuraRow(p, kind, cfg)
     local pool = p.auraIcons[kind]
     local anchor = cfg and cfg.anchor or "none"
     if anchor == "none" then
-        for _, tex in ipairs(pool) do tex:Hide() end
+        for _, f in ipairs(pool) do f:Hide() end
         return
     end
 
@@ -231,24 +241,50 @@ local function RefreshAuraRow(p, kind, cfg)
     -- than it shows.
     local shown = math.min(cfg.num or 8, 8)
 
+    -- The duration and stack text are styled from the row's real style fields
+    -- (user request 2026-09-11: "hard to visualise them when trying to adjust
+    -- their positions"). Built through Auras.StyleFields rather than read from
+    -- AE.styles, because a row that is disabled or has never been anchored has
+    -- no registered style yet -- and the whole point is to see the setting you
+    -- are editing right now, not the one that last went live.
+    local AEI = SquizzFrames.AuraEngineIndicators
+    local A = SquizzFrames.UnitFrameAuras
+    local style = (A and A.StyleFields) and A.StyleFields(cfg) or nil
+
     for i = 1, shown do
-        local tex = pool[i]
-        if not tex then
-            tex = p:CreateTexture(nil, "OVERLAY")
-            tex:SetTexture(PLACEHOLDER_ICON)
-            pool[i] = tex
+        local f = pool[i]
+        if not f then
+            -- A frame per icon, not a bare texture: the text has to anchor to
+            -- the icon itself (the engine anchors it to the button), and a
+            -- texture is not an anchor target for a FontString's own point.
+            f = CreateFrame("Frame", nil, p.auraHost or p)
+            f.tex = f:CreateTexture(nil, "ARTWORK")
+            f.tex:SetAllPoints()
+            f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            f.tex:SetTexture(PLACEHOLDER_ICON)
+            f.duration = f:CreateFontString(nil, "OVERLAY")
+            f.stack = f:CreateFontString(nil, "OVERLAY")
+            pool[i] = f
         end
-        tex:SetSize(size, size)
-        tex:ClearAllPoints()
+        f:SetSize(size, size)
+        f:ClearAllPoints()
         local step = (i - 1) * (size + 1)
         local dx, dy = 0, 0
         if growth == "LEFT" then dx = -step
         elseif growth == "UP" then dy = step
         elseif growth == "DOWN" then dy = -step
         else dx = step end
-        tex:SetPoint(a[1], p, a[2],
+        f:SetPoint(a[1], p, a[2],
             (cfg.offsetX or 0) + dx, (cfg.offsetY or 0) + dy)
-        tex:Show()
+
+        if AEI and style then
+            AEI.ApplyMockDurationText(f.duration, f, style, nil)
+            AEI.ApplyMockStackText(f.stack, f, style, cfg.showStack)
+        else
+            f.duration:Hide()
+            f.stack:Hide()
+        end
+        f:Show()
     end
     for i = shown + 1, #pool do pool[i]:Hide() end
 end

@@ -1212,17 +1212,17 @@ local function BuildAuraBlock(host, y, t, kind, label)
     if a.showDuration ~= false then
         local ddDP = W.CreateStyledDropdown(host, 200, 40,
             L["Duration Anchor"] or "Duration Anchor", ANCHOR_POINT_ITEMS,
-            function() return a.durationPoint or "TOP" end,
+            function() return a.durationPoint or "CENTER" end,
             function(v) AuraSet(function(c) c.durationPoint = v end) end)
         ddDP:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 70
 
-        -- The icon-side point. Pairing TOP with BOTTOM puts the text just
-        -- below the icon (the default); pairing a point with itself puts it
-        -- on the icon.
+        -- The icon-side point. Pairing a point with itself puts the text ON
+        -- the icon -- CENTER/CENTER is the default; pairing TOP with BOTTOM
+        -- hangs it underneath instead.
         local ddDRP = W.CreateStyledDropdown(host, 200, 40,
             L["Duration Anchor To"] or "Duration Anchor To", ANCHOR_POINT_ITEMS,
-            function() return a.durationRelPoint or "BOTTOM" end,
+            function() return a.durationRelPoint or "CENTER" end,
             function(v) AuraSet(function(c) c.durationRelPoint = v end) end)
         ddDRP:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 70
@@ -1236,7 +1236,7 @@ local function BuildAuraBlock(host, y, t, kind, label)
 
         local sDY = W.CreateStyledSlider(host, 200, -50, 50, 1,
             L["Duration Offset Y"] or "Duration Offset Y",
-            function() return a.durationY or -2 end,
+            function() return a.durationY or 0 end,
             function(v) AuraSet(function(c) c.durationY = v end) end)
         sDY:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65
@@ -2105,7 +2105,7 @@ local function SecDispels(host, y, cfg, t)
         -- "None" already says more clearly.
         local sH = W.CreateStyledSlider(host, 200, 5, 100, 1,
             L["Gradient Height"] or "Gradient Height",
-            function() return Read("gradientHeight", 50) end,
+            function() return Read("gradientHeight", 100) end,
             function(v) Write("gradientHeight", v) end)
         sH:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 70

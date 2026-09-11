@@ -2888,7 +2888,7 @@ local function CreateSetting_DispelGradientHeight(parent)
         widget.slider:SetPoint("TOPLEFT", widget, 5, -20)
         widget.slider.afterValueChangedFn = function(value) widget.func(value) end
         function widget:SetFunc(func) widget.func = func end
-        function widget:SetDBValue(val) widget.slider:SetValue(val or 50) end
+        function widget:SetDBValue(val) widget.slider:SetValue(val or 100) end
     else widget = settingWidgets["dispelGradientHeight"] end
     widget:Show(); return widget
 end

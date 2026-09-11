@@ -1171,7 +1171,7 @@ ShowSettings = function(name)
             w:SetFunc(function(val) SetField(t, "dispelOverlayOpacity", val) end)
 
         elseif n == "dispelGradientHeight" then
-            w:SetDBValue(t.dispelGradientHeight or 50)
+            w:SetDBValue(t.dispelGradientHeight or 100)
             w:SetFunc(function(val) SetField(t, "dispelGradientHeight", val) end)
 
         elseif n == "dispelGradientWeakAlpha" then

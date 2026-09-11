@@ -109,13 +109,19 @@ local function FilterTokens(kind, cfg)
     return tokens
 end
 
-local function BuildStyle(unit, kind, cfg)
+-- Fill in a row's style FIELDS, independent of where the table lives.
+--
+-- Public because the options page's 1:1 preview has to draw its mock icons --
+-- and their duration and stack text -- from exactly these numbers, for a row
+-- that may have no live style at all yet (the frame can be disabled, or the
+-- row never anchored). It passes a throwaway table; BuildStyle below passes
+-- the registered one. Two copies of this mapping is how a preview starts
+-- lying about where the text will land.
+function Auras.StyleFields(cfg, into)
     local AE = SquizzFrames.AuraEngine
-    local key = StyleKey(unit, kind)
+    local style = into or {}
     local size = cfg.size or 20
 
-    AE.styles[key] = AE.styles[key] or {}
-    local style = AE.styles[key]
     -- EVERYTHING is re-applied on every build rather than folded into an
     -- `or { ... }` initialiser: that table is created once and reused for the
     -- style's lifetime, so anything set only inside it could never respond to
@@ -126,10 +132,13 @@ local function BuildStyle(unit, kind, cfg)
     -- Text placement. The engine reads these directly (AuraEngine.lua's
     -- region setup), so the defaults live in UnitFrames_Defaults.lua and are
     -- merely forwarded here.
-    style.durationPoint = cfg.durationPoint or "TOP"
-    style.durationRelPoint = cfg.durationRelPoint or "BOTTOM"
+    -- Centred on the icon by default -- see UnitFrames_Defaults.lua. These
+    -- fallbacks only cover a config that predates the fields entirely; a real
+    -- profile always carries all four.
+    style.durationPoint = cfg.durationPoint or "CENTER"
+    style.durationRelPoint = cfg.durationRelPoint or "CENTER"
     style.durationX = cfg.durationX or 0
-    style.durationY = cfg.durationY or -2
+    style.durationY = cfg.durationY or 0
     -- stackPoint is used for BOTH the text's point and the icon's -- the
     -- engine does not take a separate relative point for stacks.
     style.stackPoint = cfg.stackPoint or "BOTTOMRIGHT"
@@ -138,9 +147,17 @@ local function BuildStyle(unit, kind, cfg)
     style.showDuration = (cfg.showDuration ~= false)
     style.showStack = (cfg.showStack ~= false)
     style.border = (cfg.showBorder ~= false) and { 0, 0, 0, 1, size = 1 } or nil
-    if cfg.font and AE.ApplyFontSettings then
+    if cfg.font and AE and AE.ApplyFontSettings then
         AE.ApplyFontSettings(style, cfg.font)
     end
+    return style
+end
+
+local function BuildStyle(unit, kind, cfg)
+    local AE = SquizzFrames.AuraEngine
+    local key = StyleKey(unit, kind)
+    AE.styles[key] = AE.styles[key] or {}
+    Auras.StyleFields(cfg, AE.styles[key])
     return key
 end
 
