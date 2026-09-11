@@ -48,6 +48,10 @@ local hadSavedVariables = SquizzFramesDB ~= nil
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.19"] = {
+        "Every target could show the same person's nickname for a whole dungeon. Nickname lookups were remembered against the unit token, and \"target\" means something different every time you click - so the first target with a nickname became the name on every target after it, until the run ended.",
+        "Nicknames now apply to your own frame only. The checkbox was only ever on the player frame, but target, focus and boss frames were quietly using them too.",
+    },
     ["1.18"] = {
         "Unit frames can have a border, with its own thickness, padding and colour.",
         "Unit frame text has a font and outline picker. The setting was always there, it just had no control.",

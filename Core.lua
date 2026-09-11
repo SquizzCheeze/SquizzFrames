@@ -332,6 +332,37 @@ local function MigrateUnitFrameTexts(profile)
     end
 end
 
+-- Purge `useNicknames` from every unit frame except the player's.
+--
+-- It shipped as part of every frame's default table, but the options page has
+-- only ever offered the checkbox on the player frame -- so target, target of
+-- target, focus, focus target and the boss stack all ran on a saved `true`
+-- that could not be seen or switched off. UnitFrames.lua's FormatToken now
+-- ignores the key outside "player" regardless, so this is tidy-up rather than
+-- the fix: it stops a stale value reading back as meaningful if the scope is
+-- ever widened again, and makes a profile say what it actually does.
+--
+-- The player's own entry is deliberately left exactly as the user set it.
+local function MigrateUnitFrameNicknames(profile)
+    local uf = profile and profile.unitFrames
+    if not uf then return end
+    local changed = false
+    for unit, t in pairs(uf.frames or {}) do
+        if unit ~= "player" and type(t) == "table" and t.useNicknames ~= nil then
+            t.useNicknames = nil
+            changed = true
+        end
+    end
+    -- Boss frames are a single shared table alongside .frames, not inside it.
+    if type(uf.boss) == "table" and uf.boss.useNicknames ~= nil then
+        uf.boss.useNicknames = nil
+        changed = true
+    end
+    if changed then
+        MigrationPrint("removed the nickname setting from unit frames other than the player's")
+    end
+end
+
 -- One-time correction: Dispels was rebuilt from a manual aura scan (icon
 -- grid: filters/highlightType/iconStyle/orientation/size/position) onto
 -- AuraEngine (per-dispel-type AuraContainer overlay: dispelShowAll/
@@ -651,6 +682,7 @@ local function EnsureIndicatorLists(profile)
     MigrateAccentColorDefault(profile)
     MigrateHideBlizzardSwitches(profile)
     MigrateUnitFrameTexts(profile)
+    MigrateUnitFrameNicknames(profile)
 end
 
 -- Print with addon prefix

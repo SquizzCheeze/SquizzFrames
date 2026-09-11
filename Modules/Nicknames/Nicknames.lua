@@ -87,9 +87,42 @@ local synced = {}
 --
 -- Keyed by UNIT TOKEN, deliberately, not by button: the secure header
 -- reassigns unit tokens across buttons on every re-sort, so anything cached
--- per-button goes stale silently under sortByRole. A unit token's meaning
--- only changes when the ROSTER changes, which is exactly when we wipe.
+-- per-button goes stale silently under sortByRole. A GROUP token's meaning
+-- only changes when the roster changes, which is exactly when we wipe.
 local resolveCache = {}
+
+-- ...but NOT every token works that way, and assuming they all did produced a
+-- real bug in a Mythic+ (user report 2026-09-11): every target on a group
+-- member's frames showed one player's nickname for the entire dungeon, and
+-- came right the moment the key ended.
+--
+-- "target" is a stable STRING whose meaning changes every time you click
+-- something. Resolve one target that has a nickname on file, memoise it under
+-- the key "target", and every later target reads that same entry -- and
+-- nothing invalidates it, because no roster change happens inside a key. The
+-- fix at the end of the run was the zone change firing PLAYER_ENTERING_WORLD.
+--
+-- So these tokens are simply never cached. The cache exists to survive
+-- identity going secret MID-FIGHT on a frame whose unit is fixed for the
+-- pull; a token that is repointed by a mouse click has no such invariant to
+-- protect, and the failure mode of not caching it (the nickname drops back to
+-- the real name while the name is secret) is strictly better than the failure
+-- mode of caching it (confidently showing somebody else's name).
+--
+-- Matched by PREFIX so "boss1".."boss8", "arena1".. and "nameplate1".. are all
+-- covered without listing them, and "targettarget"/"focustarget" fall out of
+-- the "target"/"focus" entries for free.
+local VOLATILE_TOKEN_PREFIXES = {
+    "target", "focus", "mouseover", "boss", "arena", "nameplate", "softenemy",
+    "softfriend", "softinteract",
+}
+
+local function IsVolatileToken(unit)
+    for _, prefix in ipairs(VOLATILE_TOKEN_PREFIXES) do
+        if unit:sub(1, #prefix) == prefix then return true end
+    end
+    return false
+end
 
 local playerFullName        -- "Name-NormalizedRealm", set in OnEnable
 local playerRealm           -- GetNormalizedRealmName(), cached alongside it
@@ -283,11 +316,18 @@ function N:Resolve(unit)
     local n = GetDB()
     if not n or not n.enabled then return nil end
 
-    local cached = resolveCache[unit]
-    if cached ~= nil then
-        -- `false` is the memoised "no nickname" answer; distinct from nil,
-        -- which means "not yet resolved".
-        return cached or nil
+    -- See IsVolatileToken: a token that is repointed by a mouse click must not
+    -- be memoised, or the first nickname it ever resolves becomes every later
+    -- unit's name.
+    local cacheable = not IsVolatileToken(unit)
+
+    if cacheable then
+        local cached = resolveCache[unit]
+        if cached ~= nil then
+            -- `false` is the memoised "no nickname" answer; distinct from nil,
+            -- which means "not yet resolved".
+            return cached or nil
+        end
     end
 
     local name, realm = UnitName(unit)
@@ -311,7 +351,9 @@ function N:Resolve(unit)
     end
 
     local nick = Lookup(full, name)
-    resolveCache[unit] = nick or false
+    if cacheable then
+        resolveCache[unit] = nick or false
+    end
     return nick
 end
 

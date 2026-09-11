@@ -255,12 +255,21 @@ local function FormatToken(unit, token)
         -- returns a plain string or nil and the two never blend -- see
         -- Nicknames.lua's header for why `nickname or name` is a crash.
         --
-        -- Resolve is unit-agnostic (it matches on name/realm, not on token),
-        -- so this works for "player" too: a nickname you have set for yourself
-        -- shows on your own frame. Purely cosmetic and local -- nothing about
-        -- this changes what anybody else sees.
+        -- THE PLAYER FRAME ONLY, and that is now structural rather than a
+        -- default anyone can flip (user request 2026-09-11). Resolve is
+        -- unit-agnostic -- it matches on name and realm, not on token -- so
+        -- it happily answered for "target" and "boss1" as well, and the
+        -- options page has only ever offered the checkbox on the player
+        -- frame, which left every other frame quietly running on a saved
+        -- `useNicknames = true` nobody could see or turn off.
+        --
+        -- Scoping it here rather than per-frame keeps the rule in one place:
+        -- a nickname is for yourself or for people in your group, and the
+        -- group case is already served by the party/raid frames' own nameText
+        -- indicator. The stale `useNicknames` key on the other frames is
+        -- purged by Core.lua's MigrateUnitFrameNicknames.
         local t = GetFrameConfig(unit)
-        if not t or t.useNicknames ~= false then
+        if unit == "player" and (not t or t.useNicknames ~= false) then
             -- COLON call. N:Resolve(unit) is N.Resolve(N, unit); writing
             -- N.Resolve(unit) passes the token as `self`, leaves `unit` nil,
             -- and the function's own nil-guard then returns nil every single

@@ -333,12 +333,15 @@ local function SecFrame(host, y, cfg, t)
     cbEnable:SetPoint("TOPLEFT", 15, y)
     y = y - 28
 
-    -- Player frame only. A nickname is something you set for YOURSELF or for
-    -- people in your group, and the group case is already served by the party
-    -- frames -- offering it on target/focus/boss would be a control that
-    -- almost never has anything to resolve. The setting still exists on every
-    -- frame's table (see UnitFrames_Defaults.lua) and FormatToken still reads
-    -- it; only the control is scoped.
+    -- Player frame only, and the SCOPE IS NOW REAL, not just a hidden
+    -- control. A nickname is something you set for yourself or for people in
+    -- your group, and the group case is already served by the party frames.
+    --
+    -- It used to be that only this checkbox was scoped while the setting sat
+    -- on every frame's table defaulting to on, and FormatToken honoured it
+    -- everywhere -- so target/focus/boss silently resolved nicknames with no
+    -- way to say otherwise. FormatToken now refuses outside "player", the
+    -- default is set on this frame alone, and Core.lua purges the leftovers.
     if activeUnit == "player" then
         local cbNick = W.CreateStyledCheckbox(host, L["Use Nicknames"] or "Use Nicknames",
             function() return t.useNicknames ~= false end,

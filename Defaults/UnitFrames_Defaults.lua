@@ -160,9 +160,18 @@ local function DefaultFrame(opts)
 
         -- Show nicknames in the "name" text token instead of the real name.
         -- Purely cosmetic and entirely local -- it changes nothing anybody
-        -- else sees, and it works on your own player frame too (Nicknames'
-        -- Resolve matches on name/realm, not on unit token).
-        useNicknames = true,
+        -- else sees.
+        --
+        -- THE PLAYER FRAME ONLY, which is why this is opt-in per frame rather
+        -- than a flat `true`: Nicknames' Resolve matches on name and realm and
+        -- knows nothing about tokens, so it answered just as happily for
+        -- "target" and "boss1" -- and since the options page only ever offered
+        -- the checkbox on the player frame, every other frame ran on a saved
+        -- `true` that nobody could see or switch off. UnitFrames.lua's
+        -- FormatToken now enforces the scope as well, so this key is
+        -- meaningless anywhere else and Core.lua purges it from existing
+        -- profiles (MigrateUnitFrameNicknames).
+        useNicknames = opts.useNicknames == true or nil,
 
         -- Out-of-combat fade. Deliberately per-frame: a player frame you want
         -- to disappear when idle is a common ask, a target frame is not.
@@ -566,8 +575,10 @@ profile.unitFrames = {
     },
 
     frames = {
+        -- useNicknames is set HERE and nowhere else -- see DefaultFrame.
         player       = DefaultFrame{anchorX = -260, anchorY = -180, castBar = true,
-                                    healthFormat = "healthBoth"},
+                                    healthFormat = "healthBoth",
+                                    useNicknames = true},
         target       = DefaultFrame{anchorX =  260, anchorY = -180, castBar = true,
                                     buffs = "topleft", debuffs = "bottomleft",
                                     healthFormat = "healthBoth"},

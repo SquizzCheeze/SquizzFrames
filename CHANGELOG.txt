@@ -2,6 +2,27 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.19 (2026-09-11)
+------------------
+
+Fixed:
+
+- Every target could show the same person's nickname for a whole dungeon.
+  Nickname lookups were remembered against the unit token, and "target" is a
+  token whose meaning changes every time you click something - so the first
+  target that had a nickname on file became the name shown for every target
+  after it. Nothing cleared it inside a key, which is why it came right only
+  when the run ended and the zone changed. Tokens that get repointed during
+  play - target, focus, their targets, boss and arena frames - are no longer
+  remembered that way.
+
+- Nicknames no longer apply to any unit frame except your own. The checkbox
+  was only ever offered on the player frame, but the setting existed on every
+  frame and defaulted to on, so target, focus and boss frames resolved
+  nicknames with no way to say otherwise. The leftover setting is removed from
+  those frames on load; your player frame keeps whatever you had.
+
+
 V1.18 (2026-09-10)
 ------------------
 
