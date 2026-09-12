@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**SquizzFrames** is a World of Warcraft (Mainline/Retail, API 12.1) unit frame addon for party frames. It uses the **Ace3** framework and follows patterns from **Cell** and **DandersFrames** for secure frame handling, indicator systems, and click-casting.
+**SquizzFrames** is a World of Warcraft (Mainline/Retail, API 12.1) unit frame addon. It began as party frames and now also covers raid frames, pet frames, standalone unit frames (player/target/ToT/focus/focustarget/boss), a resource bar, a tank tracker and nicknames. It uses the **Ace3** framework and follows patterns from **DandersFrames** and **EllesmereUI** for secure frame handling, indicator systems and click-casting.
+
+⚠️ **Do not use Cell as a reference.** It is cited historically throughout this file for the shape of the indicator system, which is still accurate, but its code is outdated for 12.1 and following it will lead you wrong on anything aura-related. Prefer, in order: Blizzard's own source (`Gethe/wow-ui-source` — **check the branch**, `ptr` and `ptr2` are different patches), then DandersFrames, then EllesmereUI.
 
 - **AddOn Name**: SquizzFrames
 - **SavedVariables**: `SquizzFramesDB` (AceDB-3.0 profiles)
@@ -56,11 +58,15 @@ SquizzFrames/
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API
     ├── UnitFrames/          # Standalone single-unit frames (player/target/ToT/focus/focustarget/boss) — cast bars, portraits, auras, icons and absorbs all present; arena still to come
     │   ├── UnitFrames.lua      # Engine: fixed-token frames, health/power/4 text elements (name/health/power/level), movers, derived-unit poll
+    │   ├── CastBar.lua         # Per-frame cast bar; loaded BEFORE UnitFrames.lua, which reads SquizzFrames.UnitFrameCastBar
+    │   ├── Portrait.lua        # 2D/3D portraits
+    │   ├── Auras.lua           # Buff/debuff rows on AuraEngine; style keys are PER UNIT AND KIND (see AE.styles namespacing below)
     │   ├── Icons.lua           # Combat + leader state icons (anchor/offset/size/tint), secret-safe booleans
     │   ├── Absorbs.lua         # Shield + heal-absorb health-bar overlays; values go straight to SetValue, never touched in Lua
     │   ├── Highlights.lua     # Hover/target/aggro borders; borrows BuiltIn_Update's factory + Check functions, own per-frame settings, renders in the preview
-    │   ├── Dispels.lua        # Dispel overlay + icon; REUSES AEI.CreateDispelsIndicator with a translated settings table rather than reimplementing it
+    │   ├── Dispels.lua        # Dispel overlay AND the separate dispel-icons indicator; REUSES the party AEI factories with a translated settings table (see AE.styles namespacing below)
     │   ├── ResourceBar.lua     # Standalone movable player power + secondary-resource points; NOT gated on unitFrames.enabled
+    │   ├── Preview.lua         # The options page's 1:1 mock frame — renders through the REAL formatters/painters, never a second copy of them
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames
     ├── PetFrames/           # Party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame
@@ -154,6 +160,40 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 - Profile callbacks: `OnProfileChanged`, `OnProfileCopied`, `OnProfileReset` → `RefreshProfile()` migrates layout/indicators from defaults if missing
 - **Healer preset**: `SquizzFrames.ApplyHealerPreset()` enables/configures key healer indicators
 
+#### A profile is a DEEP COPY of the defaults, not an AceDB metatable overlay
+
+This is the single most important thing to know before changing any default
+value, and it is the opposite of how stock AceDB-3.0 behaves. `ProfileStore`'s
+`DeepFillDefaults` (plus the backfills in `Core.lua`'s `EnsurePetFramesDefaults`)
+**materialise the whole tree into the saved profile**. There is no live link
+back to `SquizzFrames.defaults` afterwards.
+
+So: **changing a default in `Defaults/` reaches nobody who has already run the
+addon.** Their saved table already holds the old value. A fresh install picks it
+up; everyone else sees no change at all, reports "it didn't work", and is right.
+
+If the user asks to *change a default* and means it to be visible, it takes two
+edits, not one:
+
+1. the default itself (and every code-side `or <fallback>` that shadows it —
+   there are usually three or four: the defaults table, the module's own
+   fallback, and each options panel's getter fallback. Grep the key name and
+   fix every hit, or the panel will display one value while the frame renders
+   another)
+2. a migration in `Core.lua` that rewrites **only the exact old default**, so a
+   deliberately-chosen value is never stamped on
+
+**Migrations that move a default need a ONE-SHOT FLAG, not value detection.**
+The older migrations in that file (`MigrateDispelsShape`, `MigrateAccentColorDefault`
+…) safely re-run on every profile load because the shape they detect is
+unreachable once converted. A *default move* is not like that: the old value
+usually stays perfectly choosable from the same slider, so a value-detecting
+migration would silently undo the user's choice on the next reload — the
+"setting won't stick" bug this project keeps re-inventing. See
+`MigrateUnitFrameAuraDuration` (`unitFrames.auraDurationCentred`) and
+`MigrateDispelGradientHeight` (`profile.dispelGradientHeightFull`), both
+2026-09-11, for the pattern.
+
 ### 7. 12.1 AuraEngine Subsystem (AuraEngine.lua / AuraEngineIndicators.lua)
 
 **Why this exists**: on 12.1, `UNIT_AURA` payloads and `AuraData` structs are **fully secret while auras are secret** (i.e. during combat/encounters) — this is an official Blizzard change, not a bug. A manual `C_UnitAuras.GetAuraDataByIndex` scan (the legacy pipeline) doesn't get flaky in combat, it **permanently** stops seeing anything applied after combat started, for the rest of the encounter. `SecureAuraHeaderTemplate` itself was removed from Mainline in 12.1. The only sanctioned fix is Blizzard's managed `AuraContainer` API, which renders aura icons/cooldowns/text C-side without ever exposing the secret data to addon Lua at all.
@@ -177,6 +217,7 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 - `AE.Filter(...)` — canonicalizes filter token order (base polarity first, then alphabetical, negated tokens sort by bare name). **Required**, not cosmetic: the engine batches aura parsing per container by *exact byte-identical filter string*, so two groups with equivalent-but-differently-ordered tokens silently don't share a scan.
 
 **Hard rules learned building this (violate these and you get silent failures or "attempt to access forbidden object" errors, not compile errors)**:
+- **`AE.styles` is ONE GLOBAL TABLE keyed by string, so a style key is a shared namespace — last write wins, for everybody using that key.** That is correct for a party/raid indicator, where every button genuinely reads one settings table. It is wrong the moment a *second owner with different settings* builds on the same keys, and the symptom points nowhere near the cause: the settings apply, then something unrelated rebuilds and silently overwrites them. The unit frames' Dispels shared `dispels_<type>` with the party indicator, so picking Gradient on a unit frame rendered the party list's `fill` at the party list's opacity, and only after the next party rebuild (user report 2026-09-10). Fixes in place: `Auras.lua` keys per unit AND kind; `AEI.CreateDispelsIndicator`/`CreateDispelIconsIndicator` take `t._sfStyleNS` and the unit frames pass `"uf_<unit>_"`. **Any new caller of a shared AEI factory must claim a namespace**, and an absent one must keep the original keys byte-identical so the party path is untouched.
 - **No API calls on an AuraContainer-managed button outside `initializeFrame`/`extraInit`, full stop**, once its aura is secret (12.1 PTR5 change). This is broader than just Show/Hide — covers `SetFrameStrata`, `SetFrameLevel`, `SetDurationBar`, etc. Every `slotButton:Set*` call in this codebase happens inside an `extraInit`/`initializeFrame` callback for exactly this reason.
 - **No `SetScript`/`HookScript` on a group/slot button** — breaks the engine's own secret-aspect Show/Hide wiring.
 - **Can't read a slot/group button's `IsShown()`** — and it is worse than "secret". The *call itself* is refused: `kid:IsShown()` raises `Attempt to access forbidden object from code tainted by an AddOn`, so guarding it with a secret-probe (`IsSecret(v)` on the result) cannot help — nothing is ever returned to probe. Even `c[methodName]` on a container carrying a forbidden aspect can raise, so the table index has to sit *inside* the `pcall`, not before it. Never build telemetry/debugging around polling button state. (Learned the hard way porting a co-tank tracker into Squizzumables, 2026-09-08: four separate diagnostic crashes, each one a "fix" for the previous misdiagnosis.)
@@ -192,6 +233,7 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 **Preview/Designer limitations** — the options panel's live preview button can't get real aura data into an AuraContainer (it's driven entirely by the C-side engine bound to a real unit; there's no way to inject fake `AuraData`):
 - Every migrated indicator instead renders a **fallback row of static icon frames** (`CreateFallbackIconRow` in `AuraEngineIndicators.lua`) sized/laid out to match the real container, using representative spell icons pulled from the indicator's own effective spell list where one exists (healerHots, cooldowns), or generic placeholders (debuffs, CC).
 - The preview's container is either **never created at all** (healerHots/cooldowns/debuffs/CC — `isPreview` skips `AE.RequestContainer` entirely) or **bound to a deliberately-invalid unit token** (dispels — `"squizzframespreviewfake"`) — both approaches were needed because a first attempt (binding to the preview button's real `"player"` unit) leaked real casts into the preview while it was open.
+- **Duration and stack text are mocked too**, not just the icons — both are engine-drawn on a real button, so neither appears in a preview by default, and a user cannot place text they cannot see (asked for twice: party 2026-08-13, unit frames 2026-09-11). `AEI.ApplyMockDurationText`/`ApplyMockStackText` style them from the same `style.duration*`/`style.stack*` fields `ApplyStyleToRegions` reads. **The same constraint applies to any new preview**: `UnitFrames/Preview.lua` is a separate mock with the same problem, and calls the same two helpers rather than growing its own copy.
 
 **Boss "Private Aura" debuffs are handled by the engine itself.** They used to need a separate indicator built on `C_UnitAuras.AddPrivateAuraAnchor` (an older, unrelated API that Blizzard has always hidden from addon aura scanning). On 12.1 the AuraContainer engine registers for them natively (`AuraContainerPrivateMixin` / `C_UnitAurasPrivate.AddPrivateAuraUpdateCallback`), so that indicator was removed on 2026-08-13 — module, defaults, settings and profile entries. Don't re-add it; if boss private auras ever stop appearing, the fault is in the container binding, not in a missing anchor indicator.
 
@@ -221,6 +263,13 @@ There is **no automated test suite**. Development is done by:
 
 ### Releasing
 Tagging is what publishes — pushes to `main` never reach CurseForge.
+
+**The top `CHANGELOG.txt` section stays OPEN (undated, no TOC bump) until the
+user says to ship.** Work lands on `main` under that open heading, possibly
+across several commits and days; closing it is step 2 below and part of
+tagging, not part of finishing a change. Adding the `RELEASE_NOTES` entry early
+is fine and saves a step — it's keyed by version string, so it does nothing
+until the TOC says that version.
 
 1. Add a `RELEASE_NOTES["<version>"]` entry in `Modules/Welcome/Welcome.lua` --
    a few player-facing highlights, NOT a copy of the changelog. An addon
@@ -289,305 +338,23 @@ panel (see `LayoutPanel.IsRaidTab`, which mirrors `IndicatorsPanel.IsRaidTab`).
 ### Do not write code containing backslashes with sed/perl
 
 Inserting Lua through `perl -0pi -e` mangles backslashes. A font path written
-as `Fonts\FRIZQT__.TTF` in the one-liner arrived in the source as
-`"Fontsrizqt__.ttf"` -- a single backslash, which lua treats as the invalid
-escape `` and silently strips, yielding `fontsfrizqt__.ttf` and a runtime
-*"invalid font asset"*. it does not fail at load, so it surfaces only when that
-line actually runs.
+as `Fonts\FRIZQT__.TTF` in the one-liner arrived in the source with a single
+backslash, which Lua then read as an invalid escape and silently stripped,
+yielding a bad path and a runtime *"invalid font asset"*. It does not fail at
+load, so it surfaces only when that line actually runs.
 
-use the edit/write tool for any code containing ``, `%`, or `# claude.md
+**The commit that added this very section is the proof.** It was written with a
+shell one-liner, and the backslash in its own example text ate the rest of the
+edit: a lowercased copy of the ENTIRE document was spliced into the middle of
+the file, 300 lines of it, and the section's closing sentence was cut off
+mid-word. It was committed that way (`22696ee`) and sat corrupted until
+2026-09-12. Nothing warned; the file is Markdown, so nothing could.
 
-this file provides guidance to claude code (claude.ai/code) when working with code in this repository.
+Use the Edit/Write tool for any content containing a backslash, `%`, or `$` --
+source or prose. The same care applies to XML comments (below); both of the
+bugs that produced these two sections came from shelling out to edit text.
 
-## project overview
-
-**squizzframes** is a world of warcraft (mainline/retail, api 12.1) unit frame addon for party frames. it uses the **ace3** framework and follows patterns from **cell** and **dandersframes** for secure frame handling, indicator systems, and click-casting.
-
-- **addon name**: squizzframes
-- **savedvariables**: `squizzframesdb` (acedb-3.0 profiles)
-- **slash command**: `/sf` ( `/squizz` is taken by squizzumables)
-- **key bindings**: click-casting via secure attributes
-- **runtime 12.1 branch**: the addon ships on 12.1 and runs its feature-flagged 12.1 auracontainer code path (`squizzframes.is_121`); the legacy pre-12.1 path is still present but unreachable — see [12.1 auraengine subsystem](#7-121-auraengine-subsystem-auraenginelua-auraengineindicatorslua) below before touching anything aura-related.
-
----
-
-## architecture
-
-### core structure
-
-```
-squizzframes/
-├── core.lua                 # addon bootstrap, ace3 lifecycle, db, module registry
-├── utils.lua                # shared helpers (colors, numbers, spells, click-cast spells, squizzframes.is_121 build-gate flag)
-├── squizzframes.toc         # load order: libs → core → utils → defaults → media → hideblizzard → options → modules → compat
-├── libs/                    # embedded libraries (ace3, libsharedmedia, libcustomglow, libdeflate, libserialize, librangecheck)
-├── media/                   # fonts, textures, icons, flipbooks
-├── defaults/                # layout, appearance, indicator, clickcasting defaults (db-side data)
-├── locales/                 # enus.lua (acelocale-3.0)
-├── compat/
-│   └── blizzicompat.lua     # optional integration: registers squizzframes with blizzi_interrupts' unit-frame resolver
-├── hideblizzard.lua         # one master switch (general.hideblizzardframes) hiding every blizzard frame we replace, gated per-frame on ours being enabled
-└── modules/
-    ├── loadmodules.xml      # loads partyframes, indicators (incl. auraengine), clickcasting, options
-    ├── partyframes/         # secure group header + unit buttons (party1-4 + player)
-    │   ├── partyframes.lua  # layout, anchoring, growth, edit mode, sizing
-    │   ├── layoutpanel.lua  # the "layout" options page; split out of optionsframe 2026-09-10 (publishes israidtab for the shared group preview)
-    │   ├── unitbutton.lua   # secure button onload, click-casting hooks
-    │   └── unitbutton.xml   # secureunitbuttontemplate + health/power bars, texts, icons
-    ├── indicators/          # cell-style indicator system (built-in + custom) + 12.1 auraengine
-    │   ├── indicators.lua        # registry, runtime, applysettingtoone, preview, built-in-vs-auraengine dispatch
-    │   ├── auraengine.lua         # 12.1 only: shared auracontainer/addauragroup/addauraslot engine (styles, combat-safe container creation, restyle scheduler)
-    │   ├── auraengineindicators.lua # 12.1 only: healerhots/externalcooldowns/defensivecooldowns/debuffs/ccindicator/dispels + custom color/bar, built on auraengine
-    │   ├── aurabuttontemplate.xml # empty virtual "customaurabuttontemplate" — must exist by this exact name for auracontainer buttons to create at all
-    │   ├── builtin_update.lua    # legacy built-in update functions (healthtext, manual aura scan for debuffs/dispels/etc — still the pre-12.1 fallback)
-    │   ├── indicatordefaults.lua  # module-side re-export accessor for defaults/indicator_defaults.lua (not the same file — see data structures)
-    │   ├── indicatorwidgets.lua   # custom indicator frame factories (legacy scan-based) + shared setting widgets
-    │   ├── custom_dispatch.lua    # legacy aura scanner + per-type dispatch (still used for trackbyname customs, text/icon customs, and all customs pre-12.1)
-    │   └── indicatorspanel.lua    # options ui for indicators
-    ├── welcome/            # first-run greeting + per-version release notes; release_notes table is a manual per-release step (see releasing)
-    ├── tanktracker/         # per-tank frame: boss/role debuffs above, defensives below; own auraengine rows, plain (non-secure) frames
-    │   ├── tanktracker.lua      # engine: tank discovery (secret-safe, fail-closed on identity), stacking, aura rows, mover
-    │   └── tanktrackerpanel.lua # options page ("tanktracker" nav entry); shell over profile.tanktracker
-    ├── nicknames/           # display-name replacement (private list + group-synced)
-    │   ├── nicknames.lua       # storage, secret-safe resolution cache, acecomm-free addon-message sync, /sf nick
-    │   └── nicknamespanel.lua  # options page ("nicknames" nav entry); pure shell over the module's public api
-    ├── unitframes/          # standalone single-unit frames (player/target/tot/focus/focustarget/boss) — cast bars, portraits, auras, icons and absorbs all present; arena still to come
-    │   ├── unitframes.lua      # engine: fixed-token frames, health/power/4 text elements (name/health/power/level), movers, derived-unit poll
-    │   ├── icons.lua           # combat + leader state icons (anchor/offset/size/tint), secret-safe booleans
-    │   ├── absorbs.lua         # shield + heal-absorb health-bar overlays; values go straight to setvalue, never touched in lua
-    │   ├── highlights.lua     # hover/target/aggro borders; borrows builtin_update's factory + check functions, own per-frame settings, renders in the preview
-    │   ├── dispels.lua        # dispel overlay + icon; reuses aei.createdispelsindicator with a translated settings table rather than reimplementing it
-    │   ├── resourcebar.lua     # standalone movable player power + secondary-resource points; not gated on unitframes.enabled
-    │   ├── unitframebutton.xml # squizzframesunitframetemplate
-    │   └── unitframespanel.lua # options page ("unitframes" nav entry); shell over profile.unitframes
-    ├── petframes/           # party/raid pet frames (attached to the owner's button, or a free-floating group), plus the standalone player's-own-pet frame
-    │   └── petframespanel.lua  # options page ("petframes" nav entry); split out of optionsframe 2026-09-10 to escape its lua ceilings
-    │   ├── petframes.lua       # layout/anchoring/edit mode, roster + unit events, refreshborders
-    │   └── petbutton.lua       # secure pet button onload + petbutton_applyborders
-    ├── clickcasting/        # cell-style click-casting on secureactionbuttontemplate
-    │   ├── clickcasting.lua   # binding parser, attribute writer, proxy for 12.0.7 click-gate + separate 12.1 macro-transport proxy
-    │   └── clickcastingpanel.lua # options ui
-    └── options/
-        ├── options.lua      # aceconfig fallback table (for /sf)
-        ├── optionsframe.lua # custom options panel (tabbed: general, layout, appearance, click casting, indicators)
-        └── widgets.lua      # custom styled widgets (sliders, dropdowns, checkboxes, buttons)
-```
-
-### load order (from `.toc`)
-
-1. **libs/loadlibs.xml** — libstub → callbackhandler → ace3 (addon, event, timer, db, config, hook, comm, console, locale, gui) → libsharedmedia, libcustomglow, librangecheck, libdeflate, libserialize
-2. **locales/loadlocales.xml** — enus
-3. **core.lua** — addon object, db, module registry, slash commands
-4. **utils.lua** — shared helpers, sets `squizzframes.is_121`
-5. **defaults/loaddefaults.xml** — layout, appearance, indicator, clickcasting defaults
-6. **media/loadmedia.xml** — fonts, textures
-7. **hideblizzard.lua** — hide default frames
-8. **modules/options/options.lua** — aceconfig table (fallback)
-9. **modules/options/widgets.lua** — custom widgets
-10. **modules/options/optionsframe.lua** — custom options panel
-11. **modules/loadmodules.xml** — loads partyframes, indicators (`indicators.lua` → `indicatordefaults.lua` → `auraengine.lua` → `auraengineindicators.lua` → `builtin_update.lua` → `custom_dispatch.lua` → `indicatorwidgets.lua` → `indicatorspanel.lua`), clickcasting modules, nicknames (after indicators — it refreshes names through `nametext`'s `_sfnameupdater`)
-12. **compat/blizzicompat.lua** — optional third-party integration, patches itself in on `player_login` if `blizzi_interrupts` is present
-
----
-
-## key architectural patterns
-
-### 1. module system (aceaddon-3.0)
-```lua
--- in core.lua
-local squizzframes = libstub("aceaddon-3.0"):newaddon("squizzframes", "aceevent-3.0", "acetimer-3.0", "acehook-3.0", "acecomm-3.0", "aceconsole-3.0")
-_g["squizzframes"] = squizzframes
-
--- modules register via:
-local mymodule = squizzframes:newmodule("modulename", "aceevent-3.0")
-
--- cross-module messaging (callbackhandler):
-squizzframes:fire("messagename", arg1, arg2)  -- broadcasts to all modules registered for it
-self:registermessage("messagename", function(_, arg1, arg2) ... end)
-```
-**critical**: each module registers messages on **itself** (`self:registermessage`), not on the addon root. otherwise multiple modules listening to the same message would collide (same `self` = squizzframes).
-
-### 2. secure frames & combat lockdown
-- unit buttons use `secureunitbuttontemplate` + `securegroupheadertemplate`
-- **all secure attribute changes** (layout, click-casting, indicators on secure frames) must happen **out of combat**
-- `incombatlockdown()` guards + `c_timer.after(0.5, retry)` pattern throughout
-- `player_regen_enabled` used to flush deferred work
-- 12.1 auraengine has its own parallel combat-safe patterns: `ae.requestcontainer` queues container creation until `player_regen_enabled` (container creation itself hard-errors in combat by blizzard design), and `ae.restylesoon`'s time-sliced restyler simply stops ticking (not errors) while `incombatlockdown()` and resumes on its own after combat
-
-### 3. layout system (partyframes.lua)
-- **single container** (`squizzframespartyframe`) anchored `center→center` to `uiparent` with saved `anchorx/anchory` (pixels from screen center, scaled by ui scale)
-- **secure header** (`squizzframespartyheader`) anchored `center→center` inside container — drives **party/solo only**
-- **raid uses eight headers instead**, `squizzframesraidgroupheader1..8`, one per subgroup (`groupfilter="1".."8"`). a `securegroupheadertemplate` allows exactly one `groupby`, and with `groupby` set the within-bucket order can only be name or raid index (`sortmethod="namelist"` is ignored in that branch — read from blizzard's `securegroupheaders.lua`), so a single header can give subgroup columns **or** role sorting, never both. narrowing each header to one subgroup first makes `groupby="assignedrole"` sort *within* the group. same structure dandersframes uses. key functions: `createraidgroupheaders` (creation, must be out of combat), `layoutraidgroupheaders` (attributes + block placement — replaces the old `columnanchorpoint`/`columnspacing`/`maxcolumns` approach), `hideraidgroupheaders`, `censusraidgroups` (roster-based populated-group census + slot assignment), `activeheaders`/`foreachheaderbutton` (every button walk goes through these — never `ipairs(header)` directly)
-- `partybuttonswired` fires **once per active header** (8× in a raid); listeners that walk `ipairs(header)` therefore work unchanged, but anything caching the payload must keep a set (see `clickcasting.lua`'s `headerframes`)
-- attribute writes only take effect while a header `isvisible()` — `securegroupheader_onattributechanged` early-returns otherwise, and `onshow` is wired straight to `securegroupheader_update`. **always set attributes first, `show()` last**
-- **growth directions**: `down`, `up`, `right`, `left`, `center_h`, `center_v`
-- **raid has a second, independent direction**: `layout.raid.groupgrowthdirection` places the subgroup blocks (`growthdirection` only ever describes units *within* one block). it takes the same tokens, restricted to whichever axis the blocks sit on — that axis is the perpendicular of the unit axis, and `partyframes.raidgroupsalongx(layout)` is the single source of truth for it (the layout tab's group growth dropdown calls it so its offered options can't drift from `layoutraidgroupheaders`' placement). a `center_*` value straddles the container's anchor point instead of growing from it, measured on the **populated** group count so empty groups don't push the block off-centre. any value belonging to the other axis is treated as the default direction, so flipping orientation can never produce a broken layout; the options panel maps it across (`group_growth_across`) to preserve intent.
-- **container auto-sizes** to visible buttons via `sizecontainertobuttons()` — no empty draggable strip
-- **edit mode** uses a non-secure **mover frame** (`mover:setallpoints(container)`) on top — secure buttons swallow clicks, so drag must be on a separate frame
-
-### 4. indicator system (indicators.lua)
-- mirrors **cell's** indicator architecture
-- **built-in indicators** (25 defaults, `indicatordefaults.built_in_count`): nametext, healthtext, powertext, statustext, statusicon, roleicon, leadericon, playerraidicon, aggroblink, aggroborder, shieldbar, externalcooldowns, defensivecooldowns, debuffs, ccindicator, dispels, missingbuffs, healerhots, shieldoverlay, healabsorb, targethighlight, hoverhighlight, frameborder, dispelicons, phasedicon
-  - adding one means four places, not one: an entry in `defaults/layout_defaults.lua` (both `indicatorindices` and `profile.layout.indicators`), a bump to `built_in_count` plus name/settings entries in `modules/indicators/indicatordefaults.lua`, a category in `indicatorspanel.lua`'s `indicator_category`, and the create/check wiring in `builtin_update.lua`. existing profiles pick it up automatically — `core.lua`'s `migratemissingbuiltins` adds any default entry the profile lacks, matched **by name**, for both the party and raid lists.
-- **custom indicators** created by user via options; stored in `profile.layout.indicators` array
-- **runtime**: `indicatorlist` = current profile's indicator array
-- **per-button**: `button.indicators[name]` = frame; `button._indicatorsready` flag guards custom dispatcher
-- **central callback**: `squizzframes:fire("updateindicators", indicatorname, setting, value, value2)` → applies to all buttons + preview
-- **aura scanning, two parallel pipelines**:
-  - **legacy** (all clients, and 12.1 fallback for anything not migrated): `custom_dispatch.lua` scans `unit_aura` via manual `c_unitauras.getauradatabyindex` iteration; dispatches by type (icons, bars, icons+counter, text). **broken in combat on 12.1+**: aura data is fully secret while auras are secret, so a scan started mid-combat permanently never sees anything applied after combat started (not intermittent — see the auraengine section below).
-  - **auraengine** (12.1 only, `squizzframes.is_121` gate): `auraengineindicators.lua` builds indicators on blizzard's managed `auracontainer` api instead, which renders c-side without ever exposing secret aura data to lua. `handleindicators` in `indicators.lua` picks per-indicator at creation time (see next section) — there's no global on/off switch, some indicators/custom types stay on the legacy path even on 12.1.
-
-### 5. click casting (clickcasting.lua)
-- bindings stored in `profile.clickcasting` as `{bindkey, modifier, type, action}`
-- written as **secure attributes** on each unit button:
-  - mouse buttons: `type1`, `macrotext1`, `spell1`, `item1` ... `type5`
-  - keyboard/wheel: `type-e`, `macrotext-e` (virtual click via `setbindingclick`)
-- **12.0.7 click-gate workaround**: `target`/`menu`/`togglemenu` on non-left/right or with modifiers are **gated** (silently fail). solution: route through a **click proxy** button (`secureactionbuttontemplate`, `useparent-unit=true`) via `click` + `clickbutton` attributes
-- **12.1 proxy transport changes**: a separate blizzard bug (`securetemplates.lua` checks forbidden aspects on the mouse-button *string* instead of the delegate frame, and throws) breaks the 12.0.7 `clickbutton`-attribute proxy transport on 12.1. `routeproxyaction` branches on `squizzframes.is_121`: pre-12.1 keeps the `clickbutton`-attribute transport; 12.1+ instead sets `macrotext = "/click " .. proxyname"` (requires the proxy to have a **global name**, unlike the anonymous pre-12.1 proxy) — mirrors ellesmereui's `ellesmereui_kick.lua` fix for the same bug.
-- **secure hover snippet** (`_onenter`/`_onleave`/`_onmousedown`) installs `setbindingclick` for keyboard/wheel keys on hover
-
-### 6. profile management (acedb-3.0)
-- `squizzframesdb` with `profile`, `char`, `global`
-- profile callbacks: `onprofilechanged`, `onprofilecopied`, `onprofilereset` → `refreshprofile()` migrates layout/indicators from defaults if missing
-- **healer preset**: `squizzframes.applyhealerpreset()` enables/configures key healer indicators
-
-### 7. 12.1 auraengine subsystem (auraengine.lua / auraengineindicators.lua)
-
-**why this exists**: on 12.1, `unit_aura` payloads and `auradata` structs are **fully secret while auras are secret** (i.e. during combat/encounters) — this is an official blizzard change, not a bug. a manual `c_unitauras.getauradatabyindex` scan (the legacy pipeline) doesn't get flaky in combat, it **permanently** stops seeing anything applied after combat started, for the rest of the encounter. `secureauraheadertemplate` itself was removed from mainline in 12.1. the only sanctioned fix is blizzard's managed `auracontainer` api, which renders aura icons/cooldowns/text c-side without ever exposing the secret data to addon lua at all.
-
-**backport strategy — read this before touching any aura-related indicator**: this was ported in as an *additive*, feature-flagged branch, not a replacement. everything auraengine-related is gated behind `squizzframes.is_121` (`utils.lua`, `(select(4, getbuildinfo()) or 0) >= 120100`) and goes fully inert (`if not squizzframes.is_121 then return end`) on a pre-12.1 client.
-
-**as of 2026-08-12 the pre-12.1 fallbacks are dead code** (per user instruction): 12.0.7 is no longer available, so no client can reach them, and they would no longer work if one did. leave them in place — they're inert and harmless, and removing them is pointless churn — but **do not spend effort keeping them correct**: don't mirror new features into them and don't bugfix them. this applies only to the `is_121`-gated fallback branches. the legacy `custom_dispatch.lua`/`builtin_update.lua` code that is still the only path on 12.1 for indicator types auraengine doesn't cover (`trackbyname` customs, `unitbutton`-anchor color customs, `icon`/`icons`/`text`/`texture` customs) is live, load-bearing code and does still matter.
-
-**what's migrated to auraengine on 12.1 today** (decided per-indicator in `indicators.lua`'s `handleindicators`, not a global switch):
-- built-ins: `healerhots`, `dispels`, `externalcooldowns`, `defensivecooldowns`, `debuffs`, `ccindicator`
-- custom indicator types: `color` (only when not `trackbyname` and anchor mode isn't `unitbutton`) and `bar` (only when not `trackbyname`)
-- **stays on legacy always**: `trackbyname` customs (auracontainer candidate filters are spellid-based, not name-based), `unitbutton`-anchor color customs, and every other custom indicator type (`icon`, `icons`, `text`, `texture`, etc.)
-- every migrated indicator's factory lives in `auraengineindicators.lua`; `indicators.lua` tries the auraengine factory first (`indicator._sftype` check) and falls back to the legacy `builtin.createbuiltinindicator`/`i.createcustomindicatorframe` if auraengine isn't available or returns nil
-
-**core engine pieces (`auraengine.lua`)**:
-- `ae.createcontainer(parent, unittoken, spec)` — builds a real `auracontainer` frame (`createframe("auracontainer", nil, parent, "customauracontainertemplate")`), declares groups (`addauragroup`, multi-icon grids) and slots (`addauraslot`, exactly-one-always-present overlays like dispel types or a single tracked spell), then `setunit` **last** (setting it before groups/slots are declared leaves `unit_aura` unregistered). asserts `not incombatlockdown()` — never call directly from anywhere that might run in combat.
-- `ae.requestcontainer(parent, unittoken, spec, callback)` — the actual call site everywhere else uses; fulfills immediately out of combat, otherwise queues until `player_regen_enabled`.
-- `ae.styles[stylekey]` + `ae.makeinitializer(stylekey, extra)` — a style is a plain table describing how a button should look; `makeinitializer` returns the `initializeframe` callback the engine calls **once per button, at creation time** (buttons are pre-created in batches of 10). this is the only place region creation + `seticon`/`setdurationcooldown`/`setapplicationcount`/`setdurationtext` registration may happen — see the ptr5 rule below.
-- `ae.restylesoon(stylekey)` — settings changes (size, colors, border, duration visibility) don't touch buttons synchronously; they queue the style key and a time-sliced `onupdate` restyler applies `applystyletoregions` to up to 200 buttons/frame, pausing entirely (not skipping/erroring) during combat.
-- `style.noregions = true` ("bare" styles) — used by dispels, custom color, and custom bar indicators, which don't want icon/cooldown/stack/duration regions at all, just a presence-driven host frame; all visuals are built by `style.applyextra` instead.
-- `ae.filter(...)` — canonicalizes filter token order (base polarity first, then alphabetical, negated tokens sort by bare name). **required**, not cosmetic: the engine batches aura parsing per container by *exact byte-identical filter string*, so two groups with equivalent-but-differently-ordered tokens silently don't share a scan.
-
-**hard rules learned building this (violate these and you get silent failures or "attempt to access forbidden object" errors, not compile errors)**:
-- **no api calls on an auracontainer-managed button outside `initializeframe`/`extrainit`, full stop**, once its aura is secret (12.1 ptr5 change). this is broader than just show/hide — covers `setframestrata`, `setframelevel`, `setdurationbar`, etc. every `slotbutton:set*` call in this codebase happens inside an `extrainit`/`initializeframe` callback for exactly this reason.
-- **no `setscript`/`hookscript` on a group/slot button** — breaks the engine's own secret-aspect show/hide wiring.
-- **can't read a slot/group button's `isshown()`** — and it is worse than "secret". the *call itself* is refused: `kid:isshown()` raises `attempt to access forbidden object from code tainted by an addon`, so guarding it with a secret-probe (`issecret(v)` on the result) cannot help — nothing is ever returned to probe. even `c[methodname]` on a container carrying a forbidden aspect can raise, so the table index has to sit *inside* the `pcall`, not before it. never build telemetry/debugging around polling button state. (learned the hard way porting a co-tank tracker into squizzumables, 2026-09-08: four separate diagnostic crashes, each one a "fix" for the previous misdiagnosis.)
-- **a diagnostic that touches this api must be defensive end to end**, because its failures land on the user mid-fight. wrap the whole dump in a `pcall`, print a terminator line so a truncated report is obvious (silence in a loop is indistinguishable from the loop never running), and remember `string.format("%s", …)` does **not** coerce a boolean in lua 5.1 — `isvisible()` returns one and it raises `string expected, got boolean`. also note a `print` of a string that has become secret emits **nothing at all** rather than erroring, so output can vanish without a traceback.
-- **addons cannot reparent aura buttons** (12.1 ptr6 ban). custom bar/color indicators create their visuals as children of the *same* slot button they're registered on (`applycustombarslotstyle`/`applycustomcolorslotstyle`) — never move them elsewhere.
-- **`addauraslot` locks onto its first matched instance** and doesn't reliably notice a reapplication/refresh. fixed by a periodic (1.5s) `container:updateallauras()` per registered slot-based wrapper (`slotrefreshticker`/`registerslotrefresh` in `auraengineindicators.lua`) — combat-legal, unlike a full container recreate.
-- **`customaurabuttontemplate` must exist, by that exact name, as an empty virtual template** (`aurabuttontemplate.xml`). blizzard's internal container code hardcodes an implicit inherit of a template literally named that, but never shipped one — omit it and `addauragroup`/`addauraslot` fails with "couldn't find inherited node". xml `<layers>` children do not attach to `type="aurabutton"` nodes on this build — all region creation happens in lua via `initializeframe`, not xml.
-- **group/slot `layout.elementwidth/elementheight` only feeds the engine's flow-anchoring math**, not the button's actual rendered size — you must `button:setsize(...)` yourself in the initializer. **this is the single most expensive thing on this list to get wrong**, because every symptom points somewhere else: the group attaches, `addauragroup` returns cleanly, the frame pool fills with buttons, candidate filters match, the container reports `visible=true` with its flow layout fully applied — and nothing appears, because the buttons are zero-sized. a co-tank tracker built in squizzumables (2026-09-08) died on exactly this and was abandoned after a session of chasing container sizing, `updateallauras`, flow-layout configuration and filter semantics, none of which were the fault. if icons do not render and everything looks correct, check the button size in the initializer first.
-- **spell-id candidate filters are silently skipped for a harmful aura on an assistable unit** — not applied and not rejected. `auracontainerutil.canapplyidentitycandidatefilters` returns true only for `auradata.ishelpful and unitisplayercontrolledorgroupmember(unittoken)`, so a harmful group with an `includespellids` whitelist shows **everything** while looking like it filters. the helpful side of this asymmetry is documented above under `noisefloormaxduration`; this is the other half. use `maxduration` or the boss/priority flags for debuff filtering, never a spell-id list.
-- **`setgradient` permanently breaks plain `setalpha`/`setcolortexture` alpha on that same texture object** afterward (confirmed by debugging — not documented). dispels' gradient overlay mode uses a dedicated second texture (`d.gradientoverlay`) rather than reusing `d.overlay`, so full/fill mode's plain alpha stays reliable regardless of gradient mode ever having run.
-- a ptr5 upstream bug: `setdurationtext`'s `textcolorcurve` option can hard-error and abort the whole button batch if the engine's c binding argument count doesn't match. `ae.setdurationtextsafe` tries with the curve, falls back to without it on failure — self-heals once blizzard fixes it upstream.
-
-**preview/designer limitations** — the options panel's live preview button can't get real aura data into an auracontainer (it's driven entirely by the c-side engine bound to a real unit; there's no way to inject fake `auradata`):
-- every migrated indicator instead renders a **fallback row of static icon frames** (`createfallbackiconrow` in `auraengineindicators.lua`) sized/laid out to match the real container, using representative spell icons pulled from the indicator's own effective spell list where one exists (healerhots, cooldowns), or generic placeholders (debuffs, cc).
-- the preview's container is either **never created at all** (healerhots/cooldowns/debuffs/cc — `ispreview` skips `ae.requestcontainer` entirely) or **bound to a deliberately-invalid unit token** (dispels — `"squizzframespreviewfake"`) — both approaches were needed because a first attempt (binding to the preview button's real `"player"` unit) leaked real casts into the preview while it was open.
-
-**boss "private aura" debuffs are handled by the engine itself.** they used to need a separate indicator built on `c_unitauras.addprivateauraanchor` (an older, unrelated api that blizzard has always hidden from addon aura scanning). on 12.1 the auracontainer engine registers for them natively (`auracontainerprivatemixin` / `c_unitaurasprivate.addprivateauraupdatecallback`), so that indicator was removed on 2026-08-13 — module, defaults, settings and profile entries. don't re-add it; if boss private auras ever stop appearing, the fault is in the container binding, not in a missing anchor indicator.
-
-**dev/debug harness**: `/sfauratest` (`auraengine.lua`) creates a real, throwaway `addauragroup` above the player's own button filtered to the healer spell list, to prove the pipeline end-to-end (including in combat) independent of any real indicator. marked in-code as a temporary phase 0 harness — fine to leave, but don't build new functionality on top of it.
-
-**coming in 12.1.5** (researched 2026-09-08 against `gethe/wow-ui-source` branch **`ptr2`**, build 69594 — that is the branch to check for this, not `live`). two breaking changes and several additions, all in this subsystem:
-
-- **breaking: `adddispeltypetexture` and `addpandemicregion` no longer return an index.** the matching `removedispeltypetexture` / `removepandemicregion` now take a **region reference** instead of an index, and **adding the same region twice raises an error** rather than being ignored. anything that captures the return value or removes by index needs updating; code that only adds, and adds a fresh region each time, is unaffected.
-- **breaking: `setcooldown`/`clear` cannot be called from tainted code when the cooldown frame itself is protected.** hooks are unaffected; only direct calls on a protected frame. cooldowns created by us on our own frames are fine.
-- **pandemic animations**: `addpandemicenteranimation` / `addpandemicactiveanimation` / `addpandemicleaveanimation`, each with a `remove*` and a `clear*animations`. *enter* is one-shot, *active* is for looping, *leave* fires on exit. blizzard drives them, so they work on secret auras — the obvious win for anything tracking refreshable debuffs. two **new forbidden aspects** come with them: `queryanimationprogress` (cannot ask whether an animation is running or how far along) and `addanimations` (cannot add or reparent animations), plus the existing `changeanimationtarget`. hand the group over and never inspect it afterwards.
-- **`setcastername(fontstring, options)`** on `customaurabutton` — who applied the aura, colourised by reaction or class. aura tooltips can show it too, gated on the new `tooltipshowauracasternames` cvar.
-- **`setapplicationbar(statusbar, options)` gains `minapplications`** — hide the bar until n stacks.
-- **`setauragroupenabled(groupkey, enabled)`**, `setauraslotenabled(slotkey, enabled)` and `setitemenchantmentenabled(slot, enabled)` on `customauracontainersharedmixin` — a live enable/disable, which is the sanctioned answer to "groups are add-only, a disabled group is `maxframecount` 0". worth revisiting that rule when this ships.
-- the container now refreshes on **`unit_flags` and `unit_faction`** (both in `fullaurarefreshevents`).
-- `seteditmodepreviewenabled` is listed in blizzard's own notes but i could **not** confirm it in the `ptr2` source — treat as unverified. (`setunit` likewise did not appear in the file i read and obviously does exist, so absence there is not evidence.)
-
----
-
-## development workflow
-
-### testing in-game
-there is **no automated test suite**. development is done by:
-1. editing `.lua` files in the addons folder
-2. `/reload` in-game (or log out/in for toc/xml changes)
-3. using `/sf` to open options panel
-4. checking chat for debug prints (prefixed `|cff33cc99[squizzframes]|r`)
-
-### releasing
-tagging is what publishes — pushes to `main` never reach curseforge.
-
-1. add a `release_notes["<version>"]` entry in `modules/welcome/welcome.lua` --
-   a few player-facing highlights, not a copy of the changelog. an addon
-   cannot read its own text files at runtime, so anything shown in game has to
-   be duplicated in lua; a handful of lines per release is worth keeping in
-   step by hand. a missing entry is not fatal (the window still appears,
-   without bullets) which is exactly why it is easy to forget.
-2. close the top `changelog.txt` section (date the heading) and bump `## version:` in `squizzframes.toc`. **both are manual** — the toc keeps a literal version rather than `@project-version@` so the live dev folder doesn't show a placeholder in the in-game addon list.
-3. `git tag -a v1.7 -m "v1.7"` && `git push origin v1.7`
-4. `.github/workflows/release.yml` (bigwigsmods/packager) builds the zip, uploads it to curseforge (project id read from `## x-curse-project-id` in the toc) and attaches it to a github release.
-
-**tags are listed newest-first by date, always.** this repo sets `tag.sort = -creatordate` locally (`git config tag.sort -creatordate`), so plain `git tag` is already correct — don't reintroduce the raw alphabetical listing by passing something else. versions went past `1.9` into `1.10`, which sorts *before* `1.9` as plain text: an alphabetical listing shows the newest release buried in the middle, which reads as "the tag didn't push". nothing in the release path itself is affected (`git describe` walks the commit graph, curseforge orders by upload) — it's the human read of `git tag` that misleads. re-run the config in a fresh clone; it's local, not committed.
-
-dry run: actions tab → "package and release" → run workflow with `dry_run` ticked. builds and uploads nothing, leaving the zip as an artifact. requires the `cf_api_token` repo secret; `github_token` is automatic. `.pkgmeta` controls what's excluded from the zip and feeds `changelog.txt` in as the release notes (whole file, not just the newest section).
-
-**three failure modes that a green checkmark won't show you** — all learned the hard way on squizzumables (its `claude.md` "releasing" section is the original writeup; this toolchain is shared, so check there before debugging packaging here):
-- **the tag must be annotated (`-a`).** `git describe` ignores lightweight tags, so the packager falls back to the commit hash and ships an *alpha* build named after it instead of a version.
-- **`actions/upload-artifact` skips hidden paths by default** and the packager builds into `.release/`, so the dry-run artifact needs `include-hidden-files: true`. without it the upload finds nothing while the packaging step stays green.
-- **`release.sh` skips a missing token silently and still exits 0.** the tell is the credential line it prints near the top: `curseforge id: 1649203 [token set]` — that suffix is `${cf_token:+ [token set]}`, so **no suffix means the token is empty**. a green run that makes a github release but nothing on curseforge is this. a misnamed secret is not an error in actions; it interpolates to an empty string, which is why the workflow has a dry-run-only step printing both secrets' lengths.
-
-### optionsframe.lua is at two lua ceilings
-
-this file is large enough to sit against both of lua's per-function limits.
-neither fails gracefully: the whole file fails to load and the entire options
-panel disappears, and the reported line number is nowhere near the cause.
-
-**60 upvalues** (locals captured from an enclosing scope), hit by
-`buildlayoutfields`:
-
-```
-optionsframe.lua:1724: function at line 1463 has more than 60 upvalues
-```
-
-**200 active locals** in the main chunk, hit by the file as a whole:
-
-```
-optionsframe.lua:3096: main function has more than 200 local variables
-```
-
-adding a feature to a page normally means a getter and a setter per control,
-which walks straight into both. two mitigations, and use them from the start
-rather than after the file stops loading:
-
-1. **group accessors into one table.** a table costs one upvalue however many
-   fields it carries. see the `grad` table (health gradient).
-2. **wrap the helpers in a `do ... end` block.** locals declared in a closed
-   block are released at its end, so they stop counting against the 200. the
-   gradient block does this: six names become one surviving `grad`.
-
-**the real fix is to move a page into its own file**, because each lua file is
-its own main function and therefore gets its own 200-local budget. five pages
-already work this way (click casting, indicators, unit frames, tank tracker,
-nicknames) -- optionsframe keeps only a ~12-line shim that creates the frame
-and calls `panel.build`.
-
-pet frames and layout were extracted the same way on 2026-09-10:
-**202 -> 147 -> 59 main-chunk locals**, and the file went 3167 -> 1373 lines.
-both ceilings now have comfortable headroom.
-
-only **profiles** (~470 lines) and **general** (~75) are still inline, and
-neither is near a limit. the pattern for extracting one: the block is usually
-contiguous, needs only w/l/f plus a locally re-declared `getprofile`, and any
-state optionsframe still reads should be published as a small function on the
-panel (see `layoutpanel.israidtab`, which mirrors `indicatorspanel.israidtab`).
-
-. the same
-care applies to xml comments (below) -- both bugs this session came from
-shelling out to edit source text.
-
-### xml edits
+### XML edits
 
 A prose `--` inside an `<!-- -->` comment is illegal XML and kills the WHOLE
 file, usually surfacing as an unrelated-looking Lua error. It has bitten this
@@ -652,7 +419,23 @@ Search for `print("|cff33cc99[SquizzFrames]|r` — these are scattered through C
 See the [12.1 AuraEngine Subsystem](#7-121-auraengine-subsystem-auraenginelua-auraengineindicatorslua) section above for the full picture. Key entry points: `AE.CreateContainer`/`AE.RequestContainer`, `AE.MakeInitializer`, `AE.styles`, `AE.RestyleSoon`, `AE.Filter`.
 
 ### Indicators/AuraEngineIndicators.lua
-`AEI.CreateHealerHotsIndicator`, `AEI.CreateExternalCooldownsIndicator`, `AEI.CreateDefensiveCooldownsIndicator`, `AEI.CreateDebuffsIndicator`, `AEI.CreateCCIndicator`, `AEI.CreateDispelsIndicator`, `AEI.CreateCustomColorIndicator`, `AEI.CreateCustomBarIndicator` — each returns a plain wrapper `Frame` that `Indicators.lua`'s generic position/size/frameLevel/alpha dispatch treats identically to every other indicator; the real `AuraContainer` is a child of the wrapper.
+`AEI.CreateHealerHotsIndicator`, `AEI.CreateExternalCooldownsIndicator`, `AEI.CreateDefensiveCooldownsIndicator`, `AEI.CreateDebuffsIndicator`, `AEI.CreateCCIndicator`, `AEI.CreateDispelsIndicator`, `AEI.CreateDispelIconsIndicator`, `AEI.CreateCustomColorIndicator`, `AEI.CreateCustomBarIndicator` — each returns a plain wrapper `Frame` that `Indicators.lua`'s generic position/size/frameLevel/alpha dispatch treats identically to every other indicator; the real `AuraContainer` is a child of the wrapper.
+
+**The Dispels overlay and the Dispel Icons are TWO indicators**, split on 2026-08-13. `CreateDispelsIndicator` draws the health-bar tint and nothing else — it has no icon code left, so passing it a `showDispelIcons`-style setting reaches nothing at all (silently; that is why the unit frames showed no dispel icon for a month). Anything wanting symbols must build `CreateDispelIconsIndicator` as a second wrapper and place it itself.
+
+**Exports for callers outside the party indicator system** (the unit frames use all of these — see `Modules/UnitFrames/`):
+- `t._sfStyleNS` on both dispel factories — the `AE.styles` namespace, see the hard-rules list in section 7
+- `t._sfStrata` / `t._sfLevel` on `CreateDispelIconsIndicator` — the wrapper's tier, which **must be set before the container is requested**, since `extraInit` reads it at button-creation time and 12.1 forbids re-tiering afterwards
+- `AEI.ApplyMockDurationText` / `AEI.ApplyMockStackText` — style one mock FontString exactly as `ApplyStyleToRegions` styles the engine-drawn one. They take a style **table, not a key**, so a preview can render settings for a row whose live style does not exist yet. `CreateFallbackIconRow` and `UnitFrames/Preview.lua` both go through them; there is deliberately only one copy of this styling.
+- `AEI.PreviewDispelOverlay(host, ctx, t)` / `AEI.DISPEL_TYPES` — paint the dispel overlay for the first enabled type onto a plain mock frame, reusing the real `ApplyDispelSlotStyle`. *Which* type is live is secret and is not a preview-able question.
+
+### UnitFrames/Preview.lua
+The 1:1 mock on the Unit Frames options page. Two rules, both load-bearing:
+
+- **It renders through the real code, never a second copy.** Text via `UnitFrames.FormatToken`, bar colour via `ResolveHealthColor`, the dispel overlay via `AEI.PreviewDispelOverlay`, the aura duration/stack text via the `ApplyMock*Text` pair, and the settings translation via `Dispels.BuildSettings` / `Auras.StyleFields`. A preview carrying its own copy of any of these starts lying the first time the real one changes — and the unit frames' dispel opacity is a live example of why (0-1 here, a percentage on the party indicator; the one hand-rolled translation got it wrong by 100×).
+- **It cannot show real aura data**, same constraint as the party Designer: an `AuraContainer` is driven C-side from a real unit and no fake `AuraData` can be injected. Aura rows, dispel icons and duration/stack text are all static mocks laid out to match the real thing.
+
+Things that only exist in the mock (`Preview.Create`) need their own host frame and level — it is a hand-built frame, NOT `UnitFrameButton.xml`, so nothing about its strata/level layering is inherited from the live template.
 
 
 ### Nicknames/Nicknames.lua
@@ -660,6 +443,8 @@ Replaces the name drawn by the `nameText` indicator. Four layers, resolved highe
 
 - **The contract**: `N:Resolve(unit)` returns a **plain Lua string or nil, never a secret**. `nil` means "couldn't resolve" (disabled / no entry / name currently secret) and the caller falls through to its pre-existing, secret-safe path. The two never blend — see the header comment for why `nickname or name` is a crash, not a convenience.
 - **Resolution cache** (`resolveCache`) is keyed by **unit token, not button** — the secure header reassigns tokens across buttons on every re-sort, so per-button caching goes stale silently under `sortByRole`. Wiped on `GROUP_ROSTER_UPDATE`/`PLAYER_ENTERING_WORLD`; per-unit invalidation on `UNIT_NAME_UPDATE`. A secret read is never cached (it's transient).
+- ⚠️ **VOLATILE TOKENS ARE NEVER CACHED** (`IsVolatileToken`: `target`, `focus`, `mouseover`, `boss`, `arena`, `nameplate`, `softenemy/friend/interact`, matched by prefix so `targettarget`/`focustarget` follow). The cache's premise — "a token's meaning only changes when the roster does" — holds for group tokens and is **false** for anything repointed by a mouse click. It shipped assuming otherwise and produced this: in a Mythic+, a group member's frames showed **one player's nickname as every target's name for the whole dungeon**, coming right only when the key ended (user report 2026-09-11). Resolve one target that has a nickname on file, memoise it under the key `"target"`, and every later target reads that entry; no roster change happens inside a key, so nothing cleared it until the zone change fired `PLAYER_ENTERING_WORLD`. Not cached is strictly safer than cached-and-wrong: the fallback is the real name, while the failure mode was confidently showing somebody else's.
+- **On the standalone unit frames, nicknames are PLAYER-FRAME ONLY**, enforced in `UnitFrames.lua`'s `FormatToken` (`unit == "player"`), not merely by scoping the checkbox. `Resolve` matches on name/realm and knows nothing about tokens, so it answered just as happily for `target` and `boss1`; the option existed on every frame's table defaulting to on, with a control only on the player frame — on by default, invisible, unswitchable. `useNicknames` is set on the player default alone and `Core.lua`'s `MigrateUnitFrameNicknames` purges it elsewhere. Party/raid frames are unaffected: they resolve through the `nameText` indicator, which is the module's actual purpose.
 - **Storage is account-wide** at the SavedVariables root (`sv.nicknames`), next to `sv.autoSwitch` — nicknames describe people, not layouts, so they must survive a profile switch. Your own nickname is keyed per-character.
 - ⚠️ **`sv.nicknames.mine` is keyed by `F.PlayerFullName()` (`Name-NormalizedRealm`), NOT `ProfileStore.CHAR_KEY`** (`Name - Realm With Spaces`). Two deliberately separate keyspaces: the wire format must match `CHAT_MSG_ADDON`'s `sender`. Mixing them makes every same-realm lookup miss, silently.
 - **Sync** uses raw `C_ChatInfo.SendAddonMessage` on prefix `SQF_NICK` (16-char limit — the obvious `SQUIZZFRAMES_NICK` is 17 and would never register). Ownership comes from `sender`, never from the payload, so nobody can set a nickname for someone else.
@@ -864,3 +649,7 @@ Only needed if the indicator tracks live aura presence/duration and must stay ac
 | `initializeFrame` / `extraInit` | AuraEngine button-creation callbacks — the only place button API calls are legal once secret |
 | `_sfAuraEngineBacked` | Marks a custom indicator whose live container must survive repeated `HandleIndicators` rebuilds |
 | `AE\.` | AuraEngine.lua's public API surface (`AE.CreateContainer`, `AE.RequestContainer`, `AE.styles`, `AE.RestyleSoon`, `AE.Filter`) |
+| `_sfStyleNS` | Callers claiming their own `AE.styles` namespace, so two owners' settings can't overwrite each other |
+| `^local function Migrate` | Every profile migration in `Core.lua`; read these before changing any shipped default |
+| `ApplyMock` | The shared preview text stylers — anything mocking engine-drawn duration/stack text |
+| `IsVolatileToken` | The unit tokens whose meaning changes during play; never memoise anything against one |
