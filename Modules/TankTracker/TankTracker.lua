@@ -214,13 +214,57 @@ local function StyleKey(index, kind)
     return "sfTT_" .. kind .. "_" .. index
 end
 
-local function BuildStyle(index, kind, row, cfg)
+-- Per-text fallbacks for a row that predates a field. A real profile carries
+-- every one of these; the face and outline are the exception, and fall
+-- through to the frame-wide `font` instead -- see TankTracker_Defaults.lua.
+local TEXT_FALLBACK = {
+    duration = { size = 11, anchor = "CENTER",      x = 0, y = 0 },
+    stack    = { size = 11, anchor = "BOTTOMRIGHT", x = 1, y = -1 },
+}
+local WHITE = {1, 1, 1, 1}
+
+-- The EFFECTIVE settings of one icon text, `prefix` being "duration" or
+-- "stack". The one place these fallbacks live: StyleFields (and so the live
+-- engine), the options preview and the panel's getters all read through it,
+-- so the three cannot disagree about what an unset field means.
+function TankTracker.TextSettings(cfg, row, prefix)
+    local fb = TEXT_FALLBACK[prefix] or TEXT_FALLBACK.duration
+    local font = cfg and cfg.font
+    row = row or {}
+    return {
+        face    = row[prefix .. "Font"] or (font and font[1]) or "Friz QT__",
+        outline = row[prefix .. "Outline"] or (font and font[3]) or "OUTLINE",
+        size    = row[prefix .. "Size"] or fb.size,
+        anchor  = row[prefix .. "Anchor"] or fb.anchor,
+        x       = row[prefix .. "X"] or fb.x,
+        y       = row[prefix .. "Y"] or fb.y,
+        color   = row[prefix .. "Color"] or WHITE,
+    }
+end
+
+-- One text's settings as ApplyFontSettings' eight-row slot:
+-- {name, size, outline, shadow, anchor, xOffset, yOffset, color}.
+--
+-- "NONE" goes in as "", not "NONE". ApplyFontSlot turns "NONE" into nil, and
+-- both the engine's region setup and the mock text then read nil as
+-- `or "OUTLINE"` -- so choosing no outline silently produced an outline. An
+-- empty string is a valid no-flags argument to SetFont and survives the `or`.
+local function FontSlot(ts)
+    local flags = ts.outline
+    if flags == "NONE" then flags = "" end
+    return {ts.face, ts.size, flags, nil, ts.anchor, ts.x, ts.y, ts.color}
+end
+
+-- Fill in a row's style FIELDS, independent of where the table lives. Public
+-- for the options preview, which draws its mock icons' duration and stack
+-- text from exactly these numbers -- same arrangement as Auras.StyleFields,
+-- for the same reason: a second copy of this mapping is how a preview starts
+-- lying about where the text lands.
+function TankTracker.StyleFields(cfg, row, into)
     local AE = SquizzFrames.AuraEngine
-    local key = StyleKey(index, kind)
+    local style = into or {}
     local size = row.size or 32
 
-    AE.styles[key] = AE.styles[key] or {}
-    local style = AE.styles[key]
     -- Re-applied in full every time, never folded into an `or {...}`
     -- initialiser: that table is created once and reused for the style's
     -- lifetime, so anything set only inside it could never respond to a
@@ -236,8 +280,7 @@ local function BuildStyle(index, kind, row, cfg)
     -- the next pass anyway.
     --
     -- THE SHAPE MATTERS AND FAILS SILENTLY IF WRONG. It wants
-    -- {stackSlot, durationSlot}, each being the options widget's eight-row
-    -- tuple: {name, size, outline, shadow, anchor, xOffset, yOffset, color}.
+    -- {stackSlot, durationSlot}, each an eight-row tuple (see FontSlot).
     -- Passing a flat {face, size, flags} instead puts a STRING in slot 1,
     -- which ApplyFontSettings treats as the plain-text-indicator shape and
     -- returns from immediately -- no error, no text styling at all. That was
@@ -247,16 +290,20 @@ local function BuildStyle(index, kind, row, cfg)
     -- Anchor semantics, per ApplyFontSlot: one point is used for BOTH sides of
     -- SetPoint, so "BOTTOMRIGHT" reads as "pin the text's bottom-right to the
     -- icon's bottom-right".
-    local face = cfg.font and cfg.font[1]
-    local flags = cfg.font and cfg.font[3]
-    if AE.ApplyFontSettings then
+    if AE and AE.ApplyFontSettings then
         AE.ApplyFontSettings(style, {
-            {face, row.stackSize or 11, flags, nil,
-             row.stackAnchor or "BOTTOMRIGHT", row.stackX or 1, row.stackY or -1},
-            {face, row.durationSize or 11, flags, nil,
-             row.durationAnchor or "CENTER", row.durationX or 0, row.durationY or 0},
+            FontSlot(TankTracker.TextSettings(cfg, row, "stack")),
+            FontSlot(TankTracker.TextSettings(cfg, row, "duration")),
         })
     end
+    return style
+end
+
+local function BuildStyle(index, kind, row, cfg)
+    local AE = SquizzFrames.AuraEngine
+    local key = StyleKey(index, kind)
+    AE.styles[key] = AE.styles[key] or {}
+    TankTracker.StyleFields(cfg, row, AE.styles[key])
     return key
 end
 
@@ -321,10 +368,17 @@ local function CreateRow(frame, kind)
     return wrapper
 end
 
-local function CreateTankFrame(index)
-    local f = CreateFrame("Frame", "SquizzFramesTankTracker" .. index, UIParent)
+-- `index` nil builds an anonymous frame under `parent` -- the options preview,
+-- which is the same frame rather than a lookalike so the two cannot drift.
+local function CreateTankFrame(index, parent)
+    local f = CreateFrame("Frame", index and ("SquizzFramesTankTracker" .. index) or nil,
+        parent or UIParent)
     f:SetSize(150, 20)
-    f:SetFrameStrata("MEDIUM")
+    -- Real frames only. An explicit strata is NOT inherited from the parent,
+    -- so forcing MEDIUM on the preview drew it underneath the DIALOG-strata
+    -- options window -- the pane showed as an empty black box. Left unset, a
+    -- parented frame takes its parent's strata and sits one level above it.
+    if not parent then f:SetFrameStrata("MEDIUM") end
     f:Hide()
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
@@ -368,10 +422,86 @@ local function CreateTankFrame(index)
     f._sfIndex = index
     return f
 end
+TankTracker.CreateTankFrame = CreateTankFrame
+
+local function NameJustify(anchor)
+    if anchor:find("LEFT") then return "LEFT" end
+    if anchor:find("RIGHT") then return "RIGHT" end
+    return "CENTER"
+end
+
+-- Everything about a frame's look that does not depend on a live unit: size,
+-- bar texture, backdrop, name font and placement, border. Shared by
+-- ApplyLayout and the options preview. Scale and screen position are NOT
+-- here -- the preview has its own pane to sit in.
+function TankTracker.DressFrame(frame, cfg)
+    local width = cfg.width or 150
+    frame:SetSize(width, cfg.height or 20)
+
+    frame.health:SetStatusBarTexture(GetBarTexture())
+    local bd = cfg.backdropColor or {0, 0, 0, 0.6}
+    frame.bg:SetColorTexture(bd[1] or 0, bd[2] or 0, bd[3] or 0, bd[4] or 0.6)
+
+    local fs = frame.nameText
+    local fontFile = (F.ResolveFontFile and F.ResolveFontFile(cfg.font and cfg.font[1]))
+        or "Fonts\\FRIZQT__.TTF"
+    local flags = cfg.font and cfg.font[3]
+    if not flags or flags == "NONE" then flags = "" end
+    fs:SetFont(fontFile, cfg.nameFontSize or 12, flags)
+    local nc = cfg.nameColor or {1, 1, 1, 1}
+    fs:SetTextColor(nc[1] or 1, nc[2] or 1, nc[3] or 1, nc[4] or 1)
+
+    -- One point for both sides, as on the unit frames. The width stays pinned
+    -- to the bar minus a 3px margin each side, so a long name still truncates
+    -- instead of running off the frame -- which is what the old LEFT+RIGHT
+    -- two-point anchor did, and LEFT/3/0 (the defaults) reproduces it exactly.
+    local anchor = cfg.nameAnchor or "LEFT"
+    fs:ClearAllPoints()
+    fs:SetPoint(anchor, frame, anchor, cfg.nameX or 3, cfg.nameY or 0)
+    fs:SetWidth(math.max(1, width - 6))
+    fs:SetJustifyH(NameJustify(anchor))
+    fs:SetWordWrap(false)
+
+    if frame.border then
+        if cfg.showBorder then
+            local bc = cfg.borderColor or {0, 0, 0, 1}
+            frame.border:SetThickness(cfg.borderThickness or 1)
+            frame.border:SetColor(bc[1] or 0, bc[2] or 0, bc[3] or 0, bc[4] or 1)
+            frame.border:Show()
+        else
+            frame.border:Hide()
+        end
+    end
+end
 
 -----------------------------------------------------------------------
 -- Aura container binding
 -----------------------------------------------------------------------
+
+-- Position and size one row's wrapper. Shared with the options preview, which
+-- lays its mock icons out inside the same wrapper. Returns the geometry it
+-- used (wrapper point, frame point, offsets, wrapper size) so the preview can
+-- measure the whole composite without re-deriving the anchor vocabulary.
+function TankTracker.PlaceRow(frame, kind, row)
+    local wrapper = frame.rows[kind]
+    local Amod = AnchorModule()
+    local size = row.size or 32
+    local spacing = row.spacing or 2
+    local num = math.max(1, row.num or 4)
+    local rows = math.max(1, row.maxRows or 1)
+
+    local point, relPoint = "BOTTOMLEFT", "TOPLEFT"
+    local pts = Amod and Amod.ANCHOR_POINTS and Amod.ANCHOR_POINTS[row.anchor or "topleft"]
+    if pts then point, relPoint = pts[1], pts[2] end
+    local ox, oy = row.offsetX or 0, row.offsetY or 0
+    local ww = math.max(1, num * (size + spacing))
+    local wh = math.max(1, rows * (size + spacing))
+
+    wrapper:ClearAllPoints()
+    wrapper:SetPoint(point, frame, relPoint, ox, oy)
+    wrapper:SetSize(ww, wh)
+    return point, relPoint, ox, oy, ww, wh
+end
 
 -- Containers are bound to a token at creation and their unit is NOT live (see
 -- AE.RebindUnit's comment). A tank frame's token DOES change -- raid3 leaves,
@@ -391,20 +521,7 @@ local function ApplyRow(frame, kind, unit)
         return
     end
 
-    local Amod = AnchorModule()
-    local size = row.size or 32
-    local num = math.max(1, row.num or 4)
-    local rows = math.max(1, row.maxRows or 1)
-
-    wrapper:ClearAllPoints()
-    local pts = Amod and Amod.ANCHOR_POINTS and Amod.ANCHOR_POINTS[row.anchor or "topleft"]
-    if pts then
-        wrapper:SetPoint(pts[1], frame, pts[2], row.offsetX or 0, row.offsetY or 0)
-    else
-        wrapper:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", row.offsetX or 0, row.offsetY or 0)
-    end
-    wrapper:SetSize(math.max(1, num * (size + (row.spacing or 2))),
-                    math.max(1, rows * (size + (row.spacing or 2))))
+    TankTracker.PlaceRow(frame, kind, row)
     wrapper:Show()
 
     -- Rebuilt on EVERY pass, before the container branch below -- not only
@@ -489,6 +606,18 @@ end
 -- Health
 -----------------------------------------------------------------------
 
+-- Bar colour for a unit. Shared with the options preview.
+function TankTracker.HealthColor(unit, cfg)
+    local r, g, b = 0.2, 0.6, 0.2
+    local custom = cfg.healthCustomColor
+    if custom then r, g, b = custom[1] or r, custom[2] or g, custom[3] or b end
+    if cfg.healthClassColor and F.IsValueNonSecret(F.GetClassFile(unit)) then
+        local c = F.GetClassColor(unit)
+        if c then r, g, b = c.r, c.g, c.b end
+    end
+    return r, g, b, 1
+end
+
 local function UpdateHealth(frame)
     local unit = frame._sfUnit
     if not unit or not UnitExists(unit) then return end
@@ -500,15 +629,12 @@ local function UpdateHealth(frame)
     frame.health:SetMinMaxValues(0, UnitHealthMax(unit) or 1)
     frame.health:SetValue(UnitHealth(unit) or 0)
 
-    local r, g, b = 0.2, 0.6, 0.2
-    local custom = cfg.healthCustomColor
-    if custom then r, g, b = custom[1] or r, custom[2] or g, custom[3] or b end
-    if cfg.healthClassColor and F.IsValueNonSecret(F.GetClassFile(unit)) then
-        local c = F.GetClassColor(unit)
-        if c then r, g, b = c.r, c.g, c.b end
-    end
-    frame.health:SetStatusBarColor(r, g, b, 1)
+    frame.health:SetStatusBarColor(TankTracker.HealthColor(unit, cfg))
+    TankTracker.SetNameText(frame, unit, cfg)
+end
 
+-- The name on the bar, nickname-aware. Shared with the options preview.
+function TankTracker.SetNameText(frame, unit, cfg)
     if cfg.showName then
         local N = SquizzFrames.modules and SquizzFrames.modules["Nicknames"]
         local nick = N and N.Resolve and N:Resolve(unit)
@@ -548,7 +674,6 @@ function TankTracker.ApplyLayout()
     local on = Enabled()
     local units = on and CollectTanks(tankList) or {}
     local scale = cfg.scale or 1
-    local texture = GetBarTexture()
 
     for i = 1, (cfg.maxFrames or 4) do
         local frame = frames[i]
@@ -570,34 +695,11 @@ function TankTracker.ApplyLayout()
             end
         else
             frame:SetScale(scale)
-            frame:SetSize(cfg.width or 150, cfg.height or 20)
+            TankTracker.DressFrame(frame, cfg)
             frame:ClearAllPoints()
             local dx, dy = StackOffset(cfg, i)
             frame:SetPoint("CENTER", UIParent, "CENTER",
                 ((cfg.anchorX or 0) + dx) / scale, ((cfg.anchorY or 0) + dy) / scale)
-
-            frame.health:SetStatusBarTexture(texture)
-            local bd = cfg.backdropColor or {0, 0, 0, 0.6}
-            frame.bg:SetColorTexture(bd[1] or 0, bd[2] or 0, bd[3] or 0, bd[4] or 0.6)
-
-            local fontFile = (F.ResolveFontFile and F.ResolveFontFile(cfg.font and cfg.font[1]))
-                or "Fonts\\FRIZQT__.TTF"
-            local flags = cfg.font and cfg.font[3]
-            if not flags or flags == "NONE" then flags = nil end
-            frame.nameText:SetFont(fontFile, cfg.nameFontSize or 12, flags)
-            local nc = cfg.nameColor or {1, 1, 1, 1}
-            frame.nameText:SetTextColor(nc[1] or 1, nc[2] or 1, nc[3] or 1, nc[4] or 1)
-
-            if frame.border then
-                if cfg.showBorder then
-                    local bc = cfg.borderColor or {0, 0, 0, 1}
-                    frame.border:SetThickness(cfg.borderThickness or 1)
-                    frame.border:SetColor(bc[1] or 0, bc[2] or 0, bc[3] or 0, bc[4] or 1)
-                    frame.border:Show()
-                else
-                    frame.border:Hide()
-                end
-            end
 
             ApplyRow(frame, "debuff", unit)
             ApplyRow(frame, "def", unit)

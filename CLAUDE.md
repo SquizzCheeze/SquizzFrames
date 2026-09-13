@@ -52,7 +52,8 @@ SquizzFrames/
     ├── Welcome/            # First-run greeting + per-version release notes; RELEASE_NOTES table is a manual per-release step (see Releasing)
     ├── TankTracker/         # Per-tank frame: boss/role debuffs above, defensives below; own AuraEngine rows, plain (non-secure) frames
     │   ├── TankTracker.lua      # Engine: tank discovery (secret-safe, fail-closed on identity), stacking, aura rows, mover
-    │   └── TankTrackerPanel.lua # Options page ("tankTracker" nav entry); shell over profile.tankTracker
+    │   ├── TankTrackerPreview.lua # 1:1 options mock; IS a real tank frame (CreateTankFrame/DressFrame/PlaceRow/StyleFields), only the icons are static
+    │   └── TankTrackerPanel.lua # Options page ("tankTracker" nav entry); General/Debuffs/Defensives sub-tabs + pinned preview; shell over profile.tankTracker
     ├── Nicknames/           # Display-name replacement (private list + group-synced)
     │   ├── Nicknames.lua       # Storage, secret-safe resolution cache, AceComm-free addon-message sync, /sf nick
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API

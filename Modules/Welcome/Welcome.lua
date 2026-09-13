@@ -48,6 +48,11 @@ local hadSavedVariables = SquizzFramesDB ~= nil
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.21"] = {
+        "The Tank Tracker options page has a live, actual-size preview of a tank frame, with mock debuff and defensive icons showing their duration and stack text, so you can see changes as you make them.",
+        "Tank Tracker settings are split into General, Debuffs and Defensives tabs.",
+        "The tank name can be anchored anywhere on the bar, and the duration and stack text on each icon row have their own font, outline, size, colour, anchor and offsets.",
+    },
     ["1.20"] = {
         "The unit frame preview now shows duration and stack text on its mock aura icons, so you can place them without going to find something with a debuff on it.",
         "Unit frame aura duration text sits in the middle of its icon by default, rather than under it.",

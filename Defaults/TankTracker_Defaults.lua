@@ -76,22 +76,32 @@ local function DefaultRow(opts)
         -- Growth follows the anchor unless overridden.
         growth = "auto",
 
-        -- Both texts get the same four controls: size, anchor, and two
-        -- offsets. AuraEngine's ApplyFontSlot uses ONE point for both sides of
-        -- SetPoint, so an anchor reads as "pin the text's <corner> to the
-        -- icon's <corner>" -- which is why these are a single dropdown rather
-        -- than a point/relative-point pair.
+        -- Both texts get the same controls: face, size, outline, colour,
+        -- anchor, and two offsets. AuraEngine's ApplyFontSlot uses ONE point
+        -- for both sides of SetPoint, so an anchor reads as "pin the text's
+        -- <corner> to the icon's <corner>" -- which is why these are a single
+        -- dropdown rather than a point/relative-point pair.
+        --
+        -- durationFont/durationOutline (and the stack pair) are DELIBERATELY
+        -- ABSENT. Before they existed both texts followed the frame-wide
+        -- `font` face and outline, and a profile is a deep copy of these
+        -- defaults: shipping "Friz QT__" here would stamp it over anyone who
+        -- had already picked a different face. Absent, they fall through to
+        -- `font` in TankTracker.ResolveText -- the one resolver the engine,
+        -- the preview and the panel all read.
         showDuration = true,
         durationSize = opts.durationSize or 11,
         durationAnchor = "CENTER",
         durationX = 0,
         durationY = 0,
+        durationColor = {1, 1, 1, 1},
 
         showStack = true,
         stackSize = 11,
         stackAnchor = "BOTTOMRIGHT",
         stackX = 1,
         stackY = -1,
+        stackColor = {1, 1, 1, 1},
 
         showBorder = true,
     }
@@ -129,6 +139,12 @@ profile.tankTracker = {
     nameFontSize = 12,
     font = {"Friz QT__", 12, "OUTLINE"},
     nameColor = {1, 1, 1, 1},
+    -- Name placement on the health bar: one point used for both sides, like
+    -- the unit frames' texts. LEFT/3/0 is exactly where the name sat before it
+    -- could be moved, so existing profiles see no change when these backfill.
+    nameAnchor = "LEFT",
+    nameX = 3,
+    nameY = 0,
 
     -- Health bar. Texture comes from the shared Layout > Appearance setting the
     -- party frames use, so everything matches without a second control.

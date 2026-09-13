@@ -2,6 +2,29 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.21 (2026-09-13)
+------------------
+
+Added:
+
+- The Tank Tracker options page has a live, actual-size preview of a tank
+  frame, pinned beside the settings, with mock debuff and defensive icons
+  showing their duration and stack text. It updates as you drag.
+
+- The Tank Tracker page is split into General, Debuffs and Defensives tabs.
+
+- The tank name can be anchored anywhere on the bar, with X and Y offsets.
+
+- Duration and stack text on both icon rows each have their own font,
+  outline, size, colour, anchor and offsets. Until you change them they keep
+  following the tracker's main font, so nothing moves on upgrade.
+
+Fixed:
+
+- Choosing no outline for the Tank Tracker's icon text now actually removes
+  the outline.
+
+
 V1.20 (2026-09-11)
 ------------------
 

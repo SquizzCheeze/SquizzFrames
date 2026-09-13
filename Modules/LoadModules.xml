@@ -66,5 +66,6 @@
          and SquizzFrames.AuraEngine at RUNTIME, never at load, so order is
          free; kept last simply because it is the newest module. -->
     <Script file="TankTracker/TankTracker.lua"/>
+    <Script file="TankTracker/TankTrackerPreview.lua"/>
     <Script file="TankTracker/TankTrackerPanel.lua"/>
 </Ui>
