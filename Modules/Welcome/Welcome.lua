@@ -29,25 +29,14 @@ local W = SquizzFrames.Widgets
 local Welcome = {}
 SquizzFrames.Welcome = Welcome
 
--- IS THIS A FRESH INSTALL? Captured HERE, at file-load time, and it has to be.
---
--- SavedVariables are restored before an addon's Lua runs, and Core's
--- OnInitialize does not fire until ADDON_LOADED -- after every file has
--- executed. So at this exact moment SquizzFramesDB is either nil (never played)
--- or the player's real saved table, and nothing has touched it yet.
---
--- Checking later does not work: ProfileStore:Init unconditionally creates
--- sv.profiles / sv.charProfileKeys / sv.autoSwitch, so by the time this module
--- runs its version check every install looks identical. Squizzumables gets away
--- with a later check because it tests its own settings table, which is only
--- written once the user saves something; this addon has no equivalent key that
--- stays absent.
-local hadSavedVariables = SquizzFramesDB ~= nil
-
 -- Highlights per version, newest first, keyed by the .toc Version string.
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.22"] = {
+        "The resource bar's power bar and resource points can now be moved separately: tick Move Points Separately on the Unit Frames page, then drag each one, attach it to another frame, or attach them to each other.",
+        "When SquizzFrames updates at the same time as Squizzumables or Avatar Continued, their update notes now appear one after another instead of on top of each other.",
+    },
     ["1.21"] = {
         "The Tank Tracker options page has a live, actual-size preview of a tank frame, with mock debuff and defensive icons showing their duration and stack text, so you can see changes as you make them.",
         "Tank Tracker settings are split into General, Debuffs and Defensives tabs.",
@@ -98,6 +87,46 @@ end
 
 local frame
 
+-- ONE UPDATE NOTE AT A TIME, across all of the Squizz addons.
+--
+-- SquizzFrames, Squizzumables and Avatar Continued each carry a copy of this
+-- window, and the copies were identical: same size, same spot, same DIALOG
+-- strata, same frame level. Frames that tie on strata and level have no defined
+-- draw order, so when two of them updated at the same login their notes drew
+-- through each other and flickered as the order flipped.
+--
+-- The queue lives in _G and is created by whichever addon loads first. Notes
+-- that come due at login wait behind one already on screen and appear when it
+-- closes; notes opened by hand (/sf notes) show straight away, on top.
+--
+-- KEEP THIS BLOCK IDENTICAL IN ALL THREE ADDONS. They share the table, so its
+-- shape is an interface between them.
+local NotesQueue = _G.SquizzNotesQueue or { pending = {} }
+_G.SquizzNotesQueue = NotesQueue
+
+local function PresentNotes(f, queued)
+    local active = NotesQueue.active
+    if queued and active and active ~= f and active:IsShown() then
+        for _, waiting in ipairs(NotesQueue.pending) do
+            if waiting == f then return end
+        end
+        table.insert(NotesQueue.pending, f)
+        return
+    end
+    NotesQueue.active = f
+    f:Show()
+    f:Raise()
+end
+
+local function OnNotesHidden(f)
+    if NotesQueue.active ~= f then return end
+    NotesQueue.active = nil
+    local nextFrame = table.remove(NotesQueue.pending, 1)
+    if nextFrame then
+        PresentNotes(nextFrame, false)
+    end
+end
+
 -- Narrower than the frame by the scroll bar's gutter, so a long note is not
 -- drawn underneath it.
 local BODY_WIDTH = 404
@@ -115,6 +144,10 @@ local function BuildFrame()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:Hide()
+    -- Clicking a notes window brings it in front of any other one, and closing
+    -- it lets the next queued note through (see NotesQueue).
+    frame:SetToplevel(true)
+    frame:HookScript("OnHide", OnNotesHidden)
     if W and W.StylizeFrame then
         W.StylizeFrame(frame, {0.09, 0.09, 0.09, 0.96}, {0, 0, 0, 1})
     end
@@ -169,7 +202,9 @@ local function BuildFrame()
     return frame
 end
 
-local function Show(titleText, bodyText)
+-- queued: true for the automatic login note, which waits its turn behind
+-- another addon's note; false/nil when opened by hand.
+local function Show(titleText, bodyText, queued)
     local f = BuildFrame()
     f.title:SetText(titleText)
     f.body:SetText(bodyText)
@@ -184,7 +219,7 @@ local function Show(titleText, bodyText)
     -- would otherwise restore wherever the last read was left.
     f.scroll:SetVerticalScroll(0)
 
-    f:Show()
+    PresentNotes(f, queued)
 end
 
 -- The greeting for someone who has never run the addon.
@@ -192,7 +227,7 @@ end
 -- No setup questions: the shipped defaults are the sensible starting point and
 -- everything is off by default anyway, so this explains what is there and
 -- points at the options rather than interrogating a new player.
-local function ShowFirstRun()
+local function ShowFirstRun(queued)
     Show("Welcome to SquizzFrames",
         "SquizzFrames replaces your party and raid frames, and can replace your player, "
      .. "target, focus, boss and pet frames too.\n\n"
@@ -203,11 +238,11 @@ local function ShowFirstRun()
      .. "- Indicators, for HoTs, cooldowns, debuffs and dispels on each frame\n"
      .. "- Click Casting, to cast straight from the frames\n"
      .. "- Unit Frames, if you want the player/target/focus frames as well\n\n"
-     .. "Use Edit Mode, in the title bar of the options, to drag anything into place.")
+     .. "Use Edit Mode, in the title bar of the options, to drag anything into place.", queued)
 end
 
 -- The note after updating.
-local function ShowUpdated(version)
+local function ShowUpdated(version, queued)
     local notes = RELEASE_NOTES[version]
     local body = "SquizzFrames has been updated to " .. version .. ".\n\n"
     if notes then
@@ -218,7 +253,7 @@ local function ShowUpdated(version)
     else
         body = body .. "See CHANGELOG.txt in the addon folder for what changed."
     end
-    Show("SquizzFrames updated", body)
+    Show("SquizzFrames updated", body, queued)
 end
 
 -- Decide which, if either, to show.
@@ -234,15 +269,25 @@ local function CheckVersion()
 
     if seen == nil then
         -- No record at all: either a genuinely new install, or an upgrade from
-        -- a version that predates this file. hadSavedVariables is the only
-        -- thing that can still tell them apart -- see its comment.
-        if hadSavedVariables then
-            ShowUpdated(version)
+        -- a version that predates this file. SquizzFrames.hadSavedVariables,
+        -- taken at the top of Core.lua's OnInitialize, is the only thing that
+        -- can still tell them apart.
+        --
+        -- It cannot be taken any earlier or later. At file load the
+        -- SavedVariables have not been loaded yet, so it is always nil (this
+        -- file used to check there, and greeted upgraders as new players).
+        -- After ProfileStore:Init it always exists, because Init creates it
+        -- along with sv.profiles, sv.charProfileKeys and sv.autoSwitch.
+        -- Squizzumables avoids needing this by testing its own settings table,
+        -- which is only written once the user saves something; this addon has
+        -- no equivalent key that stays absent.
+        if SquizzFrames.hadSavedVariables then
+            ShowUpdated(version, true)
         else
-            ShowFirstRun()
+            ShowFirstRun(true)
         end
     elseif seen ~= version then
-        ShowUpdated(version)
+        ShowUpdated(version, true)
     end
 
     SquizzFramesDB.lastSeenVersion = version

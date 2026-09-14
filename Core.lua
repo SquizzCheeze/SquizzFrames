@@ -942,6 +942,21 @@ end
 -- Ace3 lifecycle: OnInitialize fires at ADDON_LOADED
 -----------------------------------------------------------------------
 function SquizzFrames:OnInitialize()
+    -- Does this player already have saved data? Modules/Welcome/Welcome.lua
+    -- uses it to tell a new install from an upgrade. It has to be read HERE,
+    -- first thing:
+    --
+    --   * NOT at file load. WoW runs an addon's Lua files first and only then
+    --     loads its SavedVariables, so SquizzFramesDB is always nil at that
+    --     point and every install looked new. Welcome.lua used to check there,
+    --     so anyone upgrading from before the release-notes window got the
+    --     first-run greeting instead of the notes (found porting it to Avatar,
+    --     2026-09-14).
+    --   * NOT after ProfileStore:Init further down, which creates the table.
+    --
+    -- OnInitialize runs on ADDON_LOADED, after the SavedVariables are in.
+    SquizzFrames.hadSavedVariables = SquizzFramesDB ~= nil
+
     -- Ensure defaults exist even if Defaults files didn't run
     self.defaults = self.defaults or { profile = {} }
     if not self.defaults.profile.general then
