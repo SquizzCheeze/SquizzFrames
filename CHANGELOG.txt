@@ -2,6 +2,28 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.22
+-----
+
+Added:
+
+- The resource bar's power bar and resource points can be moved separately.
+  Tick "Move Points Separately" on the Unit Frames page: each can then be
+  dragged on its own in Edit Mode, attached to another frame, or attached to
+  the other, with its own side and offsets, and the points can have their own
+  width. They start exactly where they are, so nothing moves until you move
+  it.
+
+Fixed:
+
+- When SquizzFrames updated at the same login as Squizzumables or Avatar
+  Continued, their update notes drew on top of each other and flickered. They
+  now appear one after another: close one and the next opens.
+
+- Updating from a version older than 1.18 showed the first-time welcome
+  instead of the update notes.
+
+
 V1.21 (2026-09-13)
 ------------------
 

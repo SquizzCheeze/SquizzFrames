@@ -512,7 +512,9 @@ profile.unitFrames = {
         -- global frame name from CastBar.MATCH_TARGETS (a curated list, not
         -- free text -- a typo would silently resolve to nothing on screen with
         -- no way to tell why), and attachSide is one of its ATTACH_SIDES.
-        positionMode = "free",       -- "free" | "anchor"
+        -- "points" (ride the detached point row) is only offered while
+        -- detachPoints is on, and is treated as "free" otherwise.
+        positionMode = "free",       -- "free" | "anchor" | "points"
         attachTo = "EssentialCooldownViewer",
         attachSide = "BOTTOM",
         offsetX = 0,
@@ -561,6 +563,26 @@ profile.unitFrames = {
 
         -- Gap between the two rows, when both are shown.
         gap = 2,
+
+        -- The point row as its own movable frame. Off, the two rows are one
+        -- bar with one position (how every profile started). On, the points
+        -- are placed by pointsLayout: free, anchored to a frame, or attached
+        -- to the power bar ("power"). ResourceBar.SeedDetach rewrites this
+        -- table as detach is switched on, so the row starts where it already
+        -- is; these values only matter to a profile that has never detached.
+        detachPoints = false,
+        pointsLayout = {
+            positionMode = "power",      -- "free" | "anchor" | "power"
+            attachTo = "EssentialCooldownViewer",
+            attachSide = "TOP",
+            offsetX = 0,
+            offsetY = 2,
+            anchorX = 0,
+            anchorY = -236,
+            widthMode = "power",         -- "power" | "custom" | "match"
+            matchFrame = "EssentialCooldownViewer",
+            width = 220,
+        },
 
         -- Solid fill behind the whole bar. ON by default, because the point
         -- row is not reliably countable without it -- the gaps between points

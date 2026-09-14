@@ -1627,6 +1627,27 @@ local POWER_TEXT_ITEMS = {
 local function SecResource(host, y, cfg, t)
     local R = ResourceGetters()
 
+    -- A wrapped grey note, MEASURED rather than stepped by a fixed amount.
+    -- The column is narrow and the same sentence can take two lines or five;
+    -- a hardcoded step overlapped the next control (the enable note ran into
+    -- Move Points Separately). Same approach as TankTrackerPanel's Note.
+    --
+    -- Needs a real width before GetStringHeight can report the wrapped
+    -- height, and host:GetWidth() is valid here -- see BuildFields, which
+    -- anchors the host between the sidebar and the preview before any Sec*
+    -- builder runs. 32 in from the left, 20 clear of the right edge, as these
+    -- notes always were; the fallback only covers a zero-width host.
+    local function Note(noteY, text)
+        local fs = host:CreateFontString(nil, "OVERLAY")
+        fs:SetFontObject("GameFontDisableSmall")
+        fs:SetPoint("TOPLEFT", 32, noteY)
+        local hostW = host:GetWidth()
+        fs:SetWidth((hostW and hostW > 80) and (hostW - 52) or 250)
+        fs:SetJustifyH("LEFT")
+        fs:SetText(text)
+        return noteY - math.ceil(fs:GetStringHeight() or 24) - 12
+    end
+
     W.CreateTitledPane(host, L["Resource Bar"] or "Resource Bar", y)
     y = y - 35
 
@@ -1635,16 +1656,37 @@ local function SecResource(host, y, cfg, t)
     cbOn:SetPoint("TOPLEFT", 15, y)
     y = y - 26
 
-    local note = host:CreateFontString(nil, "OVERLAY")
-    note:SetFontObject("GameFontDisableSmall")
-    note:SetPoint("TOPLEFT", 32, y)
-    note:SetPoint("RIGHT", host, "RIGHT", -20, 0)
-    note:SetJustifyH("LEFT")
-    note:SetText(L["ResourceBarNote"]
+    y = Note(y, L["ResourceBarNote"]
         or "Your power bar plus your class's secondary resource - Holy Power, Combo Points, Chi, Soul Shards, Arcane Charges, Essence or Runes. Works whether or not the unit frames above are switched on. Drag it in Edit Mode.")
-    y = y - 46
 
     if not R.Read("enabled", false) then return y end
+
+    local RB = SquizzFrames.ResourceBar
+    local detached = R.Read("detachPoints", false) == true
+
+    -- Separate the point row from the power bar. Seeded BEFORE the switch is
+    -- written, so the first layout with two frames already places the points
+    -- (and nudges the power bar) exactly where they were -- see
+    -- ResourceBar.SeedDetach.
+    local cbDetach = W.CreateStyledCheckbox(host,
+        L["Move Points Separately"] or "Move Points Separately",
+        R.bool("detachPoints", false),
+        function(v)
+            if v and not detached and RB and RB.SeedDetach then
+                local c = GetConfig()
+                if c then
+                    c.resourceBar = c.resourceBar or {}
+                    RB.SeedDetach(c.resourceBar)
+                end
+            end
+            R.Write("detachPoints", v)
+            if rebuildFields then rebuildFields() end
+        end)
+    cbDetach:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    y = Note(y, L["ResourceDetachNote"]
+        or "Gives the resource points their own position and width, so the power bar and the points can each be dragged, attached to another frame, or attached to each other. They start exactly where they are now.")
 
     -- Position. Shares the cast bar's curated frame list and side vocabulary
     -- so "anchor to the Essential Cooldowns row" means the same thing and
@@ -1655,18 +1697,47 @@ local function SecResource(host, y, cfg, t)
         {value = "anchor", text = L["Anchored to a Frame"] or "Anchored to a Frame"},
     }
 
-    local ddPos = W.CreateStyledDropdown(host, 200, 40, L["Position"] or "Position",
-        POSITION_ITEMS, R.get("positionMode", "free"),
-        function(v) R.Write("positionMode", v); if rebuildFields then rebuildFields() end end)
+    -- The modes the layout will ACTUALLY use, with the both-attached-to-each-
+    -- other loop already broken, so the page never shows a mode the bars are
+    -- not in.
+    local barMode, pointsMode = "free", "power"
+    if RB and RB.EffectiveModes then
+        local c = GetConfig()
+        barMode, pointsMode = RB.EffectiveModes((c and c.resourceBar) or {})
+    end
+
+    -- "Attached to Resource Points" only while detached, and only while the
+    -- points are not already riding the bar -- both at once is an anchor loop.
+    local barItems = POSITION_ITEMS
+    if detached and pointsMode ~= "power" then
+        barItems = {POSITION_ITEMS[1], POSITION_ITEMS[2],
+            {value = "points", text = L["Attached to Resource Points"] or "Attached to Resource Points"}}
+    end
+
+    local ddPos = W.CreateStyledDropdown(host, 200, 40,
+        detached and (L["Power Bar Position"] or "Power Bar Position") or (L["Position"] or "Position"),
+        barItems, function() return barMode end,
+        function(v)
+            -- Switching to free starts from where the bar is NOW, not from a
+            -- free position saved before it was attached somewhere.
+            if v == "free" and barMode ~= "free" and RB and RB.SeedFreePosition then
+                local c = GetConfig()
+                if c and c.resourceBar then RB.SeedFreePosition(RB.bar, c.resourceBar) end
+            end
+            R.Write("positionMode", v)
+            if rebuildFields then rebuildFields() end
+        end)
     ddPos:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
-    if R.Read("positionMode", "free") == "anchor" and CB then
-        local ddTo = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
-            CB.MATCH_TARGETS, R.get("attachTo", "EssentialCooldownViewer"),
-            R.set("attachTo"))
-        ddTo:SetPoint("TOPLEFT", 15, y - 20)
-        y = y - 70
+    if (barMode == "anchor" or barMode == "points") and CB then
+        if barMode == "anchor" then
+            local ddTo = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
+                CB.MATCH_TARGETS, R.get("attachTo", "EssentialCooldownViewer"),
+                R.set("attachTo"))
+            ddTo:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+        end
 
         local ddSide = W.CreateStyledDropdown(host, 200, 40, L["Side"] or "Side",
             CB.ATTACH_SIDES, R.get("attachSide", "BOTTOM"), R.set("attachSide"))
@@ -1690,7 +1761,8 @@ local function SecResource(host, y, cfg, t)
         {value = "match",  text = L["Match a Frame"] or "Match a Frame"},
     }
 
-    local ddWidth = W.CreateStyledDropdown(host, 200, 40, L["Width"] or "Width",
+    local ddWidth = W.CreateStyledDropdown(host, 200, 40,
+        detached and (L["Power Bar Width"] or "Power Bar Width") or (L["Width"] or "Width"),
         WIDTH_ITEMS, R.get("widthMode", "custom"),
         function(v) R.Write("widthMode", v); if rebuildFields then rebuildFields() end end)
     ddWidth:SetPoint("TOPLEFT", 15, y - 20)
@@ -1791,23 +1863,98 @@ local function SecResource(host, y, cfg, t)
 
     -- Names the resource this character will actually get, so it is obvious
     -- when a class simply has none rather than looking like a broken setting.
-    local RB = SquizzFrames.ResourceBar
     local resName = RB and RB.ResolveSecondary and select(1, RB.ResolveSecondary())
-    local pointNote = host:CreateFontString(nil, "OVERLAY")
-    pointNote:SetFontObject("GameFontDisableSmall")
-    pointNote:SetPoint("TOPLEFT", 32, y)
-    pointNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
-    pointNote:SetJustifyH("LEFT")
     if resName then
-        pointNote:SetText((L["ResourcePointsFound"] or "This specialization uses: %s")
-            :format(resName))
+        y = Note(y, (L["ResourcePointsFound"] or "This specialization uses: %s"):format(resName))
     else
-        pointNote:SetText(L["ResourcePointsNone"]
+        y = Note(y, L["ResourcePointsNone"]
             or "This specialization has no secondary resource, so no points are drawn.")
     end
-    y = y - 34
 
     if R.Read("showPoints", true) then
+        -- The detached row's own placement and width, in pointsLayout.
+        if detached and CB then
+            local P = ResourceGetters("pointsLayout")
+
+            -- "Attached to Power Bar" only while the bar is not riding the
+            -- points -- the mirror of the bar's own list above.
+            local pointItems = {POSITION_ITEMS[1], POSITION_ITEMS[2]}
+            if barMode ~= "points" then
+                table.insert(pointItems,
+                    {value = "power", text = L["Attached to Power Bar"] or "Attached to Power Bar"})
+            end
+
+            local ddPPos = W.CreateStyledDropdown(host, 200, 40,
+                L["Points Position"] or "Points Position",
+                pointItems, function() return pointsMode end,
+                function(v)
+                    if v == "free" and pointsMode ~= "free" and RB and RB.SeedFreePosition then
+                        local c = GetConfig()
+                        local rb = c and c.resourceBar
+                        if rb then
+                            rb.pointsLayout = rb.pointsLayout or {}
+                            RB.SeedFreePosition(RB.pointsFrame, rb.pointsLayout)
+                        end
+                    end
+                    P.Write("positionMode", v)
+                    if rebuildFields then rebuildFields() end
+                end)
+            ddPPos:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            if pointsMode == "anchor" or pointsMode == "power" then
+                if pointsMode == "anchor" then
+                    local ddPTo = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
+                        CB.MATCH_TARGETS, P.get("attachTo", "EssentialCooldownViewer"),
+                        P.set("attachTo"))
+                    ddPTo:SetPoint("TOPLEFT", 15, y - 20)
+                    y = y - 70
+                end
+
+                local ddPSide = W.CreateStyledDropdown(host, 200, 40, L["Side"] or "Side",
+                    CB.ATTACH_SIDES, P.get("attachSide", "TOP"), P.set("attachSide"))
+                ddPSide:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 70
+
+                local sPOX = W.CreateStyledSlider(host, 200, -300, 300, 1, L["Offset X"] or "Offset X",
+                    P.get("offsetX", 0), P.set("offsetX"))
+                sPOX:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 65
+
+                local sPOY = W.CreateStyledSlider(host, 200, -300, 300, 1, L["Offset Y"] or "Offset Y",
+                    P.get("offsetY", 2), P.set("offsetY"))
+                sPOY:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 70
+            end
+
+            local POINT_WIDTH_ITEMS = {
+                {value = "power",  text = L["Same as Power Bar"] or "Same as Power Bar"},
+                {value = "custom", text = L["Custom"] or "Custom"},
+                {value = "match",  text = L["Match a Frame"] or "Match a Frame"},
+            }
+
+            local ddPW = W.CreateStyledDropdown(host, 200, 40, L["Points Width"] or "Points Width",
+                POINT_WIDTH_ITEMS, P.get("widthMode", "power"),
+                function(v) P.Write("widthMode", v); if rebuildFields then rebuildFields() end end)
+            ddPW:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local pointsWidthMode = P.Read("widthMode", "power")
+            if pointsWidthMode == "match" then
+                local ddPMatch = W.CreateStyledDropdown(host, 200, 40,
+                    L["Match Width Of"] or "Match Width Of",
+                    CB.MATCH_TARGETS, P.get("matchFrame", "EssentialCooldownViewer"),
+                    P.set("matchFrame"))
+                ddPMatch:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 70
+            elseif pointsWidthMode == "custom" then
+                local sPW = W.CreateStyledSlider(host, 200, 20, 600, 1, L["Width"] or "Width",
+                    P.get("width", 220), P.set("width"))
+                sPW:SetPoint("TOPLEFT", 15, y - 20)
+                y = y - 65
+            end
+        end
+
         local sPH = W.CreateStyledSlider(host, 200, 2, 40, 1, L["Height"] or "Height",
             R.get("pointHeight", 8), R.set("pointHeight"))
         sPH:SetPoint("TOPLEFT", 15, y - 20)
@@ -1818,15 +1965,20 @@ local function SecResource(host, y, cfg, t)
         sSpace:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65
 
-        local sGap = W.CreateStyledSlider(host, 200, 0, 20, 1, L["Gap"] or "Gap",
-            R.get("gap", 2), R.set("gap"))
-        sGap:SetPoint("TOPLEFT", 15, y - 20)
-        y = y - 70
+        -- Gap and Points Above Bar arrange the two rows INSIDE one bar, so
+        -- they only exist while attached. Detached, the points' own side and
+        -- offsets above do that job.
+        if not detached then
+            local sGap = W.CreateStyledSlider(host, 200, 0, 20, 1, L["Gap"] or "Gap",
+                R.get("gap", 2), R.set("gap"))
+            sGap:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
 
-        local cbAbove = W.CreateStyledCheckbox(host, L["Points Above Bar"] or "Points Above Bar",
-            R.bool("pointsAbove", true), R.setBool("pointsAbove"))
-        cbAbove:SetPoint("TOPLEFT", 15, y)
-        y = y - 30
+            local cbAbove = W.CreateStyledCheckbox(host, L["Points Above Bar"] or "Points Above Bar",
+                R.bool("pointsAbove", true), R.setBool("pointsAbove"))
+            cbAbove:SetPoint("TOPLEFT", 15, y)
+            y = y - 30
+        end
 
         local ddPColor = W.CreateStyledDropdown(host, 200, 40, L["Color"] or "Color",
             COLOR_MODE_ITEMS, R.get("pointColorMode", "auto"),
@@ -1860,14 +2012,13 @@ local function SecResource(host, y, cfg, t)
     cbBg:SetPoint("TOPLEFT", 15, y)
     y = y - 26
 
-    local bgNote = host:CreateFontString(nil, "OVERLAY")
-    bgNote:SetFontObject("GameFontDisableSmall")
-    bgNote:SetPoint("TOPLEFT", 32, y)
-    bgNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
-    bgNote:SetJustifyH("LEFT")
-    bgNote:SetText(L["ResourceBackgroundNote"]
-        or "A solid fill behind the whole bar. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background.")
-    y = y - 42
+    if detached then
+        y = Note(y, L["ResourceBackgroundNoteDetached"]
+            or "A solid fill behind the power bar and behind the points, each on its own. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background.")
+    else
+        y = Note(y, L["ResourceBackgroundNote"]
+            or "A solid fill behind the whole bar. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background.")
+    end
 
     if BG.Read("enabled", true) ~= false then
         local cpBg = W.CreateColorPicker(host, L["Color"] or "Color",
@@ -1893,14 +2044,13 @@ local function SecResource(host, y, cfg, t)
     cbBorder:SetPoint("TOPLEFT", 15, y)
     y = y - 26
 
-    local borderNote = host:CreateFontString(nil, "OVERLAY")
-    borderNote:SetFontObject("GameFontDisableSmall")
-    borderNote:SetPoint("TOPLEFT", 32, y)
-    borderNote:SetPoint("RIGHT", host, "RIGHT", -20, 0)
-    borderNote:SetJustifyH("LEFT")
-    borderNote:SetText(L["ResourceBorderNote"]
-        or "Outlines the whole bar, both rows together. Set the row Gap to 0 if you want it tight around them.")
-    y = y - 34
+    if detached then
+        y = Note(y, L["ResourceBorderNoteDetached"]
+            or "Outlines the power bar and the points separately, one box each.")
+    else
+        y = Note(y, L["ResourceBorderNote"]
+            or "Outlines the whole bar, both rows together. Set the row Gap to 0 if you want it tight around them.")
+    end
 
     if B.Read("enabled", false) then
         local sThick = W.CreateStyledSlider(host, 200, 1, 8, 1,

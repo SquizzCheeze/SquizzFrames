@@ -66,7 +66,7 @@ SquizzFrames/
     │   ├── Absorbs.lua         # Shield + heal-absorb health-bar overlays; values go straight to SetValue, never touched in Lua
     │   ├── Highlights.lua     # Hover/target/aggro borders; borrows BuiltIn_Update's factory + Check functions, own per-frame settings, renders in the preview
     │   ├── Dispels.lua        # Dispel overlay AND the separate dispel-icons indicator; REUSES the party AEI factories with a translated settings table (see AE.styles namespacing below)
-    │   ├── ResourceBar.lua     # Standalone movable player power + secondary-resource points; NOT gated on unitFrames.enabled
+    │   ├── ResourceBar.lua     # Standalone movable player power bar + secondary-resource point row, one bar or two separately placed frames (detachPoints/pointsLayout; the rows may attach to each other but never both ways); NOT gated on unitFrames.enabled
     │   ├── Preview.lua         # The options page's 1:1 mock frame — renders through the REAL formatters/painters, never a second copy of them
     │   ├── UnitFrameButton.xml # SquizzFramesUnitFrameTemplate
     │   └── UnitFramesPanel.lua # Options page ("unitFrames" nav entry); shell over profile.unitFrames

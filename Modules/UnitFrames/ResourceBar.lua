@@ -14,6 +14,34 @@
     dependency with no error message.
 
     -------------------------------------------------------------------
+    TWO FRAMES, ONE OR TWO POSITIONS
+    -------------------------------------------------------------------
+    The power bar is SquizzFramesResourceBar and the point row is its own
+    frame, SquizzFramesResourcePoints. Both are parented to UIParent.
+
+      detachPoints = false  (the default, and how every profile started)
+          One bar. The point row is placed INSIDE the bar's rect, above or
+          below the power row per pointsAbove; the bar has one position, one
+          width, one mover ("Resources"), and the backdrop and border wrap
+          both rows together.
+
+      detachPoints = true
+          Two bars. Each has its own position (free / anchored to a frame /
+          attached to the OTHER bar), the points have their own width, each
+          gets its own mover, backdrop and border. Settings for the points
+          live in cfg.pointsLayout.
+
+    The two rows may not BOTH be attached to each other -- that is an anchor
+    loop, which WoW rejects with "Cannot anchor to a region dependent on it".
+    The options page never offers it, and ApplySettings breaks it anyway (the
+    points fall back to free) in case a profile arrives that way.
+
+    Turning detach on must not move anything on screen: ResourceBar.SeedDetach
+    attaches the points to the power bar on the side they already occupy and
+    shifts the power bar's own placement by exactly the amount its rect
+    shrinks. See that function.
+
+    -------------------------------------------------------------------
     THE POINT ROW, AND WHY IT IS BUILT OUT OF STATUS BARS
     -------------------------------------------------------------------
     A row of discrete points looks like it wants `for i = 1, max do
@@ -49,6 +77,12 @@ SquizzFrames.ResourceBar = ResourceBar
 -- secondary resource (Runes and Essence are the widest at 6); Rogues can
 -- reach 7 combo points with talents, so the cap sits a little above that.
 local MAX_POINTS = 10
+
+-- Fallback screen positions (raw pixels from UIParent centre) when nothing is
+-- saved. The points default a little above the power bar's default so a
+-- freshly detached-and-freed row is not dropped on top of it.
+local DEFAULT_BAR_Y = -260
+local DEFAULT_POINTS_Y = -236
 
 -----------------------------------------------------------------------
 -- Which secondary resource, for whom
@@ -136,8 +170,59 @@ function ResourceBar.ResolveSecondary()
 end
 
 -----------------------------------------------------------------------
+-- Config
+-----------------------------------------------------------------------
+
+local function GetConfig()
+    local prof = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = prof and prof.unitFrames
+    return uf and uf.resourceBar
+end
+ResourceBar.GetConfig = GetConfig
+
+-- The detached point row's own placement. `create` materialises the table
+-- (the movers need somewhere to write); reads never do.
+local function PointsLayout(cfg, create)
+    if not cfg then return nil end
+    if create and not cfg.pointsLayout then cfg.pointsLayout = {} end
+    return cfg.pointsLayout or {}
+end
+
+-----------------------------------------------------------------------
 -- Creation
 -----------------------------------------------------------------------
+
+-- Backdrop + border for one frame. Shared by the bar and the point row, which
+-- each draw their own when detached.
+local function AddFrameDecor(frame)
+    -- Solid backdrop behind EVERYTHING, on the frame itself rather than on any
+    -- of its children -- a BACKGROUND-layer texture on the parent renders
+    -- below every child frame, which is exactly what is wanted.
+    --
+    -- This is what makes the point row countable. The points are separate
+    -- frames with `pointSpacing` between them, so without a backdrop the gaps
+    -- are TRANSPARENT and you are reading charges against whatever the game
+    -- world happens to be showing through them (user report + screenshot). A
+    -- solid fill turns each gap into a dark gutter, and the row reads as
+    -- discrete pips instead of a smear.
+    local backdrop = frame:CreateTexture(nil, "BACKGROUND")
+    backdrop:SetColorTexture(0, 0, 0, 0.8)
+    frame.backdrop = backdrop
+
+    -- Reuses BuiltIn_Update.lua's CreateBorderIndicator, the same factory the
+    -- pet buttons borrow rather than rolling their own -- it is exported for
+    -- exactly this. Resolved at RUNTIME, not load time: that file loads after
+    -- this one (see LoadModules.xml), and Create only ever runs from
+    -- OnEnable, long after everything is in memory.
+    local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
+    if BU and BU.CreateBorderIndicator then
+        local border = BU.CreateBorderIndicator(frame, "Border")
+        -- +4: above the bars and points (the point frames sit at +1/+2), below
+        -- the text host at +5 so the power text still reads over it.
+        border:SetFrameLevel(frame:GetFrameLevel() + 4)
+        frame.border = border
+    end
+end
 
 -- Parented to UIParent, never to a unit frame. Two reasons, both learned
 -- elsewhere in this module: a child of a secure frame inherits its combat
@@ -151,20 +236,6 @@ function ResourceBar.Create()
     bar:SetSize(220, 16)
     bar:SetFrameStrata("MEDIUM")
     bar:Hide()
-
-    -- Solid backdrop behind EVERYTHING, on the bar frame itself rather than on
-    -- any of its children -- a BACKGROUND-layer texture on the parent renders
-    -- below every child frame, which is exactly what is wanted.
-    --
-    -- This is what makes the point row countable. The points are separate
-    -- frames with `pointSpacing` between them, so without a backdrop the gaps
-    -- are TRANSPARENT and you are reading charges against whatever the game
-    -- world happens to be showing through them (user report + screenshot). A
-    -- solid fill turns each gap into a dark gutter, and the row reads as
-    -- discrete pips instead of a smear.
-    local backdrop = bar:CreateTexture(nil, "BACKGROUND")
-    backdrop:SetColorTexture(0, 0, 0, 0.8)
-    bar.backdrop = backdrop
 
     local power = CreateFrame("StatusBar", nil, bar)
     power:SetMinMaxValues(0, 1)
@@ -187,12 +258,24 @@ function ResourceBar.Create()
     text:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
     bar.powerText = text
 
+    -- The point row's own frame, parented to UIParent rather than to the bar
+    -- so that, once detached, hiding the power bar (showPower off) does not
+    -- take the points with it. One level above the bar, so while ATTACHED the
+    -- bar's backdrop sits under the points and its border over them.
+    local pointsFrame = CreateFrame("Frame", "SquizzFramesResourcePoints", UIParent)
+    pointsFrame:SetSize(220, 8)
+    pointsFrame:SetFrameStrata("MEDIUM")
+    pointsFrame:SetFrameLevel(bar:GetFrameLevel() + 1)
+    pointsFrame:Hide()
+    bar.pointsFrame = pointsFrame
+    ResourceBar.pointsFrame = pointsFrame
+
     -- Points are all created up front rather than on demand: a spec change
     -- can happen in combat, and creating frames then is the thing this
     -- codebase keeps arranging to avoid.
     bar.points = {}
     for i = 1, MAX_POINTS do
-        local pip = CreateFrame("StatusBar", nil, bar)
+        local pip = CreateFrame("StatusBar", nil, pointsFrame)
         pip:SetMinMaxValues(i - 1, i)
         pip:SetValue(0)
         local pipBg = pip:CreateTexture(nil, "BACKGROUND")
@@ -203,21 +286,10 @@ function ResourceBar.Create()
         bar.points[i] = pip
     end
 
-    -- Border, LAST so it draws above the power bar and the point row (same
-    -- frame level, and same-level siblings resolve by creation order), but
-    -- below textHost at +5 so the power text still reads over it.
-    --
-    -- Reuses BuiltIn_Update.lua's CreateBorderIndicator, the same factory the
-    -- pet buttons borrow rather than rolling their own -- it is exported for
-    -- exactly this. It is resolved at RUNTIME, not load time: that file loads
-    -- after this one (see LoadModules.xml), and Create only ever runs from
-    -- OnEnable, long after everything is in memory.
-    local BU = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
-    if BU and BU.CreateBorderIndicator then
-        local border = BU.CreateBorderIndicator(bar, "Border")
-        border:SetFrameLevel(bar:GetFrameLevel() + 4)
-        bar.border = border
-    end
+    -- Decor LAST on the bar so its border draws above the power bar, and on
+    -- the point row for when it is detached.
+    AddFrameDecor(bar)
+    AddFrameDecor(pointsFrame)
 
     ResourceBar.bar = bar
     return bar
@@ -238,12 +310,161 @@ local function ResolveColor(mode, custom, autoR, autoG, autoB)
 end
 
 -----------------------------------------------------------------------
+-- Layout helpers
+-----------------------------------------------------------------------
+
+-- Places `frame` from a position table (the bar's cfg, or cfg.pointsLayout).
+--
+--   mode "anchor"   rides a frame from CastBar.MATCH_TARGETS
+--   mode "partner"  rides `partner` -- the other resource frame
+--   anything else   free, at anchorX/anchorY
+--
+-- An anchor target that has not loaded yet flags the shared retry rather than
+-- stranding the frame for the session -- ApplyLayout reads the flag right
+-- after calling us -- and falls through to the free position meanwhile, so
+-- the frame is at least somewhere findable.
+local function PlaceFrame(frame, pos, mode, partner, scale, defaultY)
+    frame:ClearAllPoints()
+    local CB = SquizzFrames.UnitFrameCastBar
+
+    local target
+    if mode == "anchor" then
+        target = pos.attachTo and _G[pos.attachTo]
+        if not (target and target.GetObjectType) then
+            target = nil
+            if CB then CB.anchorRetryWanted = true end
+        end
+    elseif mode == "partner" then
+        target = partner
+    end
+
+    if target and CB and CB.AttachPoints then
+        local pts = CB.AttachPoints(pos.attachSide or "BOTTOM")
+        frame:SetPoint(pts[1], target, pts[2], pos.offsetX or 0, pos.offsetY or 0)
+        return
+    end
+
+    frame:SetPoint("CENTER", UIParent, "CENTER",
+        (pos.anchorX or 0) / scale, (pos.anchorY or defaultY) / scale)
+end
+
+-- WIDTH for the bar. "match" tracks another frame's width live -- the same
+-- feature the cast bar has, sharing its implementation (CastBar.MatchedWidth)
+-- rather than a second copy: the CDM viewers are load-on-demand, they resize
+-- themselves as your tracked cooldowns change, and the resize hook must be
+-- installed exactly once per frame. Three chances to get it subtly wrong
+-- twice.
+local function ResolveBarWidth(cfg)
+    local CB = SquizzFrames.UnitFrameCastBar
+    local w = cfg.width or 220
+    if cfg.widthMode == "match" and CB and CB.MatchedWidth then
+        w = CB.MatchedWidth(cfg.matchFrame) or w
+    end
+    return w
+end
+
+-- WIDTH for the detached point row: the bar's own width by default, or its
+-- own custom / matched width.
+local function ResolvePointsWidth(layout, barWidth)
+    local mode = layout.widthMode or "power"
+    if mode == "custom" then
+        return layout.width or barWidth
+    elseif mode == "match" then
+        local CB = SquizzFrames.UnitFrameCastBar
+        return (CB and CB.MatchedWidth and CB.MatchedWidth(layout.matchFrame)) or barWidth
+    end
+    return barWidth
+end
+
+-- Effective position modes, with the anchor loop broken. The bar can only
+-- ride the points while detached, and if both are set to ride each other the
+-- POINTS give way and go free.
+local function EffectiveModes(cfg)
+    local detached = cfg.detachPoints == true
+    local barMode = cfg.positionMode or "free"
+    if barMode == "points" and not detached then barMode = "free" end
+
+    local pointsMode = (PointsLayout(cfg).positionMode) or "power"
+    if barMode == "points" and pointsMode == "power" then pointsMode = "free" end
+    return barMode, pointsMode
+end
+ResourceBar.EffectiveModes = EffectiveModes
+
+local function ApplyBackdrop(frame, bgCfg)
+    if not frame.backdrop then return end
+    -- Defaults to ON (`~= false`, not `== true`): the transparent gaps it
+    -- fixes are a defect rather than a style, so a profile that has never
+    -- heard of this key should still get the readable version.
+    if not bgCfg or bgCfg.enabled ~= false then
+        local pad = (bgCfg and bgCfg.padding) or 0
+        local c = (bgCfg and bgCfg.color) or {0, 0, 0, 0.8}
+        frame.backdrop:ClearAllPoints()
+        frame.backdrop:SetPoint("TOPLEFT", frame, "TOPLEFT", -pad, pad)
+        frame.backdrop:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", pad, -pad)
+        frame.backdrop:SetColorTexture(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 0.8)
+        frame.backdrop:Show()
+    else
+        frame.backdrop:Hide()
+    end
+end
+
+-- `padding` pushes the border outward from the frame's edge -- at 0 it sits on
+-- the edge itself, drawing over the outermost pixel of the bars the way the
+-- party frame border does.
+local function ApplyBorder(frame, b)
+    if not frame.border then return end
+    if b and b.enabled then
+        local pad = b.padding or 0
+        frame.border:ClearAllPoints()
+        frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -pad, pad)
+        frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", pad, -pad)
+        frame.border:SetThickness(b.thickness or 1)
+        local c = b.color or {0, 0, 0, 1}
+        frame.border:SetColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
+        frame.border:Show()
+    else
+        frame.border:Hide()
+    end
+end
+
+local function HideDecor(frame)
+    if frame.backdrop then frame.backdrop:Hide() end
+    if frame.border then frame.border:Hide() end
+end
+
+-- Lays the points out across `pointsFrame`, sized to however many the current
+-- spec actually has, so the row is always exactly as wide as its frame with
+-- no leftover gap.
+local function LayoutPoints(bar, count, width, height, spacing, barTexture)
+    local pointsFrame = bar.pointsFrame
+    if count > 0 then
+        local total = width - spacing * (count - 1)
+        local each = math.max(1, total / count)
+        for i = 1, MAX_POINTS do
+            local pip = bar.points[i]
+            if i <= count then
+                pip:SetSize(each, height)
+                pip:ClearAllPoints()
+                pip:SetPoint("TOPLEFT", pointsFrame, "TOPLEFT", (i - 1) * (each + spacing), 0)
+                pip:SetStatusBarTexture(barTexture)
+                pip:Show()
+            else
+                pip:Hide()
+            end
+        end
+    else
+        for i = 1, MAX_POINTS do bar.points[i]:Hide() end
+    end
+end
+
+-----------------------------------------------------------------------
 -- Settings
 -----------------------------------------------------------------------
 
 function ResourceBar.ApplySettings(cfg, barTexture)
     local bar = ResourceBar.bar
     if not bar then return end
+    local pointsFrame = bar.pointsFrame
 
     -- Remembered for Refresh, which has no way to resolve it itself -- see
     -- that function's comment.
@@ -251,67 +472,86 @@ function ResourceBar.ApplySettings(cfg, barTexture)
 
     if not cfg or not cfg.enabled then
         bar:Hide()
+        pointsFrame:Hide()
         return
     end
 
     local scale = cfg.scale or 1
     bar:SetScale(scale)
+    pointsFrame:SetScale(scale)
 
-    -- WIDTH. "match" tracks another frame's width live -- the same feature the
-    -- cast bar has, sharing its implementation (CastBar.MatchedWidth) rather
-    -- than a second copy: the CDM viewers are load-on-demand, they resize
-    -- themselves as your tracked cooldowns change, and the resize hook must be
-    -- installed exactly once per frame. Three chances to get it subtly wrong
-    -- twice.
-    local CB = SquizzFrames.UnitFrameCastBar
-    local w = cfg.width or 220
-    if cfg.widthMode == "match" and CB and CB.MatchedWidth then
-        w = CB.MatchedWidth(cfg.matchFrame) or w
-    end
+    local detached = cfg.detachPoints == true
+    local layout = PointsLayout(cfg)
+    local w = ResolveBarWidth(cfg)
 
     local powerH = cfg.showPower == false and 0 or (cfg.powerHeight or 16)
     local pointH = cfg.showPoints == false and 0 or (cfg.pointHeight or 8)
-    local gap = (powerH > 0 and pointH > 0) and (cfg.gap or 2) or 0
 
-    bar:SetSize(w, math.max(1, powerH + pointH + gap))
+    local _, _, max = ResourceBar.ResolveSecondary()
+    bar._sfPointCount = (pointH > 0 and max) or 0
+    local count = bar._sfPointCount
 
-    -- POSITION. "free" is its own screen position, dragged in Edit Mode;
-    -- "anchor" rides another frame and follows it wherever it goes.
-    bar:ClearAllPoints()
-    local positioned = false
-    if cfg.positionMode == "anchor" and CB and CB.AttachPoints then
-        local target = cfg.attachTo and _G[cfg.attachTo]
-        if target and target.GetObjectType then
-            local pts = CB.AttachPoints(cfg.attachSide or "BOTTOM")
-            bar:SetPoint(pts[1], target, pts[2], cfg.offsetX or 0, cfg.offsetY or 0)
-            positioned = true
-        else
-            -- Target not loaded yet. Flag the shared retry rather than being
-            -- stranded on the fallback for the session -- ApplyLayout reads
-            -- this immediately after calling us. Falls through to the free
-            -- position meanwhile, so the bar is at least somewhere findable
-            -- instead of pinned to screen centre.
-            if CB then CB.anchorRetryWanted = true end
+    local barMode, pointsMode = EffectiveModes(cfg)
+    local power = bar.power
+    power:ClearAllPoints()
+
+    local pointsW
+    if not detached then
+        -- ONE BAR: the point row lives inside the bar's rect.
+        pointsW = w
+        local gap = (powerH > 0 and pointH > 0) and (cfg.gap or 2) or 0
+        bar:SetSize(w, math.max(1, powerH + pointH + gap))
+        PlaceFrame(bar, cfg, barMode, nil, scale, DEFAULT_BAR_Y)
+
+        if powerH > 0 then
+            -- pointsAbove decides which of the two rows owns the top edge.
+            if cfg.pointsAbove and pointH > 0 then
+                power:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
+            else
+                power:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+            end
         end
-    end
 
-    if not positioned then
-        bar:SetPoint("CENTER", UIParent, "CENTER",
-            (cfg.anchorX or 0) / scale, (cfg.anchorY or -260) / scale)
+        pointsFrame:ClearAllPoints()
+        pointsFrame:SetSize(w, math.max(1, pointH))
+        if cfg.pointsAbove then
+            pointsFrame:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+        else
+            pointsFrame:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
+        end
+
+        -- Backdrop and border wrap the WHOLE bar, power row and point row
+        -- together, rather than one box per row: two boxes with a gap between
+        -- them is a different look, and the one people ask for is the outline.
+        -- Set the row gap to 0 if you want the outline tight.
+        ApplyBackdrop(bar, cfg.background)
+        ApplyBorder(bar, cfg.border)
+        HideDecor(pointsFrame)
+    else
+        -- TWO BARS, each placed on its own.
+        pointsW = ResolvePointsWidth(layout, w)
+        bar:SetSize(w, math.max(1, powerH))
+        pointsFrame:SetSize(pointsW, math.max(1, pointH))
+
+        PlaceFrame(bar, cfg, barMode == "points" and "partner" or barMode,
+                   pointsFrame, scale, DEFAULT_BAR_Y)
+        PlaceFrame(pointsFrame, layout, pointsMode == "power" and "partner" or pointsMode,
+                   bar, scale, DEFAULT_POINTS_Y)
+
+        if powerH > 0 then
+            power:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+        end
+
+        ApplyBackdrop(bar, cfg.background)
+        ApplyBorder(bar, cfg.border)
+        ApplyBackdrop(pointsFrame, cfg.background)
+        ApplyBorder(pointsFrame, cfg.border)
     end
 
     -- Power bar
-    local power = bar.power
-    power:ClearAllPoints()
     if powerH > 0 then
         power:SetHeight(powerH)
         power:SetWidth(w)
-        -- pointsAbove decides which of the two rows owns the top edge.
-        if cfg.pointsAbove and pointH > 0 then
-            power:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
-        else
-            power:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
-        end
         power:SetStatusBarTexture(barTexture)
         power:Show()
     else
@@ -335,91 +575,109 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         text:Hide()
     end
 
-    -- Point row. Sized to however many the current spec actually has, so the
-    -- row is always exactly as wide as the bar with no leftover gap.
-    local _, _, max = ResourceBar.ResolveSecondary()
-    bar._sfPointCount = (pointH > 0 and max) or 0
+    -- Point row
+    LayoutPoints(bar, count, pointsW, pointH, cfg.pointSpacing or 2, barTexture)
 
-    if bar._sfPointCount > 0 then
-        local spacing = cfg.pointSpacing or 2
-        local total = w - spacing * (bar._sfPointCount - 1)
-        local each = math.max(1, total / bar._sfPointCount)
-        for i = 1, MAX_POINTS do
-            local pip = bar.points[i]
-            if i <= bar._sfPointCount then
-                pip:SetSize(each, pointH)
-                pip:ClearAllPoints()
-                local x = (i - 1) * (each + spacing)
-                if cfg.pointsAbove then
-                    pip:SetPoint("TOPLEFT", bar, "TOPLEFT", x, 0)
-                else
-                    pip:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
-                end
-                pip:SetStatusBarTexture(barTexture)
-                pip:Show()
-            else
-                pip:Hide()
-            end
-        end
+    -- Visibility. Attached, the bar is the whole display and always shows;
+    -- detached, a row with nothing to draw hides rather than leaving an empty
+    -- box on screen.
+    if detached then
+        bar:SetShown(powerH > 0)
     else
-        for i = 1, MAX_POINTS do bar.points[i]:Hide() end
+        bar:Show()
     end
+    pointsFrame:SetShown(count > 0)
 
-    -- Backdrop. Defaults to ON (`~= false`, not `== true`): the transparent
-    -- gaps it fixes are a defect rather than a style, so a profile that has
-    -- never heard of this key should still get the readable version.
-    local bgCfg = cfg.background
-    if bar.backdrop then
-        if not bgCfg or bgCfg.enabled ~= false then
-            local pad = (bgCfg and bgCfg.padding) or 0
-            local c = (bgCfg and bgCfg.color) or {0, 0, 0, 0.8}
-            bar.backdrop:ClearAllPoints()
-            bar.backdrop:SetPoint("TOPLEFT", bar, "TOPLEFT", -pad, pad)
-            bar.backdrop:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", pad, -pad)
-            bar.backdrop:SetColorTexture(c[1] or 0, c[2] or 0, c[3] or 0,
-                                         c[4] or 0.8)
-            bar.backdrop:Show()
-        else
-            bar.backdrop:Hide()
-        end
-    end
-
-    -- Border. Wraps the WHOLE bar, power row and point row together, rather
-    -- than one box per row: two boxes with a gap between them is a different
-    -- look, and the one people ask for is the outline. `padding` pushes it
-    -- outward from the bar's edge -- at 0 it sits on the edge itself, drawing
-    -- over the outermost pixel of the bars the way the party frame border
-    -- does. Set the row gap to 0 if you want the outline tight.
-    local b = cfg.border
-    if bar.border then
-        if b and b.enabled then
-            local pad = b.padding or 0
-            bar.border:ClearAllPoints()
-            bar.border:SetPoint("TOPLEFT", bar, "TOPLEFT", -pad, pad)
-            bar.border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", pad, -pad)
-            bar.border:SetThickness(b.thickness or 1)
-            local c = b.color or {0, 0, 0, 1}
-            bar.border:SetColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
-            bar.border:Show()
-        else
-            bar.border:Hide()
-        end
-    end
-
-    bar:Show()
     ResourceBar.Update()
+end
+
+-- Called by the options page as detach is switched ON, before the change is
+-- applied, so that nothing moves on screen.
+--
+-- The points start attached to the power bar on the side they already occupy,
+-- `gap` apart, at the same width -- visually identical to the single bar. The
+-- bar's rect then shrinks to the power row alone, so the bar's own placement
+-- is shifted by exactly how far that row's centre moves:
+--
+--   free, or anchored by a side/centre point  the rect's centre stays put,
+--                                             so shift by the row's offset
+--                                             from that centre
+--   anchored by its TOP edge                  the top stays put
+--   anchored by its BOTTOM edge               the bottom stays put
+--
+-- Re-seeds every time detach is turned on, deliberately: "starts where it is
+-- now" is the promise, and an old detached layout could be anywhere.
+function ResourceBar.SeedDetach(cfg)
+    if not cfg then return end
+    local layout = PointsLayout(cfg, true)
+    local CB = SquizzFrames.UnitFrameCastBar
+
+    -- A stale "ride the points" from an earlier detach would loop with the
+    -- points riding the bar below.
+    if cfg.positionMode == "points" then cfg.positionMode = "free" end
+
+    local powerH = cfg.showPower == false and 0 or (cfg.powerHeight or 16)
+    local pointH = cfg.showPoints == false and 0 or (cfg.pointHeight or 8)
+    local gap = (powerH > 0 and pointH > 0) and (cfg.gap or 2) or 0
+
+    layout.widthMode = "power"
+
+    if powerH == 0 then
+        -- Only the point row is on screen, so it IS the bar: hand it the
+        -- bar's placement outright.
+        layout.positionMode = (cfg.positionMode == "anchor") and "anchor" or "free"
+        layout.attachTo = cfg.attachTo
+        layout.attachSide = cfg.attachSide
+        layout.offsetX = cfg.offsetX or 0
+        layout.offsetY = cfg.offsetY or 0
+        layout.anchorX = cfg.anchorX or 0
+        layout.anchorY = cfg.anchorY or DEFAULT_BAR_Y
+        return
+    end
+
+    layout.positionMode = "power"
+    layout.attachSide = cfg.pointsAbove and "TOP" or "BOTTOM"
+    layout.offsetX = 0
+    layout.offsetY = cfg.pointsAbove and gap or -gap
+
+    if pointH == 0 then return end
+
+    local shrink = gap + pointH
+    local rowOffset = cfg.pointsAbove and -shrink / 2 or shrink / 2
+    local adjust = rowOffset
+    if cfg.positionMode == "anchor" and CB and CB.AttachPoints then
+        local ours = CB.AttachPoints(cfg.attachSide or "BOTTOM")[1]
+        if ours:find("TOP") then
+            adjust = rowOffset - shrink / 2
+        elseif ours:find("BOTTOM") then
+            adjust = rowOffset + shrink / 2
+        end
+        -- Anchor offsets are in the bar's own scaled space.
+        cfg.offsetY = (cfg.offsetY or 0) + adjust
+    else
+        -- Free positions are raw UIParent pixels, divided by scale at apply.
+        cfg.anchorY = (cfg.anchorY or DEFAULT_BAR_Y) + adjust * (cfg.scale or 1)
+    end
+end
+
+-- Called by the options page when a row is switched to "free", so it starts
+-- where it currently is instead of jumping to an old saved position.
+--
+-- GetCenter reports the frame's OWN scaled space, not UIParent's (see the
+-- coordinate-space-mixing note): convert through the effective scales before
+-- expressing it as UIParent pixels from centre.
+function ResourceBar.SeedFreePosition(frame, pos)
+    if not (frame and pos and frame:IsVisible()) then return end
+    local cx, cy = frame:GetCenter()
+    if not cx then return end
+    local ratio = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    pos.anchorX = cx * ratio - UIParent:GetWidth() / 2
+    pos.anchorY = cy * ratio - UIParent:GetHeight() / 2
 end
 
 -----------------------------------------------------------------------
 -- Values
 -----------------------------------------------------------------------
-
-local function GetConfig()
-    local prof = SquizzFrames.db and SquizzFrames.db.profile
-    local uf = prof and prof.unitFrames
-    return uf and uf.resourceBar
-end
-ResourceBar.GetConfig = GetConfig
 
 function ResourceBar.Update()
     local bar = ResourceBar.bar
@@ -491,7 +749,7 @@ function ResourceBar.Refresh()
 end
 
 -----------------------------------------------------------------------
--- Mover
+-- Movers
 -----------------------------------------------------------------------
 
 -- Same drag maths as CastBar.CreateMover: cursor position converted into
@@ -500,18 +758,17 @@ end
 -- the coordinate-space-mixing memory -- GetCenter and friends report a
 -- frame's OWN scaled space, which is exact at scale 1.0 and drifts silently
 -- everywhere else.
-function ResourceBar.CreateMover()
-    local bar = ResourceBar.bar
-    if not bar or bar._sfMover then return bar and bar._sfMover end
-
-    local mover = CreateFrame("Frame", "SquizzFramesResourceBarMover", UIParent,
-                              "BackdropTemplate")
+--
+-- `getPos` returns the table the position is saved into (the bar's cfg, or
+-- cfg.pointsLayout), resolved at drag time so a profile switch is honoured.
+local function MakeMover(frame, globalName, getPos, defaultY)
+    local mover = CreateFrame("Frame", globalName, UIParent, "BackdropTemplate")
     mover:SetFrameStrata("DIALOG")
     mover:EnableMouse(true)
     mover:Hide()
 
-    -- Kept as fields: SetEditMode recolours and relabels them, so an anchored
-    -- bar's preview handle reads differently from a draggable one.
+    -- Kept as fields: SetEditMode recolours and relabels them, so an attached
+    -- row's preview handle reads differently from a draggable one.
     local tex = mover:CreateTexture(nil, "BACKGROUND")
     tex:SetAllPoints(mover)
     tex:SetColorTexture(0.99, 0.6, 0.2, 0.3)
@@ -520,7 +777,6 @@ function ResourceBar.CreateMover()
     local label = mover:CreateFontString(nil, "OVERLAY")
     label:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     label:SetPoint("CENTER")
-    label:SetText("Resources")
     mover._sfLabel = label
 
     local dragging, dragX, dragY = false, 0, 0
@@ -529,15 +785,16 @@ function ResourceBar.CreateMover()
     local function StartDrag(self)
         if dragging then return end
         dragging = true
-        local cfg = GetConfig()
+        local pos = getPos()
+        local startX = (pos and pos.anchorX) or 0
+        local startY = (pos and pos.anchorY) or defaultY
         local uiScale = UIParent:GetEffectiveScale()
         local sx, sy = GetCursorPosition()
         sx, sy = sx / uiScale, sy / uiScale
         local sw, sh = GetScreenWidth(), GetScreenHeight()
-        local offX = (sw / 2 + ((cfg and cfg.anchorX) or 0)) - sx
-        local offY = (sh / 2 + ((cfg and cfg.anchorY) or -260)) - sy
-        dragX = (cfg and cfg.anchorX) or 0
-        dragY = (cfg and cfg.anchorY) or -260
+        local offX = (sw / 2 + startX) - sx
+        local offY = (sh / 2 + startY) - sy
+        dragX, dragY = startX, startY
 
         self:SetScript("OnUpdate", function(f)
             if not IsMouseButtonDown("LeftButton") then StopDrag(f) return end
@@ -547,9 +804,9 @@ function ResourceBar.CreateMover()
             local sw2, sh2 = GetScreenWidth(), GetScreenHeight()
             dragX = (cx + offX) - sw2 / 2
             dragY = (cy + offY) - sh2 / 2
-            local bs = bar:GetScale() or 1
-            bar:ClearAllPoints()
-            bar:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+            local bs = frame:GetScale() or 1
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
         end)
@@ -559,10 +816,10 @@ function ResourceBar.CreateMover()
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
-        local cfg = GetConfig()
-        if cfg then
-            cfg.anchorX = dragX
-            cfg.anchorY = dragY
+        local pos = getPos()
+        if pos then
+            pos.anchorX = dragX
+            pos.anchorY = dragY
         end
         SquizzFrames:Fire("UnitFramesChanged")
     end
@@ -575,52 +832,89 @@ function ResourceBar.CreateMover()
     end)
     mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
-    bar._sfMover = mover
     return mover
 end
 
--- The handle is shown in BOTH position modes, and what changes is whether it
--- can be dragged:
+function ResourceBar.CreateMover()
+    local bar = ResourceBar.bar
+    if not bar then return nil end
+
+    if not bar._sfMover then
+        bar._sfMover = MakeMover(bar, "SquizzFramesResourceBarMover",
+            function() return GetConfig() end, DEFAULT_BAR_Y)
+    end
+
+    local pointsFrame = bar.pointsFrame
+    if pointsFrame and not pointsFrame._sfMover then
+        pointsFrame._sfMover = MakeMover(pointsFrame, "SquizzFramesResourcePointsMover",
+            function() return PointsLayout(GetConfig(), true) end, DEFAULT_POINTS_Y)
+    end
+
+    return bar._sfMover
+end
+
+-- A handle is shown for every visible row, and what changes is whether it can
+-- be dragged:
 --
---   free     draggable, orange
---   anchor   preview only, grey, mouse DISABLED
+--   free       draggable, orange
+--   attached   preview only, grey, mouse DISABLED
 --
--- Same arrangement as CastBar.SetEditMode, for the same reason: an anchored
--- bar has no position of its own to drag, and a handle that silently does
+-- Same arrangement as CastBar.SetEditMode, for the same reason: an attached
+-- row has no position of its own to drag, and a handle that silently does
 -- nothing is worse than a handle that looks inert. Mouse is disabled rather
 -- than the scripts removed so clicks fall through to whatever mover is
--- underneath -- the frame it is anchored TO, most obviously.
+-- underneath -- the frame it is attached TO, most obviously.
 --
--- SetAllPoints(bar) tracks the anchor target for free, including while that
--- target is itself being dragged in the same Edit Mode session.
+-- SetAllPoints tracks the row wherever it goes, including while the frame it
+-- is attached to is itself being dragged in the same Edit Mode session.
+local function ShowMover(mover, frame, draggable, text)
+    mover:SetScale(frame:GetScale() or 1)
+    mover:EnableMouse(draggable)
+    mover:ClearAllPoints()
+    mover:SetAllPoints(frame)
+    if draggable then
+        mover._sfTex:SetColorTexture(0.99, 0.6, 0.2, 0.3)
+        mover._sfLabel:SetText(text)
+    else
+        mover._sfTex:SetColorTexture(0.45, 0.45, 0.5, 0.30)
+        mover._sfLabel:SetText(text .. " (attached)")
+    end
+    mover:Show()
+end
+
 function ResourceBar.SetEditMode(enabled)
     local bar = ResourceBar.bar
     if not bar then return end
-    local mover = bar._sfMover or ResourceBar.CreateMover()
-    if not mover then return end
+    ResourceBar.CreateMover()
+    local barMover = bar._sfMover
+    local pointsFrame = bar.pointsFrame
+    local pointsMover = pointsFrame and pointsFrame._sfMover
+    if not barMover then return end
 
     local cfg = GetConfig()
     if not (enabled and cfg and cfg.enabled) then
-        mover:Hide()
+        barMover:Hide()
+        if pointsMover then pointsMover:Hide() end
         return
     end
 
-    local free = (cfg.positionMode or "free") ~= "anchor"
-    mover:SetScale(bar:GetScale() or 1)
-    mover:EnableMouse(free)
-    mover:SetSize(bar:GetWidth(), bar:GetHeight())
-    mover:ClearAllPoints()
-    mover:SetAllPoints(bar)
+    local detached = cfg.detachPoints == true
+    local barMode, pointsMode = EffectiveModes(cfg)
 
-    if free then
-        mover._sfTex:SetColorTexture(0.99, 0.6, 0.2, 0.3)
-        mover._sfLabel:SetText("Resources")
+    if bar:IsShown() then
+        ShowMover(barMover, bar, barMode == "free",
+            detached and "Power Bar" or "Resources")
     else
-        mover._sfTex:SetColorTexture(0.45, 0.45, 0.5, 0.30)
-        mover._sfLabel:SetText("Resources (attached)")
+        barMover:Hide()
     end
 
-    mover:Show()
+    if pointsMover then
+        if detached and pointsFrame:IsShown() then
+            ShowMover(pointsMover, pointsFrame, pointsMode == "free", "Resource Points")
+        else
+            pointsMover:Hide()
+        end
+    end
 end
 
 -----------------------------------------------------------------------
