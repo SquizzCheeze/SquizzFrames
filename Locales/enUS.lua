@@ -164,6 +164,13 @@ L["ResourceBackgroundNote"] = "A solid fill behind the whole bar. Without it the
 L["ResourceDetachNote"] = "Gives the resource points their own position and width, so the power bar and the points can each be dragged, attached to another frame, or attached to each other. They start exactly where they are now."
 L["ResourceBackgroundNoteDetached"] = "A solid fill behind the power bar and behind the points, each on its own. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background."
 L["ResourceBorderNoteDetached"] = "Outlines the power bar and the points separately, one box each."
+L["ResourcePowerAttachedNote"] = "The resource points sit inside this bar, so the Position and Width below place both. Turn on Move Points Separately under General to give the points their own."
+L["ResourcePointsWidthAttachedNote"] = "While attached, the points use the power bar's width - set it on the Power tab, including Match a Frame. Turn on Move Points Separately under General to give them a width of their own."
+L["ResourcePointsFitNote"] = "The points sit side by side, Spacing apart, at their full Size."
+L["ResourcePointsSpreadNote"] = "The points spread evenly across this width at their Size, first and last on the edges, so the row lines up with the bar or frame it matches. They only shrink if they cannot fit."
+L["ResourcePointBorderNote"] = "An outline around each point, following its shape and drawn just inside its edge, so the points keep their size. On shapes the thickness grows with Size."
+L["ResourcePointBorderBlizzardNote"] = "Blizzard art draws its own edges, so it has no point border. Pick Bars or a Shape to outline each point."
+L["ResourceBlizzardArtNote"] ="Uses the game's own art for your class's resource. Automatic colour keeps the art's real colours; the other colour choices tint it. A resource with no art shows round points instead."
 
 -- Cast bar text styling (CastBar.ApplyTextStyle)
 L["Font"] = "Font"

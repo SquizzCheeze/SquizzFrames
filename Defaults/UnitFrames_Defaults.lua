@@ -551,7 +551,7 @@ profile.unitFrames = {
         -- a builder/spender (they are what you are watching), so it is the
         -- default.
         pointsAbove = true,
-        pointColorMode = "auto",     -- "auto" (per resource) | "class" | "custom"
+        pointColorMode = "auto",     -- "auto" (per resource) | "class" | "custom" | "rainbow" | "rainbowAnimated"
         pointColor = {1, 0.85, 0.3, 1},
         -- Deliberately lighter than the backdrop below, and fully opaque. The
         -- point row has to read as THREE distinct tones to be countable at a
@@ -560,6 +560,27 @@ profile.unitFrames = {
         -- between them. At the old 0.15/0.8 an empty point and a gap were
         -- nearly the same shade.
         pointEmptyColor = {0.22, 0.22, 0.22, 1},
+
+        -- How each point is drawn (see ResourceBar.lua's "POINT STYLES"):
+        -- "bars" is the plain look, "shape" cuts each point to pointShape,
+        -- "blizzard" uses the game's own art for this resource. Shapes and
+        -- art keep their proportions and spread evenly across the row's
+        -- width, unless pointsLayout.widthMode is "points" (Fit to Points).
+        pointStyle = "bars",           -- "bars" | "shape" | "blizzard"
+        pointShape = "round",          -- a value from ResourceBar.SHAPES
+        -- "auto" fills bars left to right and shapes/art bottom to top.
+        pointFill = "auto",            -- "auto" | "horizontal" | "vertical"
+        -- Colour cycles per second, for pointColorMode "rainbowAnimated".
+        rainbowSpeed = 0.25,
+        -- An outline on each point, just inside its edge: pixel edges on
+        -- bars, a ring following the shape on shapes. Blizzard art has its
+        -- own edges and never gets one. thickness is 1-4 -- pixels on bars,
+        -- which ring image on shapes (see ResourceBar.lua's StylePipBorder).
+        pointBorder = {
+            enabled = false,
+            thickness = 2,
+            color = {0, 0, 0, 1},
+        },
 
         -- Gap between the two rows, when both are shown.
         gap = 2,
@@ -579,7 +600,10 @@ profile.unitFrames = {
             offsetY = 2,
             anchorX = 0,
             anchorY = -236,
-            widthMode = "power",         -- "power" | "custom" | "match"
+            -- "points" packs shapes/art side by side (attached: centred in
+            -- the bar; detached: the row is as wide as its points). Bars
+            -- treat it as "power". Attached, only "power"/"points" apply.
+            widthMode = "power",         -- "power" | "custom" | "match" | "points"
             matchFrame = "EssentialCooldownViewer",
             width = 220,
         },

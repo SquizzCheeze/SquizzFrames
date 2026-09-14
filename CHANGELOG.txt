@@ -2,8 +2,8 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.22
------
+V1.22 (2026-09-14)
+------------------
 
 Added:
 
@@ -13,6 +13,22 @@ Added:
   the other, with its own side and offsets, and the points can have their own
   width. They start exactly where they are, so nothing moves until you move
   it.
+
+- Resource points don't have to be plain bars any more. Point Style can be a
+  Shape (Round, Diamond, Hexagon, Star, Heart, Shield, Potion, Bottle or Nail
+  Polish) or Blizzard Art, the game's own graphic for your class's resource.
+  Points can also be coloured Rainbow, still or animated, and can fill left
+  to right or bottom to top.
+
+- Resource points now have the same width choices as the power bar: Same as
+  Power Bar, Custom or Match a Frame, plus Fit to Points for shapes and art.
+  Shapes and art spread evenly across that width, so the row lines up with the
+  bar or frame it matches. The resource bar options are split into General,
+  Power and Resource tabs.
+
+- Resource points can have a border of their own: an outline around each
+  point that follows its shape, with a thickness and colour. Bars and shapes
+  both get one; Blizzard art already has its own edges.
 
 Fixed:
 

@@ -64,6 +64,30 @@
     frames to lay out -- that one goes through F.IsValueNonSecret with a
     per-resource fallback, and keeps the previous count rather than collapsing
     to zero when it cannot be read.
+
+    -------------------------------------------------------------------
+    POINT STYLES
+    -------------------------------------------------------------------
+    Every style is still that StatusBar, so all of them stay secret-safe:
+
+      bars      the plain look: the bar texture, the row's width shared out
+      shape     the same fill cut to a shape by a MASK over both the fill and
+                the empty background (Media/Shapes, drawn by
+                .tools/make-shapes.ps1 -- round, star, heart, potion, ...)
+      blizzard  the game's own art for this resource: the lit atlas is the
+                fill, the unlit atlas is the background. A resource with no
+                art, or an atlas that has gone missing, falls back to a round
+                shape rather than drawing nothing.
+
+    Shapes and art keep their proportions instead of stretching, so their row
+    is as wide as its points; while attached to the power bar it is centred in
+    the bar and shrunk to fit. pointFill "auto" fills bars left to right and
+    shapes/art bottom to top, which is what reads as a bottle or orb filling.
+
+    Rainbow colours are assigned by a point's POSITION in the row, never by
+    the power value, so they are as secret-safe as any other colour. The
+    animated one is a throttled OnUpdate that only recolours, and only while
+    the row is visible.
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
@@ -168,6 +192,95 @@ function ResourceBar.ResolveSecondary()
     if max > MAX_POINTS then max = MAX_POINTS end
     return name, powerType, max
 end
+
+-----------------------------------------------------------------------
+-- Point styles
+-----------------------------------------------------------------------
+
+-- Shape masks, drawn by .tools/make-shapes.ps1. Display order for the options
+-- page, which reads this list. A new shape is one line here plus its image.
+local SHAPE_DIR = "Interface\\AddOns\\SquizzFrames\\Media\\Shapes\\"
+ResourceBar.SHAPES = {
+    {value = "round",      text = "Round",       file = "circle"},
+    {value = "diamond",    text = "Diamond",     file = "diamond"},
+    {value = "hexagon",    text = "Hexagon",     file = "hexagon"},
+    {value = "star",       text = "Star",        file = "star"},
+    {value = "heart",      text = "Heart",       file = "heart"},
+    {value = "shield",     text = "Shield",      file = "shield"},
+    {value = "potion",     text = "Potion",      file = "potion"},
+    {value = "bottle",     text = "Bottle",      file = "bottle"},
+    {value = "nailpolish", text = "Nail Polish", file = "nailpolish"},
+}
+local SHAPE_FILE = {}
+-- Each shape's border rings, missing only the thickness and extension:
+-- "<file>-border<1-4>.png", from the same script. See StylePipBorder.
+local SHAPE_BORDER = {}
+for _, s in ipairs(ResourceBar.SHAPES) do
+    SHAPE_FILE[s.value] = SHAPE_DIR .. s.file .. ".png"
+    SHAPE_BORDER[s.value] = SHAPE_DIR .. s.file .. "-border"
+end
+
+-- Death Knight rune art is per spec. Blizzard's RuneFrame keys it by spec
+-- index; spec IDs here, since that is what F.GetPlayerSpecID hands back.
+local RUNE_SPEC = { [250] = "Blood", [251] = "Frost", [252] = "Unholy" }
+
+local function AtlasExists(atlas)
+    return atlas ~= nil and C_Texture ~= nil and C_Texture.GetAtlasInfo ~= nil
+        and C_Texture.GetAtlasInfo(atlas) ~= nil
+end
+
+-- The game's own art for point `index`: the lit atlas (drawn as the fill), the
+-- unlit one (the empty background), and whether that unlit art is really the
+-- lit art dimmed. Names are from Blizzard_UnitFrame's class resource bars as of
+-- 12.1.0; AtlasExists guards against renames.
+local function BlizzardArt(resource, index)
+    if resource == "HolyPower" then
+        -- Five different rune designs, one per slot. The empty rune is the lit
+        -- one dimmed: the plain "uf-holypower-rune%d" is a solid black glyph
+        -- Blizzard's own bar never shows (PaladinPowerBarRune.useBackground is
+        -- false -- the empty look there is the rune holder behind them), and
+        -- on its own it read as a black blob (user screenshot 2026-09-14).
+        local n = ((index - 1) % 5) + 1
+        local lit = ("uf-holypower-rune%d-active"):format(n)
+        return lit, lit, true
+    elseif resource == "ComboPoints" then
+        if PlayerClass() == "DRUID" then
+            return "UF-DruidCP-Icon", "UF-DruidCP-BG-Active"
+        end
+        return "uf-roguecp-icon-red", "uf-roguecp-bg"
+    elseif resource == "Chi" then
+        return "uf-chi-icon", "uf-chi-bg"
+    elseif resource == "ArcaneCharges" then
+        return "UF-Arcane-Icon", "UF-Arcane-BG"
+    elseif resource == "SoulShards" then
+        return "UF-SoulShard-Icon", "UF-SoulShard-Holder"
+    elseif resource == "Essence" then
+        return "UF-Essence-Icon", "UF-Essence-BG"
+    elseif resource == "Runes" then
+        local specID = F and F.GetPlayerSpecID and F.GetPlayerSpecID() or 0
+        return ("UF-DKRunes-%s-SkullActive"):format(RUNE_SPEC[specID] or "Blood"),
+               "UF-DKRunes-SkullDis"
+    end
+    return nil, nil
+end
+
+-- The style actually drawn, and its shape. Blizzard art with no art to use
+-- (no resource, or the atlas has gone missing) draws round shapes instead of
+-- invisible points.
+local function EffectiveStyle(cfg, resource)
+    local style = cfg.pointStyle or "bars"
+    if style == "blizzard" then
+        if not (resource and AtlasExists((BlizzardArt(resource, 1)))) then
+            return "shape", "round"
+        end
+        return "blizzard", nil
+    elseif style == "shape" then
+        local shape = cfg.pointShape
+        return "shape", SHAPE_FILE[shape] and shape or "round"
+    end
+    return "bars", nil
+end
+ResourceBar.EffectiveStyle = EffectiveStyle
 
 -----------------------------------------------------------------------
 -- Config
@@ -309,6 +422,92 @@ local function ResolveColor(mode, custom, autoR, autoG, autoB)
     return autoR or 1, autoG or 1, autoB or 1
 end
 
+-- Fully saturated hue (0-1, wrapping) to RGB.
+local function HueToRGB(h)
+    h = h % 1
+    local i = math.floor(h * 6)
+    local f = h * 6 - i
+    if i == 0 then return 1, f, 0
+    elseif i == 1 then return 1 - f, 1, 0
+    elseif i == 2 then return 0, 1, f
+    elseif i == 3 then return 0, 1 - f, 1
+    elseif i == 4 then return f, 0, 1
+    end
+    return 1, 0, 1 - f
+end
+
+-- Colours every visible point: the fill by pointColorMode, the empty
+-- background by pointEmptyColor (or left untinted for Blizzard art, whose
+-- unlit atlas is its own empty look). Separate from Update because the
+-- animated rainbow recolours without touching any values.
+function ResourceBar.ColorPoints()
+    local bar = ResourceBar.bar
+    local cfg = GetConfig()
+    if not bar or not cfg then return end
+    local count = bar._sfPointCount or 0
+    if count <= 0 then return end
+
+    local style = bar._sfPointStyle or "bars"
+    local mode = cfg.pointColorMode or "auto"
+    local rainbow = (mode == "rainbow" or mode == "rainbowAnimated")
+
+    local r, g, b = 1, 1, 1
+    if not rainbow then
+        if style == "blizzard" and mode == "auto" then
+            -- "Automatic" on Blizzard art means the art's own colours.
+            r, g, b = 1, 1, 1
+        else
+            local name = ResourceBar.ResolveSecondary()
+            local auto = RESOURCE_COLOR[name] or {1, 1, 1}
+            r, g, b = ResolveColor(mode, cfg.pointColor, auto[1], auto[2], auto[3])
+        end
+    end
+
+    local offset = 0
+    if mode == "rainbowAnimated" then
+        offset = (GetTime() * (cfg.rainbowSpeed or 0.25)) % 1
+    end
+
+    local ec = cfg.pointEmptyColor or {0.22, 0.22, 0.22, 1}
+    for i = 1, count do
+        local pip = bar.points[i]
+        if rainbow then
+            -- Spread round the colour wheel by POSITION, so five points read
+            -- red, yellow, green, blue, violet.
+            r, g, b = HueToRGB((i - 1) / count + offset)
+        end
+        pip:SetStatusBarColor(r, g, b, 1)
+        if style == "blizzard" then
+            -- A dimmed-lit empty point (see BlizzardArt) is desaturated
+            -- already; this darkens it so full and empty are unmistakable.
+            if pip._sfBgDim then
+                pip._sfBg:SetVertexColor(0.45, 0.45, 0.45, 0.9)
+            else
+                pip._sfBg:SetVertexColor(1, 1, 1, 1)
+            end
+        else
+            pip._sfBg:SetColorTexture(ec[1] or 0.15, ec[2] or 0.15,
+                                      ec[3] or 0.15, ec[4] or 0.8)
+        end
+    end
+end
+
+-- Drives the animated rainbow. Shown by ApplySettings only while that mode is
+-- on and there are points; throttled to ~30 updates a second, and a no-op
+-- while the row is not visible (loading screens, a hidden UI).
+local rainbowDriver = CreateFrame("Frame")
+rainbowDriver:Hide()
+local rainbowElapsed = 0
+rainbowDriver:SetScript("OnUpdate", function(_, elapsed)
+    rainbowElapsed = rainbowElapsed + elapsed
+    if rainbowElapsed < 0.03 then return end
+    rainbowElapsed = 0
+    local bar = ResourceBar.bar
+    if bar and bar.pointsFrame and bar.pointsFrame:IsVisible() then
+        ResourceBar.ColorPoints()
+    end
+end)
+
 -----------------------------------------------------------------------
 -- Layout helpers
 -----------------------------------------------------------------------
@@ -364,7 +563,9 @@ local function ResolveBarWidth(cfg)
 end
 
 -- WIDTH for the detached point row: the bar's own width by default, or its
--- own custom / matched width.
+-- own custom / matched width. "points" (Fit to Points) has no width of its
+-- own -- a shape/art row sizes itself to its points in ApplySettings -- so it
+-- answers the bar's width, which is what a bar-style row falls back to.
 local function ResolvePointsWidth(layout, barWidth)
     local mode = layout.widthMode or "power"
     if mode == "custom" then
@@ -432,29 +633,257 @@ local function HideDecor(frame)
     if frame.border then frame.border:Hide() end
 end
 
--- Lays the points out across `pointsFrame`, sized to however many the current
--- spec actually has, so the row is always exactly as wide as its frame with
--- no leftover gap.
-local function LayoutPoints(bar, count, width, height, spacing, barTexture)
-    local pointsFrame = bar.pointsFrame
-    if count > 0 then
-        local total = width - spacing * (count - 1)
-        local each = math.max(1, total / count)
-        for i = 1, MAX_POINTS do
-            local pip = bar.points[i]
-            if i <= count then
-                pip:SetSize(each, height)
-                pip:ClearAllPoints()
-                pip:SetPoint("TOPLEFT", pointsFrame, "TOPLEFT", (i - 1) * (each + spacing), 0)
-                pip:SetStatusBarTexture(barTexture)
-                pip:Show()
-            else
-                pip:Hide()
-            end
-        end
-    else
-        for i = 1, MAX_POINTS do bar.points[i]:Hide() end
+-- Size of one point, the distance from one point's left edge to the next, and
+-- the width of the whole row.
+--
+-- Bars share `availWidth` out between them, so the row is exactly that wide
+-- (the original look), whatever `mode` says. Shapes and art keep their
+-- proportions -- square for shapes; for Blizzard art `aspect` is the widest
+-- piece of art over the tallest, so every point's art fits its slot (see
+-- ArtMetrics) -- and `mode` decides how they use the width:
+--
+--   "spread"    first point on the left edge, last on the right, evenly
+--               spaced, so the row lines up with the power bar or matched
+--               frame exactly as bars do
+--   "pack"      side by side `spacing` apart, centred in `availWidth`
+--   "packFree"  side by side, and the row is as wide as its points -- the
+--               detached Fit to Points row, which sizes its frame to them
+--
+-- Either way a row that cannot fit `availWidth` at its Size shrinks to fit
+-- (not "packFree", which has no width to fit). A single point is centred.
+local function PointGeometry(style, count, height, spacing, availWidth, mode, aspect)
+    if count <= 0 then return 0, 0, 0, 0 end
+    if style == "bars" then
+        local w = math.max(1, (availWidth - spacing * (count - 1)) / count)
+        return w, height, w + spacing, availWidth
     end
+
+    aspect = aspect or 1
+    local h = height
+    local w = h * aspect
+    local total = count * w + spacing * (count - 1)
+    if mode ~= "packFree" and total > availWidth then
+        w = math.max(1, (availWidth - spacing * (count - 1)) / count)
+        h = w / aspect
+        total = count * w + spacing * (count - 1)
+    end
+
+    if mode == "spread" and count > 1 then
+        return w, h, (availWidth - w) / (count - 1), availWidth
+    end
+    return w, h, w + spacing, total
+end
+
+-- Dresses one point for its style. The mask ALWAYS comes off first, so
+-- switching styles never leaves a shape cut into a bar, and it is removed
+-- rather than hidden: a hidden mask still clips on some builds (learned in
+-- Squizzumables' Shapes.SetMask, where icons stayed round after switching the
+-- option off).
+--
+-- `art` is this point's ArtMetrics entry and `scale` the row's, for Blizzard
+-- art only: the point itself is already sized to its lit art, and the empty
+-- art gets its OWN atlas size, centred, exactly as Blizzard's bars place it
+-- (the sockets are bigger than the icon that sits in them).
+local function StylePip(pip, style, shape, art, scale, barTexture, vertical)
+    if pip._sfMask and pip._sfMaskOn then
+        pip:GetStatusBarTexture():RemoveMaskTexture(pip._sfMask)
+        pip._sfBg:RemoveMaskTexture(pip._sfMask)
+        pip._sfMask:Hide()
+        pip._sfMaskOn = false
+    end
+
+    local bg = pip._sfBg
+    bg:ClearAllPoints()
+    if style == "blizzard" and art then
+        pip:SetStatusBarTexture(art.lit)
+        bg:SetAtlas(art.unlit)
+        bg:SetDesaturated(art.dim == true)
+        bg:SetPoint("CENTER", pip, "CENTER", 0, 0)
+        bg:SetSize(art.bgW * scale, art.bgH * scale)
+        pip._sfBgDim = art.dim == true
+    else
+        pip:SetStatusBarTexture(barTexture)
+        bg:SetDesaturated(false)
+        bg:SetAllPoints(pip)
+        -- Undo any atlas texcoords left behind by the Blizzard style; the
+        -- empty colour itself is painted by ColorPoints.
+        bg:SetTexCoord(0, 1, 0, 1)
+        pip._sfBgDim = false
+    end
+
+    if style == "shape" then
+        if not pip._sfMask then
+            pip._sfMask = pip:CreateMaskTexture()
+            pip._sfMask:SetAllPoints(pip)
+        end
+        pip._sfMask:SetTexture(SHAPE_FILE[shape] or SHAPE_FILE.round,
+                               "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        pip._sfMask:Show()
+        -- Added AFTER SetStatusBarTexture, to whichever texture object that
+        -- left in place, so the removal above always finds it again.
+        pip:GetStatusBarTexture():AddMaskTexture(pip._sfMask)
+        pip._sfBg:AddMaskTexture(pip._sfMask)
+        pip._sfMaskOn = true
+    end
+
+    -- Art stays upright however the bar fills.
+    pip:SetOrientation(vertical and "VERTICAL" or "HORIZONTAL")
+    pip:SetRotatesTexture(false)
+end
+
+-- The point border (cfg.pointBorder): an outline on each point, drawn just
+-- INSIDE its edge on the OVERLAY layer, so it sits over the fill and the point
+-- keeps its size and spacing.
+--
+--   bars   four edge textures, `thickness` pixels
+--   shape  a ring image that follows the shape (make-shapes.ps1 draws four
+--          thicknesses). It scales with the point, as the mask does, so its
+--          thickness grows with Size.
+--
+-- Blizzard art has its own edges and never gets one. Both kinds are created on
+-- first use and only hidden afterwards, so switching style leaves nothing
+-- behind.
+local function StylePipBorder(pip, style, shape, bc)
+    local on = bc and bc.enabled and style ~= "blizzard"
+    local c = (bc and bc.color) or {0, 0, 0, 1}
+    local r, g, b, a = c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1
+    local thick = math.max(1, math.min(4, math.floor((bc and bc.thickness) or 2)))
+
+    if on and style == "shape" then
+        if not pip._sfRing then
+            pip._sfRing = pip:CreateTexture(nil, "OVERLAY")
+            pip._sfRing:SetAllPoints(pip)
+        end
+        pip._sfRing:SetTexture((SHAPE_BORDER[shape] or SHAPE_BORDER.round) .. thick .. ".png")
+        pip._sfRing:SetVertexColor(r, g, b, a)
+        pip._sfRing:Show()
+    elseif pip._sfRing then
+        pip._sfRing:Hide()
+    end
+
+    if on and style == "bars" then
+        local e = pip._sfEdges
+        if not e then
+            e = {}
+            e.top    = pip:CreateTexture(nil, "OVERLAY")
+            e.bottom = pip:CreateTexture(nil, "OVERLAY")
+            e.left   = pip:CreateTexture(nil, "OVERLAY")
+            e.right  = pip:CreateTexture(nil, "OVERLAY")
+            e.top:SetPoint("TOPLEFT");        e.top:SetPoint("TOPRIGHT")
+            e.bottom:SetPoint("BOTTOMLEFT");  e.bottom:SetPoint("BOTTOMRIGHT")
+            e.left:SetPoint("TOPLEFT");       e.left:SetPoint("BOTTOMLEFT")
+            e.right:SetPoint("TOPRIGHT");     e.right:SetPoint("BOTTOMRIGHT")
+            pip._sfEdges = e
+        end
+        e.top:SetHeight(thick)
+        e.bottom:SetHeight(thick)
+        e.left:SetWidth(thick)
+        e.right:SetWidth(thick)
+        for _, tex in pairs(e) do
+            tex:SetColorTexture(r, g, b, a)
+            tex:Show()
+        end
+    elseif pip._sfEdges then
+        for _, tex in pairs(pip._sfEdges) do tex:Hide() end
+    end
+end
+
+-- An atlas's own pixel size, or a square stand-in.
+local function AtlasSize(atlas)
+    local info = atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    if info and info.width and info.height and info.width > 0 and info.height > 0 then
+        return info.width, info.height
+    end
+    return 16, 16
+end
+
+-- Blizzard art for every point in the row, with each piece's atlas size, and
+-- the largest width and height across all of it.
+--
+-- Blizzard's own bars size each texture to its atlas (useAtlasSize) and centre
+-- it, and the art depends on that: the five holy power runes are five
+-- different sizes, and a socket is bigger than the icon sitting in it. The
+-- first version stretched everything to one box -- rune 1's proportions --
+-- which squashed the other runes and left the empty art peeking out from
+-- under the lit art as a dark edge (user screenshot 2026-09-14). So the row
+-- gets ONE scale, from the tallest piece, and every texture keeps its own size
+-- times that.
+local function ArtMetrics(resource, count)
+    local art, maxW, maxH = {}, 1, 1
+    for i = 1, count do
+        local lit, unlit, dim = BlizzardArt(resource, i)
+        if not AtlasExists(lit) then
+            lit, unlit, dim = BlizzardArt(resource, 1)
+        end
+        if not AtlasExists(unlit) then
+            unlit, dim = lit, true
+        end
+        local litW, litH = AtlasSize(lit)
+        local bgW, bgH = AtlasSize(unlit)
+        art[i] = {lit = lit, unlit = unlit, dim = dim,
+                  litW = litW, litH = litH, bgW = bgW, bgH = bgH}
+        maxW = math.max(maxW, litW, bgW)
+        maxH = math.max(maxH, litH, bgH)
+    end
+    return art, maxW, maxH
+end
+
+-- Lays out and dresses the points across `pointsFrame`, for however many the
+-- current spec actually has. `mode` is PointGeometry's. Returns the row's
+-- width, which a detached Fit to Points row sizes its frame to.
+local function LayoutPoints(bar, cfg, count, availWidth, height, mode, barTexture)
+    local pointsFrame = bar.pointsFrame
+    local resource = (count > 0) and ResourceBar.ResolveSecondary() or nil
+    local style, shape = EffectiveStyle(cfg, resource)
+    bar._sfPointStyle = style
+
+    if count <= 0 then
+        for i = 1, MAX_POINTS do bar.points[i]:Hide() end
+        return 0
+    end
+
+    local fill = cfg.pointFill or "auto"
+    local vertical = (fill == "vertical") or (fill == "auto" and style ~= "bars")
+    local spacing = cfg.pointSpacing or 2
+    -- Blizzard art: every point gets a slot as wide as the widest art, and
+    -- the art sits centred in it at the row's one scale.
+    local art, aspect, artH
+    if style == "blizzard" then
+        local artW
+        art, artW, artH = ArtMetrics(resource, count)
+        aspect = artW / artH
+    end
+
+    local w, h, step, total = PointGeometry(style, count, height, spacing, availWidth, mode, aspect)
+    local scale = art and (h / artH) or 1
+
+    -- Centred in the width it was given (bars and a spread row fill it
+    -- exactly, so this is 0 for them), and vertically in the row when fitting
+    -- shrank the points.
+    local x0 = (mode ~= "packFree") and math.max(0, (availWidth - total) / 2) or 0
+    local y0 = -math.max(0, (height - h) / 2)
+
+    for i = 1, MAX_POINTS do
+        local pip = bar.points[i]
+        if i <= count then
+            pip:ClearAllPoints()
+            if art then
+                local a = art[i]
+                pip:SetSize(a.litW * scale, a.litH * scale)
+                pip:SetPoint("CENTER", pointsFrame, "TOPLEFT",
+                             x0 + (i - 1) * step + w / 2, y0 - h / 2)
+            else
+                pip:SetSize(w, h)
+                pip:SetPoint("TOPLEFT", pointsFrame, "TOPLEFT", x0 + (i - 1) * step, y0)
+            end
+            StylePip(pip, style, shape, art and art[i], scale, barTexture, vertical)
+            StylePipBorder(pip, style, shape, cfg.pointBorder)
+            pip:Show()
+        else
+            pip:Hide()
+        end
+    end
+    return total
 end
 
 -----------------------------------------------------------------------
@@ -473,6 +902,7 @@ function ResourceBar.ApplySettings(cfg, barTexture)
     if not cfg or not cfg.enabled then
         bar:Hide()
         pointsFrame:Hide()
+        rainbowDriver:Hide()
         return
     end
 
@@ -495,10 +925,16 @@ function ResourceBar.ApplySettings(cfg, barTexture)
     local power = bar.power
     power:ClearAllPoints()
 
-    local pointsW
+    -- Fit to Points packs a shape/art row rather than spreading it across the
+    -- width; bars have nothing to pack and ignore it (PointGeometry).
+    local packPoints = layout.widthMode == "points"
+
+    local pointsW, pointMode
     if not detached then
-        -- ONE BAR: the point row lives inside the bar's rect.
+        -- ONE BAR: the point row lives inside the bar's rect, so its width is
+        -- the bar's -- packed and centred in it, or spread across it.
         pointsW = w
+        pointMode = packPoints and "pack" or "spread"
         local gap = (powerH > 0 and pointH > 0) and (cfg.gap or 2) or 0
         bar:SetSize(w, math.max(1, powerH + pointH + gap))
         PlaceFrame(bar, cfg, barMode, nil, scale, DEFAULT_BAR_Y)
@@ -530,6 +966,7 @@ function ResourceBar.ApplySettings(cfg, barTexture)
     else
         -- TWO BARS, each placed on its own.
         pointsW = ResolvePointsWidth(layout, w)
+        pointMode = packPoints and "packFree" or "spread"
         bar:SetSize(w, math.max(1, powerH))
         pointsFrame:SetSize(pointsW, math.max(1, pointH))
 
@@ -575,8 +1012,13 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         text:Hide()
     end
 
-    -- Point row
-    LayoutPoints(bar, count, pointsW, pointH, cfg.pointSpacing or 2, barTexture)
+    -- Point row, across the width resolved above. Only a detached Fit to
+    -- Points row of shapes or art has no width of its own, and sizes its
+    -- frame to its points.
+    local rowWidth = LayoutPoints(bar, cfg, count, pointsW, pointH, pointMode, barTexture)
+    if pointMode == "packFree" and count > 0 and bar._sfPointStyle ~= "bars" then
+        pointsFrame:SetWidth(math.max(1, rowWidth))
+    end
 
     -- Visibility. Attached, the bar is the whole display and always shows;
     -- detached, a row with nothing to draw hides rather than leaving an empty
@@ -587,6 +1029,8 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         bar:Show()
     end
     pointsFrame:SetShown(count > 0)
+
+    rainbowDriver:SetShown(count > 0 and cfg.pointColorMode == "rainbowAnimated")
 
     ResourceBar.Update()
 end
@@ -620,7 +1064,9 @@ function ResourceBar.SeedDetach(cfg)
     local pointH = cfg.showPoints == false and 0 or (cfg.pointHeight or 8)
     local gap = (powerH > 0 and pointH > 0) and (cfg.gap or 2) or 0
 
-    layout.widthMode = "power"
+    -- Fit to Points means the same thing on both sides of the switch, so it
+    -- survives; any other width starts as the bar's, which is what it was.
+    if layout.widthMode ~= "points" then layout.widthMode = "power" end
 
     if powerH == 0 then
         -- Only the point row is on screen, so it IS the bar: hand it the
@@ -713,21 +1159,14 @@ function ResourceBar.Update()
     -- comparison.
     local count = bar._sfPointCount or 0
     if count > 0 then
-        local name, powerType = ResourceBar.ResolveSecondary()
+        local _, powerType = ResourceBar.ResolveSecondary()
         if powerType then
             local current = UnitPower("player", powerType)
-            local auto = RESOURCE_COLOR[name] or {1, 1, 1}
-            local r, g, b = ResolveColor(cfg.pointColorMode or "auto",
-                cfg.pointColor, auto[1], auto[2], auto[3])
-            local ec = cfg.pointEmptyColor or {0.22, 0.22, 0.22, 1}
             for i = 1, count do
-                local pip = bar.points[i]
-                pip:SetStatusBarColor(r, g, b, 1)
-                pip._sfBg:SetColorTexture(ec[1] or 0.15, ec[2] or 0.15,
-                                          ec[3] or 0.15, ec[4] or 0.8)
-                pip:SetValue(current or 0)
+                bar.points[i]:SetValue(current or 0)
             end
         end
+        ResourceBar.ColorPoints()
     end
 end
 

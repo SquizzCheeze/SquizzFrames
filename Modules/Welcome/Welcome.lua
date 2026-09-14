@@ -35,6 +35,9 @@ SquizzFrames.Welcome = Welcome
 local RELEASE_NOTES = {
     ["1.22"] = {
         "The resource bar's power bar and resource points can now be moved separately: tick Move Points Separately on the Unit Frames page, then drag each one, attach it to another frame, or attach them to each other.",
+        "Resource points can be shapes (round, star, heart, potion, bottle, nail polish and more) or Blizzard's own class art, and can be coloured rainbow, still or animated.",
+        "Resource points have their own width settings, including Match a Frame, and the resource bar options are split into General, Power and Resource tabs.",
+        "Each resource point can have its own border that follows its shape.",
         "When SquizzFrames updates at the same time as Squizzumables or Avatar Continued, their update notes now appear one after another instead of on top of each other.",
     },
     ["1.21"] = {
