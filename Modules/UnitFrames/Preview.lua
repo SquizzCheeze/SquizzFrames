@@ -560,6 +560,7 @@ function Preview.Refresh(p, t)
         p.castBar.timeText:SetPoint("RIGHT", p.castBar, "RIGHT", -3 + tx, ty)
         p.castBar.spellName:SetText(cb.showName ~= false and "Cast Bar" or "")
         p.castBar.timeText:SetText(cb.showTime ~= false and "1.4" or "")
+        if CB and CB.ApplyBorder then CB.ApplyBorder(p.castBar, cb.border) end
         p.castBar:Show()
     else
         p.castBar:Hide()

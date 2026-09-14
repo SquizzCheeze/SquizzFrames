@@ -1007,6 +1007,58 @@ local function SecCastBar(host, y, cfg, t)
         shieldPicker:SetPoint("TOPLEFT", 15, y)
         y = y - 35
 
+        -- BORDER. Same fields and meaning as the resource bar's border, drawn
+        -- by CastBar.ApplyBorder on the real bar and the preview alike.
+        W.CreateTitledPane(host, L["Border"] or "Border", y)
+        y = y - 35
+
+        local function BorderField(key, fallback)
+            local v = cb.border and cb.border[key]
+            if v == nil then return fallback end
+            return v
+        end
+        local function BorderSet(key, v)
+            CastSet(function(c)
+                c.border = c.border or {}
+                c.border[key] = v
+            end)
+        end
+
+        local cbCastBorder = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+            function() return BorderField("enabled", false) == true end,
+            function(v)
+                BorderSet("enabled", v)
+                if rebuildFields then rebuildFields() end
+            end)
+        cbCastBorder:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+
+        if BorderField("enabled", false) == true then
+            local sCBThick = W.CreateStyledSlider(host, 200, 1, 8, 1,
+                L["Thickness"] or "Thickness",
+                function() return BorderField("thickness", 1) end,
+                function(v) BorderSet("thickness", v) end)
+            sCBThick:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local sCBPad = W.CreateStyledSlider(host, 200, 0, 20, 1,
+                L["Padding"] or "Padding",
+                function() return BorderField("padding", 0) end,
+                function(v) BorderSet("padding", v) end)
+            sCBPad:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local cpCBBorder = W.CreateColorPicker(host, L["Color"] or "Color",
+                function()
+                    local c = BorderField("color", nil)
+                    if type(c) ~= "table" then return 0, 0, 0, 1 end
+                    return c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1
+                end,
+                function(r, g, b, a) BorderSet("color", {r, g, b, a or 1}) end)
+            cpCBBorder:SetPoint("TOPLEFT", 15, y - 6)
+            y = y - 42
+        end
+
         -- TEXT. One builder for both readouts: the two settings tables have
         -- the same shape, and writing it twice is how the two drift apart.
         --
@@ -1895,20 +1947,50 @@ do
         W.CreateTitledPane(host, L["Border"] or "Border", y)
         y = y - 35
 
-        local cbBorder = W.CreateStyledCheckbox(host, L["Show"] or "Show",
-            B.bool("enabled", false), B.setBoolRebuild("enabled"))
-        cbBorder:SetPoint("TOPLEFT", 15, y)
-        y = y - 26
+        -- Detached, the power bar and the points each get their own switch;
+        -- thickness, padding and colour stay shared. See
+        -- ResourceBar.PointsBorderOn for why the points' switch follows the
+        -- power bar's until it is set.
+        local function PointsBorderOn()
+            local c = GetConfig()
+            local b = c and c.resourceBar and c.resourceBar.border
+            return (RB and RB.PointsBorderOn and RB.PointsBorderOn(b)) or false
+        end
 
         if detached then
+            local cbBorder = W.CreateStyledCheckbox(host, L["Power Bar"] or "Power Bar",
+                B.bool("enabled", false),
+                function(v)
+                    -- Pin the points' switch first, so it stops following
+                    -- this one the moment they can differ.
+                    if B.Read("pointsEnabled", nil) == nil then
+                        B.Write("pointsEnabled", PointsBorderOn())
+                    end
+                    B.Write("enabled", v)
+                    Rebuild()
+                end)
+            cbBorder:SetPoint("TOPLEFT", 15, y)
+            y = y - 26
+
+            local cbPointsBorder = W.CreateStyledCheckbox(host,
+                L["Resource Points"] or "Resource Points",
+                PointsBorderOn, B.setBoolRebuild("pointsEnabled"))
+            cbPointsBorder:SetPoint("TOPLEFT", 15, y)
+            y = y - 26
+
             y = Note(host, y, L["ResourceBorderNoteDetached"]
-                or "Outlines the power bar and the points separately, one box each.")
+                or "Outlines the power bar and the resource points separately, one box each, and each can be switched on or off. Thickness, padding and colour are shared.")
         else
+            local cbBorder = W.CreateStyledCheckbox(host, L["Show"] or "Show",
+                B.bool("enabled", false), B.setBoolRebuild("enabled"))
+            cbBorder:SetPoint("TOPLEFT", 15, y)
+            y = y - 26
+
             y = Note(host, y, L["ResourceBorderNote"]
                 or "Outlines the whole bar, both rows together. Set the row Gap to 0 if you want it tight around them.")
         end
 
-        if B.Read("enabled", false) then
+        if B.Read("enabled", false) or (detached and PointsBorderOn()) then
             local sThick = W.CreateStyledSlider(host, 200, 1, 8, 1,
                 L["Thickness"] or "Thickness",
                 B.get("thickness", 1), B.set("thickness"))

@@ -2,6 +2,19 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.23
+-----
+
+Added:
+
+- With the resource points moved separately, the power bar and the points
+  each have their own border switch. Thickness, padding and colour are still
+  shared, and a border that was already on stays on for both.
+
+- Unit frame cast bars can have a border, with thickness, padding and colour,
+  under each frame's Cast Bar settings. It shows on the options preview too.
+
+
 V1.22 (2026-09-14)
 ------------------
 

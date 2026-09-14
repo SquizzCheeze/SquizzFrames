@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.23"] = {
+        "With the resource points moved separately, the power bar and the points each have their own border switch.",
+        "Unit frame cast bars can have a border.",
+    },
     ["1.22"] = {
         "The resource bar's power bar and resource points can now be moved separately: tick Move Points Separately on the Unit Frames page, then drag each one, attach it to another frame, or attach them to each other.",
         "Resource points can be shapes (round, star, heart, potion, bottle, nail polish and more) or Blizzard's own class art, and can be coloured rainbow, still or animated.",

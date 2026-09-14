@@ -59,7 +59,7 @@ SquizzFrames/
     │   └── NicknamesPanel.lua  # Options page ("nicknames" nav entry); pure shell over the module's public API
     ├── UnitFrames/          # Standalone single-unit frames (player/target/ToT/focus/focustarget/boss) — cast bars, portraits, auras, icons and absorbs all present; arena still to come
     │   ├── UnitFrames.lua      # Engine: fixed-token frames, health/power/4 text elements (name/health/power/level), movers, derived-unit poll
-    │   ├── CastBar.lua         # Per-frame cast bar; loaded BEFORE UnitFrames.lua, which reads SquizzFrames.UnitFrameCastBar
+    │   ├── CastBar.lua         # Per-frame cast bar; loaded BEFORE UnitFrames.lua, which reads SquizzFrames.UnitFrameCastBar. Border via CastBar.ApplyBorder (BU.CreateBorderIndicator, created on first use, shared with Preview.lua)
     │   ├── Portrait.lua        # 2D/3D portraits
     │   ├── Auras.lua           # Buff/debuff rows on AuraEngine; style keys are PER UNIT AND KIND (see AE.styles namespacing below)
     │   ├── Icons.lua           # Combat + leader state icons (anchor/offset/size/tint), secret-safe booleans

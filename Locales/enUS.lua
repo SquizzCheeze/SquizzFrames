@@ -163,7 +163,7 @@ L["ResourceBackgroundNote"] = "A solid fill behind the whole bar. Without it the
 -- UnitFramesPanel.lua never fires and the key name is what gets drawn.
 L["ResourceDetachNote"] = "Gives the resource points their own position and width, so the power bar and the points can each be dragged, attached to another frame, or attached to each other. They start exactly where they are now."
 L["ResourceBackgroundNoteDetached"] = "A solid fill behind the power bar and behind the points, each on its own. Without it the gaps between the resource points are see-through, which makes them hard to count against a busy background."
-L["ResourceBorderNoteDetached"] = "Outlines the power bar and the points separately, one box each."
+L["ResourceBorderNoteDetached"] = "Outlines the power bar and the resource points separately, one box each, and each can be switched on or off. Thickness, padding and colour are shared."
 L["ResourcePowerAttachedNote"] = "The resource points sit inside this bar, so the Position and Width below place both. Turn on Move Points Separately under General to give the points their own."
 L["ResourcePointsWidthAttachedNote"] = "While attached, the points use the power bar's width - set it on the Power tab, including Match a Frame. Turn on Move Points Separately under General to give them a width of their own."
 L["ResourcePointsFitNote"] = "The points sit side by side, Spacing apart, at their full Size."

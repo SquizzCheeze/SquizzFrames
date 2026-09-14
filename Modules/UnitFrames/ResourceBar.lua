@@ -612,9 +612,12 @@ end
 -- `padding` pushes the border outward from the frame's edge -- at 0 it sits on
 -- the edge itself, drawing over the outermost pixel of the bars the way the
 -- party frame border does.
-local function ApplyBorder(frame, b)
+--
+-- `on` overrides b.enabled -- the detached point row passes its own switch.
+local function ApplyBorder(frame, b, on)
     if not frame.border then return end
-    if b and b.enabled then
+    if on == nil then on = b and b.enabled end
+    if b and on then
         local pad = b.padding or 0
         frame.border:ClearAllPoints()
         frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -pad, pad)
@@ -626,6 +629,17 @@ local function ApplyBorder(frame, b)
     else
         frame.border:Hide()
     end
+end
+
+-- Detached, the point row's border has its own switch, border.pointsEnabled.
+-- Unset, it follows the power bar's (border.enabled) -- which is what the one
+-- switch meant before there were two, so a profile that had the border on
+-- keeps it on both. Deliberately not in the defaults: a default would be
+-- materialised into every profile and stop it following.
+function ResourceBar.PointsBorderOn(b)
+    if not b then return false end
+    if b.pointsEnabled == nil then return b.enabled == true end
+    return b.pointsEnabled == true
 end
 
 local function HideDecor(frame)
@@ -982,7 +996,7 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         ApplyBackdrop(bar, cfg.background)
         ApplyBorder(bar, cfg.border)
         ApplyBackdrop(pointsFrame, cfg.background)
-        ApplyBorder(pointsFrame, cfg.border)
+        ApplyBorder(pointsFrame, cfg.border, ResourceBar.PointsBorderOn(cfg.border))
     end
 
     -- Power bar

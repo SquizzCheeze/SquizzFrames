@@ -455,6 +455,15 @@ local function DefaultFrame(opts)
             -- uninterruptible flag is secret on 12.1 and cannot be branched
             -- on, only fed to SetAlphaFromBoolean. See CastBar.lua's header.
             uninterruptibleColor = {0.6, 0.6, 0.6, 0.55},
+
+            -- Outline around the bar (CastBar.ApplyBorder). padding pushes it
+            -- outward; at 0 it sits on the bar's own edge.
+            border = {
+                enabled = false,
+                thickness = 1,
+                padding = 0,
+                color = {0, 0, 0, 1},
+            },
         },
     }
 end
@@ -624,6 +633,9 @@ profile.unitFrames = {
         -- padding pushes it outward from the bar's edge; at 0 it sits on the
         -- edge itself, over the outermost pixel of the bars, matching how the
         -- party frame border behaves.
+        -- Detached, enabled is the power bar's border and the points have
+        -- their own switch, pointsEnabled -- deliberately NOT defaulted here,
+        -- so that unset it follows enabled (see ResourceBar.PointsBorderOn).
         border = {
             enabled = false,
             thickness = 1,

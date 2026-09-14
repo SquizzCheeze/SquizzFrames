@@ -323,6 +323,38 @@ function CastBar.ApplyTextStyle(fs, tcfg, fallbackFace, fallbackSize, fallbackOu
     fs:SetTextColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1, c and c[4] or 1)
 end
 
+-- Outline around the cast bar (cfg.border). Same factory and the same meaning
+-- of `padding` as the resource bar's border: at 0 it sits on the bar's own
+-- edge, over its outermost pixel; more pushes it outward.
+--
+-- Exported so Preview.lua outlines its mock bar through this, not a copy.
+-- Created on first use -- a bar that never has a border never builds one --
+-- and BuiltIn_Update is resolved at runtime, since that file loads after this
+-- one (LoadModules.xml).
+function CastBar.ApplyBorder(bar, b)
+    if not bar then return end
+    if not (b and b.enabled) then
+        if bar.border then bar.border:Hide() end
+        return
+    end
+    if not bar.border then
+        local SF = _G["SquizzFrames"]
+        local BU = SF and SF.modules and SF.modules["BuiltIn_Update"]
+        if not (BU and BU.CreateBorderIndicator) then return end
+        bar.border = BU.CreateBorderIndicator(bar, "Border")
+        -- A child frame, so above the bar's own fill, icon and text.
+        bar.border:SetFrameLevel(bar:GetFrameLevel() + 2)
+    end
+    local pad = b.padding or 0
+    bar.border:ClearAllPoints()
+    bar.border:SetPoint("TOPLEFT", bar, "TOPLEFT", -pad, pad)
+    bar.border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", pad, -pad)
+    bar.border:SetThickness(b.thickness or 1)
+    local c = b.color or {0, 0, 0, 1}
+    bar.border:SetColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
+    bar.border:Show()
+end
+
 function CastBar.ApplySettings(bar, parent, t, barTexture)
     if not bar or not parent or not t then return end
     local cfg = t.castBar
@@ -344,6 +376,8 @@ function CastBar.ApplySettings(bar, parent, t, barTexture)
 
     local sc = cfg.uninterruptibleColor or {0.6, 0.6, 0.6, 0.55}
     bar.shieldTint:SetColorTexture(sc[1] or 0.6, sc[2] or 0.6, sc[3] or 0.6, sc[4] or 0.55)
+
+    CastBar.ApplyBorder(bar, cfg.border)
 
     -- Icon sits INSIDE the bar against its left edge, so the configured width
     -- is the whole thing -- matching it to another frame (a CDM row) lines the
