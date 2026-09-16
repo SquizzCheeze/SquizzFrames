@@ -34,6 +34,8 @@ SquizzFrames.Welcome = Welcome
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
     ["1.24"] = {
+        "Fixed the addon failing to start for anyone running few enough other addons, with a \"Cannot find a library instance of AceConfigDialog-3.0\" error.",
+        "/rl now reloads your interface, the same as /reload. It is only claimed if no other addon already provides it.",
         "Supports patch 12.1.5 as well as 12.1.0.",
         "Removed the Show Unfiltered Auras option - a game hotfix in August made the situation it existed for stop happening, so it no longer did anything.",
     },
