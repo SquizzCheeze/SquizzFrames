@@ -978,13 +978,22 @@ local function WireUpButton(button, unit)
     -- silent no-op, and dragging only worked where the mover itself won the
     -- click. The mover's release is covered by its OnUpdate IsMouseButtonDown
     -- check, so a mouse-up swallowed by the secure button can't strand it.
-    button:HookScript("OnMouseDown", function(_, btn)
-        if btn ~= "LeftButton" or not SquizzFrames.editMode then return end
-        local mover = partyFrame and partyFrame.mover
-        if not mover or not mover:IsShown() then return end
-        local onMouseDown = mover:GetScript("OnMouseDown")
-        if onMouseDown then onMouseDown(mover, "LeftButton") end
-    end)
+    --
+    -- ONCE PER BUTTON, not once per wire. HookScript APPENDS -- there is no
+    -- way to remove one -- and a button is re-wired every time the roster
+    -- changes, so this used to stack another identical closure each time. They
+    -- all survive for the session and all run on every mouse-down, so the cost
+    -- of both clicking and re-wiring grew the longer you played.
+    if not button._sfDragHooked then
+        button._sfDragHooked = true
+        button:HookScript("OnMouseDown", function(_, btn)
+            if btn ~= "LeftButton" or not SquizzFrames.editMode then return end
+            local mover = partyFrame and partyFrame.mover
+            if not mover or not mover:IsShown() then return end
+            local onMouseDown = mover:GetScript("OnMouseDown")
+            if onMouseDown then onMouseDown(mover, "LeftButton") end
+        end)
+    end
 end
 
 local wireUpRetryFrame
@@ -2795,10 +2804,48 @@ function PartyFrames:OnEnable()
         -- triple-refresh below) just account for RegisterUnitWatch's
         -- show/hide of new buttons taking a moment to actually happen, so
         -- our visible-count recompute isn't reading a stale count.
+        -- Does the header's own unit assignment differ from what we last
+        -- wired? Used to skip re-wiring passes that cannot change anything.
+        --
+        -- BOTH directions matter: a child that GAINED a unit (someone joined,
+        -- or the header re-sorted) and a child that LOST one (someone left, so
+        -- the attribute is cleared while button.unit still names them). Only
+        -- the first was checked originally, which would leave a departed
+        -- member's stale entry in unitButtons when the skip below applies.
+        local function HeaderUnitsChanged()
+            if not header then return false end
+            local changed = false
+            ForEachHeaderButton(function(button)
+                if button ~= UIParent then
+                    local attr = button:GetAttribute("unit")
+                    if attr ~= button.unit then changed = true end
+                end
+            end)
+            return changed
+        end
+
+        -- A roster change costs a FULL re-wire, and a re-wire fires
+        -- PartyButtonsWired per header -- which is HandleIndicators on every
+        -- button, plus click-casting's attribute rewrite. Joining a group
+        -- fires GROUP_ROSTER_UPDATE several times, and each one used to book
+        -- three of these unconditionally, so a single join could re-wire
+        -- everything nine times over. That is the join stutter.
+        --
+        -- Two guards, neither of which drops a needed pass:
+        --   * the passes are still staggered (the header reconfigures
+        --     asynchronously, which is what they are for), but a repeat event
+        --     SUPERSEDES the pending set instead of stacking another one --
+        --     its own three passes cover the same ground, later.
+        --   * a pass whose header units match what we already wired skips the
+        --     re-wire itself. The cheap parts still run: the container still
+        --     shrink-wraps (OnRosterOrFlagChanged) and visible buttons still
+        --     refresh (UpdateAllButtons).
         local function ReapplyRosterLayout()
             if InCombatLockdown() then return end
             OnRosterOrFlagChanged()
-            WireUpAllButtons()
+            if HeaderUnitsChanged() then
+                WireUpAllButtons()
+            end
             UpdateAllButtons()
         end
         -- Retry frame for the three staggered calls below, which all bail
@@ -2814,6 +2861,10 @@ function PartyFrames:OnEnable()
         -- registered) on every roster change, unregisters itself after
         -- firing once.
         local rosterRetryFrame
+        -- Identifies the newest set of staggered roster passes, so a repeat
+        -- GROUP_ROSTER_UPDATE supersedes the pending ones rather than adding
+        -- a third set of three -- see ReapplyRosterLayout.
+        local rosterPassToken = 0
         -- Registered on `self` (PartyFrames), NOT SquizzFrames -- exactly the
         -- reason spelled out at the PLAYER_REGEN_DISABLED registration below.
         --
@@ -2834,9 +2885,17 @@ function PartyFrames:OnEnable()
             -- leaving one takes it away. Immediate, not on the staggered
             -- retries below -- it touches no secure state.
             RefreshRangePolling()
-            C_Timer.After(0.3, ReapplyRosterLayout)
-            C_Timer.After(1.0, ReapplyRosterLayout)
-            C_Timer.After(2.0, ReapplyRosterLayout)
+            -- Supersede any set still pending from an earlier fire of this
+            -- event -- see ReapplyRosterLayout's comment.
+            rosterPassToken = rosterPassToken + 1
+            local token = rosterPassToken
+            local function Pass()
+                if token ~= rosterPassToken then return end
+                ReapplyRosterLayout()
+            end
+            C_Timer.After(0.3, Pass)
+            C_Timer.After(1.0, Pass)
+            C_Timer.After(2.0, Pass)
             if not rosterRetryFrame then
                 rosterRetryFrame = CreateFrame("Frame")
                 rosterRetryFrame:SetScript("OnEvent", function(self)
@@ -2906,17 +2965,6 @@ function PartyFrames:OnEnable()
         -- UNIT_NAME_UPDATE on that same owner -- Indicators registers it on the
         -- Indicators module (I:RegisterEvent) and PetFrames on its own module,
         -- so there's no CallbackHandler (owner, event) collision here.
-        local function HeaderUnitsChanged()
-            if not header then return false end
-            local changed = false
-            ForEachHeaderButton(function(button)
-                if button ~= UIParent then
-                    local attr = button:GetAttribute("unit")
-                    if attr and attr ~= button.unit then changed = true end
-                end
-            end)
-            return changed
-        end
         local nameUpdatePending = false
         SquizzFrames:RegisterEvent("UNIT_NAME_UPDATE", function(_, unit)
             if not unit then return end

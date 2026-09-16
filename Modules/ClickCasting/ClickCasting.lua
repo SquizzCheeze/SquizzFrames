@@ -34,6 +34,13 @@ local ClickCasting = SquizzFrames:NewModule("ClickCasting", "AceEvent-3.0")
 local headerFrames = {}
 local applyPending = false  -- coalesces the burst of PartyButtonsWired fires
 
+-- Incremented by every FULL ApplyToAll pass and stamped on each frame it
+-- writes, so a later "only what needs it" pass can tell a frame that already
+-- carries the current bindings from one that has never been written (a button
+-- the header just created, a foreign frame another addon just spawned).
+-- See ApplyToAll for why that distinction is worth making.
+local ccPass = 0
+
 -- Set when an ApplyToAll was actually requested during combat and had to be
 -- dropped, cleared the moment one completes. PLAYER_REGEN_ENABLED consults it
 -- rather than re-applying unconditionally: a full pass rewrites every attribute
@@ -1035,7 +1042,20 @@ local function CollectButtons()
     return buttons
 end
 
-function ClickCasting:ApplyToAll()
+-- `onlyNew` restricts the pass to frames that do not already carry the current
+-- bindings. Used by the wiring and roster paths ONLY; every settings path
+-- (the panel, a profile switch, the login retries, the post-combat flush)
+-- calls this with no argument and rewrites everything unconditionally.
+--
+-- Why it exists: writing one frame's bindings is not cheap. ClearClickCastings
+-- alone is five attribute names across eight modifier combinations and five
+-- mouse buttons -- over two hundred secure SetAttribute calls per frame,
+-- before a single binding is written -- and this walks every party button, pet
+-- button, unit frame and foreign frame. On a full raid that is several
+-- thousand secure writes per pass, and a roster change used to trigger one
+-- from the wiring path and another half a second later. Nothing about a person
+-- joining changes what the bindings ARE, so that whole cost bought nothing.
+function ClickCasting:ApplyToAll(onlyNew)
     if InCombatLockdown() then
         -- Can't modify secure attributes in combat; flag it and let
         -- PLAYER_REGEN_ENABLED flush exactly once. This used to re-arm a 0.5s
@@ -1046,6 +1066,9 @@ function ClickCasting:ApplyToAll()
         return
     end
     combatApplyPending = false
+    -- A full pass invalidates every stamp, so the frames it is about to write
+    -- are the only ones carrying the new value afterwards.
+    if not onlyNew then ccPass = ccPass + 1 end
     -- Ensure the combat-state driver exists (creates the wrapFrame).
     EnsureWrapFrame()
 
@@ -1070,11 +1093,16 @@ function ClickCasting:ApplyToAll()
     end
 
     for _, button in ipairs(buttons) do
-        -- Install/refresh the secure hover snippets (keyboard/wheel binds
-        -- via SetBindingClick on enter) then apply the binding attributes.
-        -- Both mouse-button and keyboard/wheel binds go on the unit button.
-        self.SetBindingClicks(button)
-        ApplyClickCastings(button)
+        if onlyNew and button._sfCCPass == ccPass then
+            -- Already carries these exact bindings.
+        else
+            -- Install/refresh the secure hover snippets (keyboard/wheel binds
+            -- via SetBindingClick on enter) then apply the binding attributes.
+            -- Both mouse-button and keyboard/wheel binds go on the unit button.
+            self.SetBindingClicks(button)
+            ApplyClickCastings(button)
+            button._sfCCPass = ccPass
+        end
     end
 end
 
@@ -1215,7 +1243,9 @@ function ClickCasting:OnInitialize()
             applyPending = true
             C_Timer.After(0, function()
                 applyPending = false
-                self:ApplyToAll()
+                -- Only frames that need it: wiring fires on every roster
+                -- change, and the bindings themselves cannot have changed.
+                self:ApplyToAll(true)
             end)
         end
     end)
@@ -1265,7 +1295,9 @@ function ClickCasting:OnInitialize()
     -- even for someone using SquizzFrames purely as a click-casting layer.
     -- Delayed so the owning addon has finished creating them first.
     self:RegisterEvent("GROUP_ROSTER_UPDATE", function()
-        C_Timer.After(0.5, function() self:ApplyToAll() end)
+        -- Only the frames that need it -- this exists to catch frames another
+        -- addon just created, and ours are covered by the wiring path above.
+        C_Timer.After(0.5, function() self:ApplyToAll(true) end)
     end)
 end
 

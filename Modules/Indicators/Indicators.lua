@@ -104,6 +104,16 @@ end
 -- Keyed by button → true/nil.
 local readyButtons = {}
 
+-- Bumped whenever the indicator LISTS or their settings change (profile
+-- switch, party<->raid switch, any Designer edit). A button stamps the value
+-- it was last built against, which is how OnPartyButtonsWired can tell a
+-- re-wire that changes nothing from one that needs a rebuild -- see its
+-- comment for why that matters to the frame rate.
+local listGeneration = 0
+local function BumpListGeneration()
+    listGeneration = listGeneration + 1
+end
+
 -- currentEnabled(bitset-free): enabled built-ins by indicatorName.
 local enabledBuiltIns = {}
 
@@ -414,7 +424,33 @@ function I.HandleIndicators(button)
     end
 
     for _, t in ipairs(listToApply) do
-        local indicator = button.indicators[t.indicatorName] or I.CreateIndicator(button, t)
+        -- A SWITCHED-OFF INDICATOR IS NOT BUILT AT ALL.
+        --
+        -- This used to create every indicator in the list and then hide the
+        -- disabled ones, which is close to free for a plain frame and very
+        -- expensive for the aura-backed ones: each builds a live AuraContainer,
+        -- and every container permanently costs a pre-created batch of ten
+        -- buttons (WoW never destroys frames). Multiply by up to forty buttons
+        -- the moment you walk into a raid and that is thousands of frames
+        -- created for indicators that were never going to draw anything --
+        -- which is what a user saw as SquizzFrames jumping from 9MB to 22MB on
+        -- joining a raid, with the hitch that allocating all of it causes.
+        --
+        -- Safe to skip because nothing assumes the frame exists while
+        -- disabled: switching one ON goes through ApplySettingToOne's
+        -- "enabled" branch, which creates it right there ("indicator frame
+        -- doesn't exist yet"), and every reader guards the lookup
+        -- (BuiltIn_Update's Check*, Custom_Dispatch's ResetCustomIndicators,
+        -- Highlights, PetButton). An indicator that was already built and is
+        -- then disabled still falls through below and gets hidden as before.
+        --
+        -- The Designer preview is unaffected: its "Show All" pass rewrites the
+        -- list with enabled forced true (see listToApply above), so everything
+        -- is still built there.
+        local indicator = button.indicators[t.indicatorName]
+        if not indicator and t.enabled then
+            indicator = I.CreateIndicator(button, t)
+        end
         if not indicator then
             -- skip — indicator couldn't be created (e.g. missing built-in fn)
         else
@@ -710,6 +746,9 @@ function I.HandleIndicators(button)
     end
 
     button._indicatorsReady = true
+    -- What this rebuild was built FROM, for OnPartyButtonsWired's skip check.
+    button._sfBuiltUnit = button.unit or (button.GetAttribute and button:GetAttribute("unit"))
+    button._sfBuiltGen = listGeneration
 
     -- After a full rebuild, run an immediate pass of each built-in's check so
     -- existing auras/threat/shields show without waiting for the next event.
@@ -1206,6 +1245,12 @@ local function CollectAndApply(indicatorName, setting, value, value2, isRaidCont
 end
 local function UpdateIndicators(_, indicatorName, setting, value, value2, isRaidContext)
     if not SquizzFrames.db or not SquizzFrames.db.profile then return end
+    -- Any Designer edit invalidates the "nothing changed" skip in
+    -- OnPartyButtonsWired. Deliberately unconditional: most settings are
+    -- applied live by ApplySettingToOne below and would not strictly need a
+    -- rebuild, but a stale skip shows as a setting that did not take, and the
+    -- cost of being wrong the safe way is one rebuild per button, once.
+    BumpListGeneration()
     -- "create"/"delete" always specify an explicit list (never universal --
     -- there's no such thing as a universal NEW indicator); default false/
     -- Party only as a defensive fallback if a caller ever omits it.
@@ -1284,8 +1329,29 @@ local function OnPartyButtonsWired(_, header)
         -- later gets its indicators built then, with the right unit.
         local unit = button and (button.unit or (button.GetAttribute and button:GetAttribute("unit")))
         if button and button ~= UIParent and unit then
-            I.HandleIndicators(button)
-            readyButtons[button] = true
+            -- SKIP A REBUILD THAT CANNOT CHANGE ANYTHING.
+            --
+            -- HandleIndicators is a full teardown and rebuild -- every
+            -- indicator re-created or re-applied, then BU.CheckAll's twenty-odd
+            -- checks -- and this message fires far more often than the result
+            -- ever differs: once per header (eight times in a raid) per
+            -- re-wire, and a single person joining re-wires several times as
+            -- the roster streams in. Forty buttons rebuilt from scratch several
+            -- times over is the hitch people see when someone joins the group.
+            --
+            -- A rebuild only produces something different if the button's UNIT
+            -- changed (it now shows somebody else) or the indicator list did
+            -- (listGeneration). Otherwise everything it would build is already
+            -- on the button, identical, and the roster event's own dispatch in
+            -- BuiltIn_Update's eventMap has already refreshed the parts that
+            -- actually depend on the roster (leader, role, name, aggro...).
+            if button._indicatorsReady and button._sfBuiltUnit == unit
+                and button._sfBuiltGen == listGeneration then
+                readyButtons[button] = true
+            else
+                I.HandleIndicators(button)
+                readyButtons[button] = true
+            end
         end
     end
 end
@@ -1530,6 +1596,11 @@ function UnhookEventSafe(event)
 end
 
 function I:ReapplyToAll()
+    -- This IS the rebuild-everything path (profile switch, party<->raid), so
+    -- the buttons it touches are stamped current by HandleIndicators itself.
+    -- The bump covers any button it cannot reach -- one not wired yet, or
+    -- created later -- which must not then skip its first build.
+    BumpListGeneration()
     local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
     if PartyFrames and PartyFrames.IterateButtons then
         PartyFrames:IterateButtons(function(b)

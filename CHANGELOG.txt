@@ -2,8 +2,8 @@ SquizzFrames - Changelog
 ========================
 
 
-V1.23
------
+V1.23 (2026-09-16)
+------------------
 
 Added:
 
@@ -13,6 +13,31 @@ Added:
 
 - Unit frame cast bars can have a border, with thickness, padding and colour,
   under each frame's Cast Bar settings. It shows on the options preview too.
+
+Fixed:
+
+- The frame rate hitched every time somebody joined or left the group. One
+  join makes the game announce the roster several times, and each
+  announcement rebuilt every indicator on every frame from scratch, several
+  times over - forty frames in a raid, rebuilt again and again for a change
+  that usually affected one of them. Frames are now rebuilt only when the
+  person they show, or a setting, has actually changed, and repeated
+  announcements from one join no longer stack up passes of the same work.
+
+  Click-casting was rewriting every binding onto every frame on each of those
+  announcements as well - several thousand attribute writes for a raid, none
+  of which could change anything, since joining a group does not change your
+  bindings. Frames that already have the current bindings are now left alone;
+  changing a binding still writes all of them immediately.
+
+  A drag handler was also being added to each frame again on every re-wire
+  and never removed, so a long session left dozens stacked on every frame.
+
+- Indicators you have switched off are no longer built. Every indicator in
+  the list was created and then hidden, and the aura-based ones are far from
+  free to create - so walking into a raid built thousands of frames for
+  indicators that were never going to draw anything. Switching one on still
+  takes effect immediately, with no reload.
 
 
 V1.22 (2026-09-14)

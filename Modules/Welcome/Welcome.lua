@@ -36,6 +36,8 @@ local RELEASE_NOTES = {
     ["1.23"] = {
         "With the resource points moved separately, the power bar and the points each have their own border switch.",
         "Unit frame cast bars can have a border.",
+        "Fixed the frame rate hitching whenever someone joined or left the group - the frames no longer rebuild themselves when nothing about them has changed.",
+        "Indicators you have switched off are no longer built at all, which cuts a large chunk of memory on joining a raid.",
     },
     ["1.22"] = {
         "The resource bar's power bar and resource points can now be moved separately: tick Move Points Separately on the Unit Frames page, then drag each one, attach it to another frame, or attach them to each other.",
