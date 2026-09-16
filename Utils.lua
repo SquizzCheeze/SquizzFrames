@@ -21,7 +21,59 @@ SquizzFrames.F = F
 -- 12.1+ build detection. Shared across modules (ClickCasting's menu-proxy
 -- transport, AuraEngine's container API) that need to branch on whether
 -- they're running on a pre-12.1 or 12.1+ client.
+--- Claim /rl for ReloadUI, but ONLY if nothing else already answers it.
+---
+--- Blizzard ships /reload, never /rl -- the short form is an addon
+--- convention, and a lot of addons add it. Taking it from one of those would
+--- be rude, and could replace a version that does more than reload, so this
+--- checks first and quietly does nothing when the command is spoken for.
+--- Whichever addon of ours loads first therefore wins it, and the rest skip.
+---
+--- Deferred to PLAYER_LOGIN because registrations from addons loading after
+--- us are not visible yet at file scope -- and nobody can type a slash
+--- command before login anyway.
+---
+--- BOTH tables have to be checked. The client keeps slash commands in two:
+--- hash_SlashCmdList, keyed by the UPPERCASED command including its slash,
+--- holds everything imported so far; SlashCmdList holds registrations made
+--- since the last import -- and ImportListToHash WIPES that one as it moves
+--- entries across, so neither is complete on its own.
+function SquizzFrames.ClaimReloadSlash(key)
+    local function TakenAlready()
+        local hash = _G.hash_SlashCmdList
+        if hash and hash["/RL"] then return true end
+        for name in pairs(SlashCmdList) do
+            local i = 1
+            local cmd = _G["SLASH_" .. name .. i]
+            while cmd do
+                if strupper(cmd) == "/RL" then return true end
+                i = i + 1
+                cmd = _G["SLASH_" .. name .. i]
+            end
+        end
+        return false
+    end
+
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:SetScript("OnEvent", function(self)
+        self:UnregisterEvent("PLAYER_LOGIN")
+        if TakenAlready() then return end
+        _G["SLASH_" .. key .. "1"] = "/rl"
+        SlashCmdList[key] = function() ReloadUI() end
+    end)
+end
+
 SquizzFrames.IS_121 = (select(4, GetBuildInfo()) or 0) >= 120100
+-- 12.1.5+. Same shape as IS_121 above, and the interface number really is
+-- 120105 (expansion 12, patch 01, minor 05) -- not 120500.
+--
+-- For guarding behaviour that must NOT change on 12.1.0. NOTHING READS IT
+-- YET: its first consumer was the "Show Unfiltered Auras" fix, and that
+-- option was removed outright instead (it had been dead since Blizzard's
+-- 69465 hotfix). Kept because the TOC now declares 120105 and 12.1.5 is
+-- close -- delete it if it is still unused when that patch has settled.
+SquizzFrames.IS_1215 = (select(4, GetBuildInfo()) or 0) >= 120105
 
 -----------------------------------------------------------------------
 -- Specialization API compat

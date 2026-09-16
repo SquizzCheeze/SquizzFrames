@@ -287,20 +287,16 @@ AEI.IdentityGateState = IdentityGateState
 -- That is a change of direction from the first V1.5 pass, which floored on
 -- anything short of a definite OPEN. Two things make "definite SHUT only"
 -- correct now:
---   1. A definite SHUT already HIDES the indicator (ApplyGateVisibility), so
---      this floor now only renders anything when the user has ticked Show
---      Unfiltered Auras -- i.e. asked to see the pool anyway.
+--   1. A definite SHUT usually HIDES the indicator (ApplyGateVisibility), so
+--      the floor mostly has nothing left to render. Not always, though, and
+--      that is why it stays: Healer HoTs with castBy == "me" installs its own
+--      hide test keyed on UnitIsVisible rather than the gate, so that wrapper
+--      can be perfectly visible while the gate reads SHUT -- and the floor is
+--      the only thing keeping its pool readable.
 --   2. Flooring an UNKNOWN was the worse of both outcomes: the pool is shown
 --      regardless (the hide never fires on UNKNOWN), just with every long
 --      tracked buff stripped out of it.
---
--- t.showUnfiltered switches it off too, and must: that option is worded as
--- "show me the pool anyway", so leaving a duration cap on it would deliver a
--- pool that is neither filtered NOR complete -- the tracked long buffs stripped
--- out and all the short noise kept, which is the worst of both and the exact
--- opposite of what the label promises.
-local function NoiseFloorMaxDuration(unit, t)
-    if t and t.showUnfiltered then return nil end
+local function NoiseFloorMaxDuration(unit)
     return IdentityGateState(unit) == GATE_SHUT and AURA_MAX_DURATION or nil
 end
 
@@ -346,9 +342,8 @@ local function GateReadingMoved(wrapper)
     -- made exactly that happen on every OPEN<->UNKNOWN flicker.
     --
     -- Derived through NoiseFloorMaxDuration rather than recomputed here, so
-    -- the key cannot drift from what actually gets pushed -- it also accounts
-    -- for showUnfiltered suppressing the floor.
-    local gate = NoiseFloorMaxDuration(unit, wrapper._t)
+    -- the key cannot drift from what actually gets pushed.
+    local gate = NoiseFloorMaxDuration(unit)
     if wrapper._gateMeasured and wrapper._gateUnit == unit and wrapper._gateValue == gate then
         return false
     end
@@ -402,12 +397,6 @@ end
 
 local function ApplyGateVisibility(wrapper)
     if not wrapper.SetGateHidden then return end
-    -- User opted out: keep the unfiltered pool visible.
-    local t = wrapper._t
-    if t and t.showUnfiltered then
-        wrapper:SetGateHidden(false)
-        return
-    end
     local shouldHide = wrapper._gateShouldHide
     if shouldHide then
         wrapper:SetGateHidden(shouldHide(wrapper) == true)
@@ -438,7 +427,7 @@ local function BuildCandidateFilters(t, unit)
     local effective = F.GetEffectiveSpellList(t.useBuiltInHots, baseList, nil, t.hiddenBuiltInHots)
     local set = {}
     for _, id in ipairs(effective) do set[id] = true end
-    local filters = { includeSpellIDs = set, maxDuration = NoiseFloorMaxDuration(unit, t) }
+    local filters = { includeSpellIDs = set, maxDuration = NoiseFloorMaxDuration(unit) }
     -- NOTE: castBy is deliberately NOT expressed here -- see
     -- HealerFilterTokens below. This used to set
     -- `filters.isFromPlayerOrPlayerPet = true` for castBy == "me", which is
@@ -928,8 +917,11 @@ function AEI.CreateHealerHotsIndicator(button, t)
         -- Called unconditionally so the cached reading stays honest on the
         -- settings-change path too, not just the guarded one.
         local moved = GateReadingMoved(wrapper)
-        -- Before the short-circuit: the visibility decision also has to follow
-        -- a SETTINGS change (the Show Unfiltered toggle), which moves nothing.
+        -- Before the short-circuit, so the visibility decision is re-run even
+        -- when the gate reading has not moved. No setting drives it any more
+        -- (the Show Unfiltered toggle did, until V1.24 removed it), so this is
+        -- now defensive rather than load-bearing -- cheap, and it keeps the
+        -- hide correct for any future caller that refreshes without a move.
         ApplyGateVisibility(wrapper)
         if onlyIfGateMoved and not moved then return end
         container:SetAuraGroupCandidateFilters(GROUP_KEY, BuildCandidateFilters(wrapper._t, WrapperUnit(wrapper)))
@@ -1067,7 +1059,7 @@ local function BuildCooldownCandidateFilters(kind, t, unit)
     -- Healer HoTs deliberately: the same permanent-aura exclusion applies here
     -- (Paladin's seasonal Blessings, for one), and having the two disagree is
     -- how you get "it works on one indicator but not the other".
-    return { includeSpellIDs = set, maxDuration = NoiseFloorMaxDuration(unit, t) }
+    return { includeSpellIDs = set, maxDuration = NoiseFloorMaxDuration(unit) }
 end
 
 -- Preview-only: same reasoning as PickRepresentativeHealerSpells -- up to

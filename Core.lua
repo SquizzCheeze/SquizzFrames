@@ -1148,6 +1148,7 @@ function SquizzFrames:OnInitialize()
 
     -- Register slash commands (only /sf; /squizz conflicts with Squizzumables)
     self:RegisterChatCommand("sf", F.SlashHandler or function() end)
+    SquizzFrames.ClaimReloadSlash("SQUIZZFRAMESRELOAD")
 
     -- Register options
     if self.options then

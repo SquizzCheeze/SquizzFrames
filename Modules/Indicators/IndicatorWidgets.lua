@@ -1719,11 +1719,6 @@ local function MakeCheckButton(key, defaultLabel)
                 if setting and type(setting) == "string" then
                     local labels = {
                         showGroupNumber = "Show Group Number",
-                        -- On (default) this indicator hides itself for units
-                        -- the game won't let us filter by spell -- see
-                        -- IdentityGateState. Ticking it shows the unfiltered
-                        -- pool instead.
-                        showUnfiltered = "Show Unfiltered Auras",
                         hideRealmName = "Hide Realm Name",
                         showTimer = "Show Timer",
                         showBackground = "Show Background",

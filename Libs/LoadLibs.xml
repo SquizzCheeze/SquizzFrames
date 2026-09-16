@@ -9,12 +9,22 @@
     <Include file="AceEvent-3.0\AceEvent-3.0.xml"/>
     <Include file="AceTimer-3.0\AceTimer-3.0.xml"/>
     <Include file="AceDB-3.0\AceDB-3.0.xml"/>
+    <!-- AceGUI BEFORE AceConfig, and it is not a style preference:
+         AceConfig-3.0.xml pulls in AceConfigDialog-3.0, whose MAIN CHUNK runs
+         LibStub("AceGUI-3.0") at load time (its line 7). Loaded the other way
+         round that call errors, AceConfigDialog never registers, and
+         Core.lua's AddToBlizOptions then dies with "Cannot find a library
+         instance of AceConfigDialog-3.0".
+         This hid for a long time because almost every Ace3 addon embeds
+         AceGUI, so on a normal client somebody else had already registered it
+         before we asked. It only surfaced on a 12.1.5 PTR install carrying
+         five addons, none of which ship AceGUI (2026-09-16). -->
+    <Include file="AceGUI-3.0\AceGUI-3.0.xml"/>
     <Include file="AceConfig-3.0\AceConfig-3.0.xml"/>
     <Include file="AceHook-3.0\AceHook-3.0.xml"/>
     <Include file="AceComm-3.0\AceComm-3.0.xml"/>
     <Include file="AceConsole-3.0\AceConsole-3.0.xml"/>
     <Include file="AceLocale-3.0\AceLocale-3.0.xml"/>
-    <Include file="AceGUI-3.0\AceGUI-3.0.xml"/>
     <!-- Third-party libraries -->
     <Include file="LibSharedMedia-3.0\lib.xml"/>
     <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>

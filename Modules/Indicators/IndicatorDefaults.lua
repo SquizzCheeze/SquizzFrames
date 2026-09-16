@@ -143,8 +143,8 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- Static decorative border, no on/off condition beyond enabled itself.
     frameBorder = {"enabled", "thickness", "color-alpha", "frameLevel"},
     shieldBar   = {"enabled", "checkbutton:onlyShowOvershields", "color-alpha", "height", "position", "frameLevel"},
-    externalCooldowns = {"enabled", "builtInExternals", "customExternals", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "checkbutton4:showUnfiltered", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    defensiveCooldowns = {"enabled", "builtInDefensives", "customDefensives", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "checkbutton4:showUnfiltered", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    externalCooldowns = {"enabled", "builtInExternals", "customExternals", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    defensiveCooldowns = {"enabled", "builtInDefensives", "customDefensives", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- AuraEngine-backed (AEI.CreateDebuffsIndicator) -- bigDebuffCC (no
     -- native "is this CC" sort criterion), showAnimation/glowOptions (never
     -- implemented for AuraEngine indicators, including the already-migrated
@@ -189,7 +189,7 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- the stack and duration text, each under its own section header, which
     -- is a superset of what durationOffset did (X/Y only). Keeping both would
     -- mean two controls writing style.durationX/Y and fighting each other.
-    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "checkbutton3:showUnfiltered", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- Health-bar overlays (like dispels) -- always cover the health bar, no
     -- position/size of their own. See BU.CreateShieldOverlayIndicator /
     -- CreateHealAbsorbIndicator in BuiltIn_Update.lua.

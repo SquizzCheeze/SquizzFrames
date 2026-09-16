@@ -1063,15 +1063,6 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         -- candidate filters/style directly.
         if indicator.RefreshSpellList then indicator:RefreshSpellList(t) end
         if setting == "customColors" and indicator.SetColor then indicator:SetColor() end
-    elseif setting == "showUnfiltered" then
-        -- Whether a spell-list indicator hides itself for units the identity
-        -- gate won't let us filter (AEI.IdentityGateState). The checkbutton
-        -- write path above already stored it on t; RefreshCandidateFilters is
-        -- what re-runs the visibility decision. Called with no argument so it
-        -- pushes regardless of whether the GATE moved -- the SETTING moved.
-        if indicator.RefreshCandidateFilters then
-            indicator:RefreshCandidateFilters()
-        end
     elseif setting == "textWidth" or setting == "showGroupNumber" or setting == "hideRealmName" or setting == "vehicleNamePosition"
         or setting == "showPercentage" or setting == "showCurrent" or setting == "showMax" then
         -- nameText/healthText/powerText-specific settings — re-run the text updater so the

@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.24"] = {
+        "Supports patch 12.1.5 as well as 12.1.0.",
+        "Removed the Show Unfiltered Auras option - a game hotfix in August made the situation it existed for stop happening, so it no longer did anything.",
+    },
     ["1.23"] = {
         "With the resource points moved separately, the power bar and the points each have their own border switch.",
         "Unit frame cast bars can have a border.",

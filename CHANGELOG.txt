@@ -2,6 +2,41 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.24 (2026-09-16)
+------------------
+
+Added:
+
+- "/rl" as a shortcut for reloading your interface. Only claimed if no other
+  addon already provides it, so an existing one keeps working.
+
+Changed:
+
+- Declares support for patch 12.1.5 alongside 12.1.0, so it loads on the
+  12.1.5 test client without being marked out of date.
+
+Fixed:
+
+- The addon could fail to start, with "Cannot find a library instance of
+  AceConfigDialog-3.0" in the error log, if you ran few enough other addons.
+  One of the bundled libraries was being loaded after something that needs it
+  at load time, and almost every other addon happens to provide that library
+  first - so on a normal setup somebody else covered for it and nothing went
+  wrong. Found on a test client running only five addons.
+
+Removed:
+
+- The "Show Unfiltered Auras" option on Healer HoTs, External Cooldowns and
+  Defensive Cooldowns. It existed for a problem the game fixed five days after
+  the option shipped: those indicators used to hide themselves for a player
+  the game wouldn't let the addon filter buffs on, and this was the opt-out
+  for people who preferred the unfiltered list to an empty space. A hotfix in
+  August made filtering work for every group member, so the hiding stopped
+  happening and the option stopped doing anything.
+
+  Your other settings are untouched, and nothing on screen changes.
+
+
 V1.23 (2026-09-16)
 ------------------
 
