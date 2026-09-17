@@ -2,6 +2,27 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.26 (2026-09-17)
+------------------
+
+Added:
+
+- The five Holy Power runes as a resource point shape. Pick "Holy Power Runes"
+  under Point Style "Shape" and the row lays all five out in order, the way the
+  game's own bar does -- but as plain shapes, so they take whatever colour you
+  choose exactly. Blizzard's own art is already coloured, and a colour put over
+  it multiplies with it, which is why class and custom colours came out muddy
+  on it and clean on everything else.
+
+Fixed:
+
+- Boss frames with buffs or debuffs above or below now make room for them. The
+  stack spaced itself on the frames alone, so a row of auras ran into the next
+  boss frame. Spacing is now a minimum: with aura rows switched on, the gap
+  opens up on its own to fit them, and a spacing you have already raised by
+  hand is left alone.
+
+
 V1.25 (2026-09-17)
 ------------------
 

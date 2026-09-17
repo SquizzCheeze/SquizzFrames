@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.26"] = {
+        "The five Holy Power runes are available as a resource point shape. Point Style \"Shape\", then \"Holy Power Runes\" - the row lays all five out in order like the game's own bar, and they take any colour you pick exactly.",
+        "Boss frames with aura rows above or below now make room for them, instead of the auras running into the next boss frame. Spacing is a minimum now: the gap opens up on its own to fit the rows.",
+    },
     ["1.25"] = {
         "Font dropdowns show each font in its own typeface, so you can see what you are picking before you apply it.",
         "Open dropdown lists now follow the page when you scroll, instead of staying behind and floating away from their dropdown.",

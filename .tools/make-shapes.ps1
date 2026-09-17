@@ -303,6 +303,31 @@ $p.StartFigure(); $p.AddRectangle((New-Object System.Drawing.RectangleF 34, 44, 
 Add-RoundRect $p 38 0 24 48 5
 $shapes['nailpolish'] = $p
 
+# Holy Power rune 1, traced by eye from Blizzard's "uf-holypower-rune1-active"
+# as it renders in game (2026-09-17 reference screenshots).
+#
+# APPROXIMATE, and knowingly so. The atlas is a hand-painted glyph roughly 34px
+# wide on screen, so its tapers and curve tensions cannot be recovered exactly;
+# these control points reproduce the READ of the glyph -- a thick crescent hook
+# falling from a point at top right, curving down and left, then flaring right
+# along the bottom into a pointed tail -- not its every contour.
+#
+# Drawn as one closed outline (outer edge out, inner edge back) rather than a
+# stroked centreline: a filled path is what Render-Fill and the distance-
+# transform border generator both expect, and it keeps the taper under direct
+# control instead of at the mercy of a pen width.
+# NOTE: the Holy Power runes are NOT drawn here. They come in as supplied art
+# (white silhouette on transparency, 512 px = $Size * $SS, so the ring
+# generator can consume them directly) and are processed by
+# .tools\make-image-shapes.ps1 instead.
+#
+# Three attempts to trace rune 1 procedurally all failed -- a crescent, then a
+# ribbon, then a sickle -- because these are hand-painted glyphs with tapers
+# and curve tensions that cannot be recovered by eye from a ~34 px reference.
+# Do not re-add a $shapes['holyrune*'] entry here: this script writes
+# <name>.png, so an entry of that name would silently overwrite the real art
+# on the next run.
+
 # ---------------------------------------------------------------------------
 $OutDir = [System.IO.Path]::GetFullPath($OutDir)
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -319,6 +344,77 @@ foreach ($name in $shapes.Keys) {
         $borders[$name] += , $ring
     }
     Write-Output "wrote $name (+ $($BorderWidths.Count) borders)"
+}
+
+# ---------------------------------------------------------------------------
+# Supplied art. Silhouettes we did not draw, dropped into .tools\art as
+# <name>.png and given exactly the same treatment as a procedural shape -- a
+# $Size fill plus the four border rings -- so nothing downstream can tell the
+# two apart. ResourceBar.SHAPES just names the file.
+#
+# Sources are expected WHITE ON TRANSPARENCY at $Size * $SS px, which is the
+# resolution Render-Border already works at internally, so the ring generator
+# consumes their alpha with no resampling at all. Anything else is rescaled to
+# that first, which costs a little edge quality.
+#
+# The preview sheet below deliberately covers only the procedural shapes: it
+# exists to check geometry this script DREW, and supplied art is checked by
+# looking at the art.
+# ---------------------------------------------------------------------------
+$ArtDir = Join-Path $PSScriptRoot 'art'
+if (Test-Path $ArtDir) {
+    $big = $Size * $SS
+    foreach ($srcFile in (Get-ChildItem $ArtDir -Filter '*.png' | Sort-Object Name)) {
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($srcFile.Name)
+        $img  = New-Object System.Drawing.Bitmap $srcFile.FullName
+
+        $work = New-Object System.Drawing.Bitmap $big, $big, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $gw = [System.Drawing.Graphics]::FromImage($work)
+        $gw.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $gw.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $gw.DrawImage($img, 0, 0, $big, $big)
+        $gw.Dispose(); $img.Dispose()
+
+        $rectBig = New-Object System.Drawing.Rectangle 0, 0, $big, $big
+        $data  = $work.LockBits($rectBig, [System.Drawing.Imaging.ImageLockMode]::ReadOnly, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $bytes = New-Object byte[] ($data.Stride * $big)
+        [System.Runtime.InteropServices.Marshal]::Copy($data.Scan0, $bytes, 0, $bytes.Length)
+        $work.UnlockBits($data)
+        $alpha = [SquizzRing]::AlphaOf($bytes, $big * $big)
+
+        # Fill: down to $Size, then every drawn pixel forced to pure white --
+        # the same guarantee Finish gives the procedural shapes, so a tint gets
+        # no dark fringe from the source art's own colour.
+        $rectOut = New-Object System.Drawing.Rectangle 0, 0, $Size, $Size
+        $fill = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $gf = [System.Drawing.Graphics]::FromImage($fill)
+        $gf.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $gf.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $gf.DrawImage($work, 0, 0, $Size, $Size)
+        $gf.Dispose()
+        $fd = $fill.LockBits($rectOut, [System.Drawing.Imaging.ImageLockMode]::ReadWrite, $fill.PixelFormat)
+        $fb = New-Object byte[] ($fd.Stride * $Size)
+        [System.Runtime.InteropServices.Marshal]::Copy($fd.Scan0, $fb, 0, $fb.Length)
+        for ($i = 0; $i -lt $fb.Length; $i += 4) {
+            if ($fb[$i + 3] -gt 0) { $fb[$i] = 255; $fb[$i + 1] = 255; $fb[$i + 2] = 255 }
+        }
+        [System.Runtime.InteropServices.Marshal]::Copy($fb, 0, $fd.Scan0, $fb.Length)
+        $fill.UnlockBits($fd)
+        $fill.Save((Join-Path $OutDir "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+        $fill.Dispose()
+
+        for ($n = 1; $n -le $BorderWidths.Count; $n++) {
+            $pixels = [SquizzRing]::Make($alpha, $big, ($BorderWidths[$n - 1] * $SS), $SS)
+            $ring = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            $rd = $ring.LockBits($rectOut, [System.Drawing.Imaging.ImageLockMode]::WriteOnly, $ring.PixelFormat)
+            [System.Runtime.InteropServices.Marshal]::Copy($pixels, 0, $rd.Scan0, $pixels.Length)
+            $ring.UnlockBits($rd)
+            $ring.Save((Join-Path $OutDir "$name-border$n.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+            $ring.Dispose()
+        }
+        $work.Dispose()
+        Write-Output "wrote $name from art (+ $($BorderWidths.Count) borders)"
+    }
 }
 
 # A white image drawn in one colour.

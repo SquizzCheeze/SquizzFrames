@@ -380,8 +380,8 @@ local function SecFrame(host, y, cfg, t)
         bHint:SetWidth(340)
         bHint:SetJustifyH("LEFT")
         bHint:SetTextColor(0.7, 0.7, 0.7, 1)
-        bHint:SetText(L["All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land."]
-            or "All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land.")
+        bHint:SetText(L["All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them."]
+            or "All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them.")
         y = y - 45
     end
 

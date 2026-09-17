@@ -85,6 +85,55 @@ local function BossIndex(unit)
     return n and tonumber(n) or nil
 end
 
+-- How far a frame's aura rows stick out past its own rect, per side, in raw
+-- pixels. Every boss frame reads the ONE shared table, so both neighbours in a
+-- stack carry identical rows and measuring once serves the whole stack.
+--
+-- Rows are always exactly one icon tall: the unit frame rows set no wrap width
+-- (see Auras.lua's BuildSpec), so the container flows as a single unlimited
+-- line and the protrusion never multiplies.
+--
+-- Direction comes from the anchor's own NAME rather than a second copy of
+-- Auras.ANCHOR_POINTS' point pairs -- the vocabulary is literally
+-- topleft/topright/bottomleft/bottomright/left/right.
+local AURA_KINDS = {"buffs", "debuffs"}
+
+local function AuraExtents(t)
+    local above, below, left, right = 0, 0, 0, 0
+    local w = t.width or 170
+    for _, kind in ipairs(AURA_KINDS) do
+        local cfg = t[kind]
+        local anchor = cfg and cfg.anchor
+        if anchor and anchor ~= "none" then
+            local size = cfg.size or 20
+            local run = size * (cfg.num or 8)
+            local ox, oy = cfg.offsetX or 0, cfg.offsetY or 0
+            -- A positive offsetY pushes an above-row further up and a
+            -- below-row further onto the frame, hence the opposite signs.
+            -- Floored at 0: an offset large enough to drag the row back over
+            -- the frame protrudes nothing, it does not protrude negatively.
+            if anchor:match("^top") then
+                above = math.max(above, math.max(0, size + oy))
+            elseif anchor:match("^bottom") then
+                below = math.max(below, math.max(0, size - oy))
+            elseif anchor == "left" then
+                left = math.max(left, math.max(0, run - ox))
+            elseif anchor == "right" then
+                right = math.max(right, math.max(0, run + ox))
+            end
+            -- A row hung above or below still RUNS ALONG the frame, so a long
+            -- one overhangs the side it grows towards. Only matters to a
+            -- sideways stack, but it is the same measurement either way.
+            if anchor == "topleft" or anchor == "bottomleft" then
+                right = math.max(right, math.max(0, run + ox - w))
+            elseif anchor == "topright" or anchor == "bottomright" then
+                left = math.max(left, math.max(0, run - ox - w))
+            end
+        end
+    end
+    return above, below, left, right
+end
+
 -- Where boss frame `idx` sits relative to the stack's anchor (boss1), in raw
 -- pixels. Computed from the index rather than by chaining each frame to the
 -- previous one, so an encounter that drops a middle boss cannot collapse the
@@ -97,8 +146,24 @@ local function BossOffset(t, idx)
     if not t or not idx or idx <= 1 then return 0, 0 end
     local w = t.width or 170
     local h = t.height or 34
-    local step = t.spacing or 26
     local dir = t.growthDirection or "DOWN"
+
+    -- The gap has to clear the rows that hang INTO it: on a vertical stack
+    -- that is the upper frame's below-row plus the lower frame's above-row,
+    -- and on a sideways stack the two facing side-rows. Rows pointing along
+    -- the other axis cannot reach a neighbour, so they are not counted.
+    --
+    -- Spacing is a FLOOR, not the whole gap. Taking the larger of the two
+    -- means a stack whose Spacing was already raised by hand to clear its
+    -- auras keeps exactly the gap it has instead of jumping wider on the next
+    -- reload, while one left at the default opens up on its own as soon as a
+    -- row is switched on (user request 2026-09-17: "it would be nice ... that
+    -- it would take that into consideration"). Boss aura rows default to
+    -- anchor "none", so a stack with no rows on is untouched by any of this.
+    local above, below, left, right = AuraExtents(t)
+    local pad = (dir == "UP" or dir == "DOWN") and (above + below) or (left + right)
+    local step = math.max(t.spacing or 26, pad)
+
     local n = idx - 1
     if dir == "UP" then return 0, n * (h + step) end
     if dir == "RIGHT" then return n * (w + step), 0 end

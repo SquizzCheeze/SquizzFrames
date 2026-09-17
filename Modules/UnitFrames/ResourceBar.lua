@@ -210,14 +210,51 @@ ResourceBar.SHAPES = {
     {value = "potion",     text = "Potion",      file = "potion"},
     {value = "bottle",     text = "Bottle",      file = "bottle"},
     {value = "nailpolish", text = "Nail Polish", file = "nailpolish"},
+    -- The Holy Power runes, as our OWN silhouettes rather than Blizzard's art.
+    -- Theirs is an already-coloured texture and SetStatusBarColor is a vertex
+    -- tint, which multiplies -- so a class colour over their gold comes out as
+    -- colour x gold rather than the colour (see ColorPoints). A white
+    -- silhouette has nothing to multiply against, so it takes any colour
+    -- exactly. Supplied art, not drawn by the generator: see .tools/art.
+    --
+    -- `cycle` marks a shape that is really a SET: point 1 draws holyrune1,
+    -- point 2 holyrune2 and so on, wrapping past the last, which is how
+    -- Blizzard's own bar reads (and exactly what BlizzardArt does for the
+    -- atlas path). One entry rather than five, because five points wearing one
+    -- repeated glyph is not a look anyone asked for.
+    {value = "holyrune",   text = "Holy Power Runes", file = "holyrune", cycle = 5},
 }
 local SHAPE_FILE = {}
 -- Each shape's border rings, missing only the thickness and extension:
 -- "<file>-border<1-4>.png", from the same script. See StylePipBorder.
 local SHAPE_BORDER = {}
+-- [value] = how many variants a cycling set has. Only cycling shapes appear.
+local SHAPE_CYCLE = {}
 for _, s in ipairs(ResourceBar.SHAPES) do
-    SHAPE_FILE[s.value] = SHAPE_DIR .. s.file .. ".png"
-    SHAPE_BORDER[s.value] = SHAPE_DIR .. s.file .. "-border"
+    if s.cycle then
+        -- A set registers its VARIANTS ("holyrune1".."holyrune5"), not its own
+        -- value: the set name is never a file. Keying them this way also means
+        -- a profile still holding a single variant from before the set existed
+        -- keeps working, and simply draws that one glyph on every point.
+        SHAPE_CYCLE[s.value] = s.cycle
+        for n = 1, s.cycle do
+            SHAPE_FILE[s.value .. n] = SHAPE_DIR .. s.file .. n .. ".png"
+            SHAPE_BORDER[s.value .. n] = SHAPE_DIR .. s.file .. n .. "-border"
+        end
+    else
+        SHAPE_FILE[s.value] = SHAPE_DIR .. s.file .. ".png"
+        SHAPE_BORDER[s.value] = SHAPE_DIR .. s.file .. "-border"
+    end
+end
+
+-- Which shape a given POINT wears. A cycling set steps through its variants in
+-- order and wraps (Blizzard wraps the same way, see BlizzardArt); every other
+-- shape ignores the index entirely, so all the existing callers are unchanged
+-- in behaviour whether or not they pass one.
+local function ShapeForIndex(shape, index)
+    local n = SHAPE_CYCLE[shape]
+    if not n then return shape end
+    return shape .. (((index or 1) - 1) % n + 1)
 end
 
 -- Death Knight rune art is per spec. Blizzard's RuneFrame keys it by spec
@@ -276,7 +313,9 @@ local function EffectiveStyle(cfg, resource)
         return "blizzard", nil
     elseif style == "shape" then
         local shape = cfg.pointShape
-        return "shape", SHAPE_FILE[shape] and shape or "round"
+        -- A set's own value is not a file, so it has to be accepted on its
+        -- presence in SHAPE_CYCLE or it would fall back to round.
+        return "shape", (SHAPE_FILE[shape] or SHAPE_CYCLE[shape]) and shape or "round"
     end
     return "bars", nil
 end
@@ -698,7 +737,7 @@ end
 -- art only: the point itself is already sized to its lit art, and the empty
 -- art gets its OWN atlas size, centred, exactly as Blizzard's bars place it
 -- (the sockets are bigger than the icon that sits in them).
-local function StylePip(pip, style, shape, art, scale, barTexture, vertical)
+local function StylePip(pip, style, shape, art, scale, barTexture, vertical, index)
     if pip._sfMask and pip._sfMaskOn then
         pip:GetStatusBarTexture():RemoveMaskTexture(pip._sfMask)
         pip._sfBg:RemoveMaskTexture(pip._sfMask)
@@ -730,7 +769,8 @@ local function StylePip(pip, style, shape, art, scale, barTexture, vertical)
             pip._sfMask = pip:CreateMaskTexture()
             pip._sfMask:SetAllPoints(pip)
         end
-        pip._sfMask:SetTexture(SHAPE_FILE[shape] or SHAPE_FILE.round,
+        local key = ShapeForIndex(shape, index)
+        pip._sfMask:SetTexture(SHAPE_FILE[key] or SHAPE_FILE.round,
                                "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         pip._sfMask:Show()
         -- Added AFTER SetStatusBarTexture, to whichever texture object that
@@ -757,7 +797,7 @@ end
 -- Blizzard art has its own edges and never gets one. Both kinds are created on
 -- first use and only hidden afterwards, so switching style leaves nothing
 -- behind.
-local function StylePipBorder(pip, style, shape, bc)
+local function StylePipBorder(pip, style, shape, bc, index)
     local on = bc and bc.enabled and style ~= "blizzard"
     local c = (bc and bc.color) or {0, 0, 0, 1}
     local r, g, b, a = c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1
@@ -768,7 +808,10 @@ local function StylePipBorder(pip, style, shape, bc)
             pip._sfRing = pip:CreateTexture(nil, "OVERLAY")
             pip._sfRing:SetAllPoints(pip)
         end
-        pip._sfRing:SetTexture((SHAPE_BORDER[shape] or SHAPE_BORDER.round) .. thick .. ".png")
+        -- Resolved the SAME way as the mask, so a cycling set's ring always
+        -- matches the glyph it is drawn around rather than a different one.
+        local key = ShapeForIndex(shape, index)
+        pip._sfRing:SetTexture((SHAPE_BORDER[key] or SHAPE_BORDER.round) .. thick .. ".png")
         pip._sfRing:SetVertexColor(r, g, b, a)
         pip._sfRing:Show()
     elseif pip._sfRing then
@@ -890,8 +933,8 @@ local function LayoutPoints(bar, cfg, count, availWidth, height, mode, barTextur
                 pip:SetSize(w, h)
                 pip:SetPoint("TOPLEFT", pointsFrame, "TOPLEFT", x0 + (i - 1) * step, y0)
             end
-            StylePip(pip, style, shape, art and art[i], scale, barTexture, vertical)
-            StylePipBorder(pip, style, shape, cfg.pointBorder)
+            StylePip(pip, style, shape, art and art[i], scale, barTexture, vertical, i)
+            StylePipBorder(pip, style, shape, cfg.pointBorder, i)
             pip:Show()
         else
             pip:Hide()
