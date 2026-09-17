@@ -75,6 +75,7 @@ local TEXT_LABELS = {
     healthMax     = L["Health / Max"] or "Health / Max",
     power         = L["Power"] or "Power",
     powerPercent  = L["Power %"] or "Power %",
+    powerMax      = L["Power / Max"] or "Power / Max",
     level         = L["Level"] or "Level",
     levelClass    = L["Level + Class"] or "Level + Class",
 }

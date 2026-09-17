@@ -385,6 +385,23 @@ local function FormatToken(unit, token)
         local cur = UnitPower(unit, pType)
         if cur and AbbreviateNumbers then return AbbreviateNumbers(cur) end
 
+    elseif token == "powerMax" then
+        -- Current / max. Both reads can be secret, and the pair is only ever
+        -- CONCATENATED -- never compared, never measured -- for the same
+        -- reason healthMax above is: arithmetic or comparison on a secret is a
+        -- hard error. Presence is tracked with plain booleans set from
+        -- nil-checks, which are safe on a secret.
+        local pType = UnitPowerType(unit)
+        local hasCur, curStr = false, nil
+        local cur = UnitPower(unit, pType)
+        if cur and AbbreviateNumbers then curStr = AbbreviateNumbers(cur); hasCur = true end
+        local hasMax, maxStr = false, nil
+        local max = UnitPowerMax(unit, pType)
+        if max and AbbreviateNumbers then maxStr = AbbreviateNumbers(max); hasMax = true end
+        if hasCur and hasMax then return curStr .. " / " .. maxStr end
+        if hasCur then return curStr end
+        if hasMax then return maxStr end
+
     elseif token == "powerPercent" then
         -- NOTE the pType second argument: UnitPowerPercent's signature is
         -- (unit, powerType, unmodified, curve), NOT UnitHealthPercent's

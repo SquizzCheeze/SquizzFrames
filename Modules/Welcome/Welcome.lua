@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.27"] = {
+        "Name, Health and Power Text now offer the same settings as the unit frames' text: a single Anchor Point instead of two dropdowns, and one Format choice instead of the Show Percentage / Show Current / Show Max tickboxes. Your current settings carry across and nothing moves.",
+        "Text Width is replaced by Max Length, measured in characters, with a \"...\" on anything longer.",
+        "Power Text can show current / max, on the unit frames as well.",
+        "Fixed text anchored to a corner lining itself up as though it were centred - a name anchored top-right looked like it was sitting top-left.",
+    },
     ["1.26"] = {
         "The five Holy Power runes are available as a resource point shape. Point Style \"Shape\", then \"Holy Power Runes\" - the row lays all five out in order like the game's own bar, and they take any colour you pick exactly.",
         "Boss frames with aura rows above or below now make room for them, instead of the auras running into the next boss frame. Spacing is a minimum now: the gap opens up on its own to fit the rows.",

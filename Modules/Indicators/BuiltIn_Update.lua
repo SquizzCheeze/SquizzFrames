@@ -1398,7 +1398,70 @@ end
 -- Per-built-in Check functions (driven by events)
 -- ------------------------------------------------------------------
 
--- Name Text: respects indicator settings for color, textWidth, etc.
+-- Cap a rendered string to `maxLength` characters, with an ellipsis.
+--
+-- SECRET-SAFE BY SKIPPING. A name, and anything AbbreviateNumbers() returns,
+-- can be a SECRET string once identity or auras are restricted -- and this file
+-- already documents that even comparing such a string against "" throws
+-- "attempt to compare a secret string value". Measuring or slicing one is the
+-- same class of error, so a secret passes through at full length instead of
+-- taking the whole text update down. That is the trade CheckNameText already
+-- makes for the group-number prefix below: losing the cap beats losing the name.
+--
+-- Counts UTF-8 CHARACTERS, not bytes. A byte-wise cut mangles accented and
+-- non-Latin names into replacement glyphs, and those are exactly the names long
+-- enough to need capping.
+local function CapLength(text, maxLength)
+    maxLength = tonumber(maxLength) or 0
+    if not text or maxLength <= 0 then return text end
+    if not F.IsValueNonSecret(text) then return text end
+
+    -- Counted here rather than via strlenutf8: that global is referenced
+    -- nowhere else in this addon, so relying on it would be an assumption, and
+    -- the fallback (#text, a BYTE count) would silently cut accented names
+    -- short instead of erroring. One pass over the lead bytes is exact and
+    -- needs nothing from the client.
+    --
+    -- A UTF-8 continuation byte is 10xxxxxx (128-191); every other byte starts
+    -- a character. `cut` is the byte offset of the end of the maxLength-th
+    -- character, and stays at #text when there are fewer than that.
+    local count, cut = 0, #text
+    for i = 1, #text do
+        local b = text:byte(i)
+        if b < 128 or b >= 192 then
+            count = count + 1
+            if count == maxLength + 1 then
+                cut = i - 1
+                break
+            end
+        end
+    end
+    if count <= maxLength then return text end
+    return text:sub(1, cut) .. "…"
+end
+
+-- An explicit pixel width for a text indicator's FontString.
+--
+-- NOT a user setting -- the character cap above is what limits visible length.
+-- This exists because a FontString left to size itself from secret-derived text
+-- reports nothing usable through GetWidth()/GetHeight(), which is what the
+-- Designer's drag-highlight and marching-ants read: without it, these three
+-- indicators cannot be dragged. Width tracks whatever the indicator is anchored
+-- to, so it is always wide enough not to clip.
+local TEXT_GEOMETRY_WIDTH_PCT = 0.75
+
+local function ApplyTextGeometry(button, indicator, t)
+    local refFrame = (t.position and t.position[2] == "healthBar" and button.healthBar)
+        or indicator:GetParent() or button
+    local parentW = (refFrame and refFrame.GetWidth and refFrame:GetWidth()) or 0
+    -- 75%, not the full width: that is what the old textWidth setting defaulted
+    -- to, and a box spanning the whole frame made the Designer's drag-highlight
+    -- cover everything and overlap its neighbours. Wide enough never to clip
+    -- (CapLength limits the text itself), narrow enough to look like a readout.
+    indicator:SetWidth(parentW > 0 and (parentW * TEXT_GEOMETRY_WIDTH_PCT) or 50)
+end
+
+-- Name Text: respects indicator settings for color, maxLength, etc.
 local function CheckNameText(button)
     local unit = button.unit or button:GetAttribute("unit")
     if not unit then return end
@@ -1496,40 +1559,30 @@ local function CheckNameText(button)
         indicator:SetVertexColor(1, 1, 1, 1)
     end
 
-    -- textWidth: unlimited / percentage / length
-    if t.textWidth then
-        local mode = t.textWidth[1]
-        if mode == "unlimited" then
-            indicator:SetWidth(0)  -- 0 = unlimited in WoW
-        elseif mode == "percentage" then
-            local pct = t.textWidth[2] or 0.75
-            local parent = indicator:GetParent()
-            local refFrame = t.position and t.position[2] == "healthBar" and button.healthBar or button
-            if refFrame then
-                indicator:SetWidth(refFrame:GetWidth() * pct)
-            else
-                indicator:SetWidth(parent:GetWidth() * pct)
-            end
-        elseif mode == "length" then
-            indicator:SetWidth(t.textWidth[2] or 50)
-        end
-    else
-        indicator:SetWidth(0)
-    end
+    name = CapLength(name, t.maxLength)
+    ApplyTextGeometry(button, indicator, t)
     -- A constrained width word-wraps by default, growing the FontString to 2+
     -- lines that spill into whatever else is anchored nearby (looks exactly
     -- like "the text is behind/cut off by something else"). Single-line only.
     indicator:SetWordWrap(false)
 
-    -- Justify text based on anchor point so text doesn't shift when width changes
-    -- CENTER anchor needs CENTER justify to expand from center
+    -- Justify from the anchor, so text grows away from the corner it sits on
+    -- instead of shifting as its own width changes.
+    --
+    -- MATCHED BY SUBSTRING, exactly like UnitFrames.lua's TextJustify. The
+    -- three exact-value tests this replaced (== "CENTER" / "LEFT" / "RIGHT")
+    -- matched no CORNER at all, so a TOPRIGHT-anchored readout fell through
+    -- every branch and kept whatever justification the FontString last had --
+    -- which read as centred inside its own box while the box itself was
+    -- correctly anchored top-right (user report 2026-09-17, name text in the
+    -- Designer).
     local anchorPoint = t.position and t.position[1] or "CENTER"
-    if anchorPoint == "CENTER" then
-        indicator:SetJustifyH("CENTER")
-    elseif anchorPoint == "LEFT" then
+    if anchorPoint:find("LEFT") then
         indicator:SetJustifyH("LEFT")
-    elseif anchorPoint == "RIGHT" then
+    elseif anchorPoint:find("RIGHT") then
         indicator:SetJustifyH("RIGHT")
+    else
+        indicator:SetJustifyH("CENTER")
     end
 
     indicator:SetText(name)
@@ -1569,6 +1622,14 @@ local function CheckHealthText(button)
     -- presence with plain (never-secret) booleans set via those safe
     -- nil-checks, and only ever CONCATENATES the secret-derived strings,
     -- never compares them.
+    --
+    -- ONE FORMAT TOKEN drives all of this, using the same vocabulary as the
+    -- unit frames' text elements (SquizzFrames.UNITFRAME_TEXT_FORMATS). It
+    -- replaced showCurrent/showMax/showPercentage, whose eight combinations
+    -- produced shapes nobody chose deliberately; Core.lua's
+    -- MigrateIndicatorTextFormat maps an existing profile's booleans onto a
+    -- token.
+    local fmt = t.textFormat or "healthPercent"
     local text
     if button._sfFakeHealth and button._sfFakeHealthMax then
         -- Preview only: F.ShortNumber (pure Lua, Utils.lua), NOT
@@ -1584,61 +1645,51 @@ local function CheckHealthText(button)
         -- UnitHealth(unit, true) value can genuinely be secret, and no Lua
         -- arithmetic is allowed on it -- but the preview never needs that.
         local curHP, maxHP = button._sfFakeHealth, button._sfFakeHealthMax
-        text = ""
-        if t.showCurrent then text = F.ShortNumber(curHP) end
-        if t.showMax then text = text .. (text ~= "" and " / " or "") .. F.ShortNumber(maxHP) end
-        if t.showPercentage then
-            local pct = maxHP > 0 and math.floor(curHP / maxHP * 100 + 0.5) or 0
-            text = text .. (text ~= "" and " " or "") .. pct .. "%"
+        local pct = maxHP > 0 and math.floor(curHP / maxHP * 100 + 0.5) or 0
+        if fmt == "health" then
+            text = F.ShortNumber(curHP)
+        elseif fmt == "healthMax" then
+            text = F.ShortNumber(curHP) .. " / " .. F.ShortNumber(maxHP)
+        elseif fmt == "healthBoth" then
+            text = F.ShortNumber(curHP) .. "  " .. pct .. "%"
+        else
+            text = pct .. "%"
         end
-        if text == "" then text = F.ShortNumber(curHP) end
     else
-        local hasCur, curStr = false, nil
-        if t.showCurrent then
+        -- Only the pieces this format actually needs are read, and the
+        -- secret-derived strings are only ever CONCATENATED -- see above.
+        local curStr, maxStr, pctStr
+        if fmt == "health" or fmt == "healthMax" or fmt == "healthBoth" then
             local curr = UnitHealth(unit, true)
-            if curr and AbbreviateNumbers then
-                curStr = AbbreviateNumbers(curr)
-                hasCur = true
-            end
+            if curr and AbbreviateNumbers then curStr = AbbreviateNumbers(curr) end
         end
-        local hasMax, maxStr = false, nil
-        if t.showMax then
+        if fmt == "healthMax" then
             local max = UnitHealthMax(unit, true)
-            if max and AbbreviateNumbers then
-                maxStr = AbbreviateNumbers(max)
-                hasMax = true
-            end
+            if max and AbbreviateNumbers then maxStr = AbbreviateNumbers(max) end
         end
-        local hasPct, pctStr = false, nil
-        if t.showPercentage and UnitHealthPercent and CurveConstants then
-            local pct = UnitHealthPercent(unit, true, CurveConstants.ScaleTo100)
-            if pct then
-                pctStr = string.format("%.0f%%", pct)
-                hasPct = true
+        if fmt == "healthPercent" or fmt == "healthBoth" then
+            if UnitHealthPercent and CurveConstants then
+                local pct = UnitHealthPercent(unit, true, CurveConstants.ScaleTo100)
+                if pct then pctStr = string.format("%.0f%%", pct) end
             end
         end
 
-        if hasCur and hasMax and hasPct then
-            text = curStr .. " / " .. maxStr .. " " .. pctStr
-        elseif hasCur and hasMax then
+        if curStr and maxStr then
             text = curStr .. " / " .. maxStr
-        elseif hasCur and hasPct then
-            text = curStr .. " " .. pctStr
-        elseif hasMax and hasPct then
-            text = maxStr .. " " .. pctStr
-        elseif hasCur then
-            text = curStr
-        elseif hasMax then
-            text = maxStr
-        elseif hasPct then
+        elseif curStr and pctStr then
+            text = curStr .. "  " .. pctStr
+        elseif pctStr then
             text = pctStr
+        elseif curStr then
+            text = curStr
         else
-            -- Nothing toggled on (or all reads failed) -- fall back to plain
-            -- current health, matching the old behavior's final fallback.
+            -- Every read failed -- fall back to plain current health, matching
+            -- the old behaviour's final fallback.
             local curr = UnitHealth(unit, true)
             if curr and AbbreviateNumbers then text = AbbreviateNumbers(curr) end
         end
     end
+    text = CapLength(text, t.maxLength)
 
     if not text then indicator:Hide() return end
     indicator:SetText(text)
@@ -1682,29 +1733,7 @@ local function CheckHealthText(button)
     -- elsewhere (the Designer's drag-highlight/marching-ants) -- explicitly
     -- setting a fallback width sidesteps that regardless of the exact
     -- mechanism.
-    local function ApplyTextWidth()
-        local width = t.textWidth
-        local refFrame = indicator:GetParent()
-        local parentW = (refFrame and refFrame.GetWidth and refFrame:GetWidth()) or 0
-        if width == "unlimited" or (type(width) == "table" and width[1] == "unlimited") then
-            indicator:SetWidth(0)  -- 0 = unlimited in WoW
-            return
-        elseif type(width) == "table" and width[1] == "percentage" then
-            local pct = width[2] or 0.75
-            if parentW > 0 then
-                indicator:SetWidth(parentW * pct)
-                return
-            end
-        elseif type(width) == "table" and width[1] == "length" then
-            indicator:SetWidth(width[2] or 50)
-            return
-        end
-        -- Fallback for nil/malformed textWidth (or a zero-width parent):
-        -- 75% of parent width, same as the built-in default, so this
-        -- indicator is never left to size itself from its own text.
-        indicator:SetWidth(parentW > 0 and (parentW * 0.75) or 50)
-    end
-    ApplyTextWidth()
+    ApplyTextGeometry(button, indicator, t)
     -- Single-line only -- see the matching comment in CheckNameText.
     indicator:SetWordWrap(false)
     -- Same reasoning as ApplyTextWidth's fallback above, but for height:
@@ -1715,15 +1744,23 @@ local function CheckHealthText(button)
     -- geometry fully independent of the text content.
     indicator:SetHeight((t.font and t.font[2] or 11) + 4)
 
-    -- Justify text based on anchor point so text doesn't shift when width changes
-    -- CENTER anchor needs CENTER justify to expand from center
+    -- Justify from the anchor, so text grows away from the corner it sits on
+    -- instead of shifting as its own width changes.
+    --
+    -- MATCHED BY SUBSTRING, exactly like UnitFrames.lua's TextJustify. The
+    -- three exact-value tests this replaced (== "CENTER" / "LEFT" / "RIGHT")
+    -- matched no CORNER at all, so a TOPRIGHT-anchored readout fell through
+    -- every branch and kept whatever justification the FontString last had --
+    -- which read as centred inside its own box while the box itself was
+    -- correctly anchored top-right (user report 2026-09-17, name text in the
+    -- Designer).
     local anchorPoint = t.position and t.position[1] or "CENTER"
-    if anchorPoint == "CENTER" then
-        indicator:SetJustifyH("CENTER")
-    elseif anchorPoint == "LEFT" then
+    if anchorPoint:find("LEFT") then
         indicator:SetJustifyH("LEFT")
-    elseif anchorPoint == "RIGHT" then
+    elseif anchorPoint:find("RIGHT") then
         indicator:SetJustifyH("RIGHT")
+    else
+        indicator:SetJustifyH("CENTER")
     end
 
     -- Font handled by HandleIndicators
@@ -1756,65 +1793,53 @@ local function CheckPowerText(button)
     -- CheckHealthText's comment for the full explanation. Same fix here:
     -- track presence with plain booleans from safe nil-checks, only
     -- concatenate the secret-derived strings, never compare them.
+    --
+    -- One format token, same vocabulary as the unit frames' text elements --
+    -- see CheckHealthText's note above.
+    local fmt = t.textFormat or "powerPercent"
     local text
     if button._sfFakePower and button._sfFakePowerMax then
         -- Preview only: F.ShortNumber, not AbbreviateNumbers -- see the
         -- matching comment in CheckHealthText's fake-data branch above.
         local curPower, maxPower = button._sfFakePower, button._sfFakePowerMax
-        text = ""
-        if t.showCurrent then text = F.ShortNumber(curPower) end
-        if t.showMax then text = text .. (text ~= "" and " / " or "") .. F.ShortNumber(maxPower) end
-        if t.showPercentage then
-            local pct = maxPower > 0 and math.floor(curPower / maxPower * 100 + 0.5) or 0
-            text = text .. (text ~= "" and " " or "") .. pct .. "%"
+        local pct = maxPower > 0 and math.floor(curPower / maxPower * 100 + 0.5) or 0
+        if fmt == "power" then
+            text = F.ShortNumber(curPower)
+        elseif fmt == "powerMax" then
+            text = F.ShortNumber(curPower) .. " / " .. F.ShortNumber(maxPower)
+        else
+            text = pct .. "%"
         end
-        if text == "" then text = F.ShortNumber(curPower) end
     else
         local pType = UnitPowerType(unit)
-        local hasCur, curStr = false, nil
-        if t.showCurrent then
+        local curStr, maxStr, pctStr
+        if fmt == "power" or fmt == "powerMax" then
             local curr = UnitPower(unit, pType)
-            if curr and AbbreviateNumbers then
-                curStr = AbbreviateNumbers(curr)
-                hasCur = true
-            end
+            if curr and AbbreviateNumbers then curStr = AbbreviateNumbers(curr) end
         end
-        local hasMax, maxStr = false, nil
-        if t.showMax then
+        if fmt == "powerMax" then
             local max = UnitPowerMax(unit, pType)
-            if max and AbbreviateNumbers then
-                maxStr = AbbreviateNumbers(max)
-                hasMax = true
-            end
+            if max and AbbreviateNumbers then maxStr = AbbreviateNumbers(max) end
         end
-        local hasPct, pctStr = false, nil
-        if t.showPercentage and UnitPowerPercent and CurveConstants then
-            local pct = UnitPowerPercent(unit, pType, true, CurveConstants.ScaleTo100)
-            if pct then
-                pctStr = string.format("%.0f%%", pct)
-                hasPct = true
+        if fmt == "powerPercent" then
+            if UnitPowerPercent and CurveConstants then
+                local pct = UnitPowerPercent(unit, pType, true, CurveConstants.ScaleTo100)
+                if pct then pctStr = string.format("%.0f%%", pct) end
             end
         end
 
-        if hasCur and hasMax and hasPct then
-            text = curStr .. " / " .. maxStr .. " " .. pctStr
-        elseif hasCur and hasMax then
+        if curStr and maxStr then
             text = curStr .. " / " .. maxStr
-        elseif hasCur and hasPct then
-            text = curStr .. " " .. pctStr
-        elseif hasMax and hasPct then
-            text = maxStr .. " " .. pctStr
-        elseif hasCur then
-            text = curStr
-        elseif hasMax then
-            text = maxStr
-        elseif hasPct then
+        elseif pctStr then
             text = pctStr
+        elseif curStr then
+            text = curStr
         else
             local curr = UnitPower(unit, pType)
             if curr and AbbreviateNumbers then text = AbbreviateNumbers(curr) end
         end
     end
+    text = CapLength(text, t.maxLength)
 
     if not text then indicator:Hide() return end
     indicator:SetText(text)
@@ -1858,29 +1883,7 @@ local function CheckPowerText(button)
     -- elsewhere (the Designer's drag-highlight/marching-ants) -- explicitly
     -- setting a fallback width sidesteps that regardless of the exact
     -- mechanism.
-    local function ApplyTextWidth()
-        local width = t.textWidth
-        local refFrame = indicator:GetParent()
-        local parentW = (refFrame and refFrame.GetWidth and refFrame:GetWidth()) or 0
-        if width == "unlimited" or (type(width) == "table" and width[1] == "unlimited") then
-            indicator:SetWidth(0)  -- 0 = unlimited in WoW
-            return
-        elseif type(width) == "table" and width[1] == "percentage" then
-            local pct = width[2] or 0.75
-            if parentW > 0 then
-                indicator:SetWidth(parentW * pct)
-                return
-            end
-        elseif type(width) == "table" and width[1] == "length" then
-            indicator:SetWidth(width[2] or 50)
-            return
-        end
-        -- Fallback for nil/malformed textWidth (or a zero-width parent):
-        -- 75% of parent width, same as the built-in default, so this
-        -- indicator is never left to size itself from its own text.
-        indicator:SetWidth(parentW > 0 and (parentW * 0.75) or 50)
-    end
-    ApplyTextWidth()
+    ApplyTextGeometry(button, indicator, t)
     -- Single-line only -- see the matching comment in CheckNameText.
     indicator:SetWordWrap(false)
     -- Same reasoning as ApplyTextWidth's fallback above, but for height:
@@ -1891,15 +1894,23 @@ local function CheckPowerText(button)
     -- geometry fully independent of the text content.
     indicator:SetHeight((t.font and t.font[2] or 11) + 4)
 
-    -- Justify text based on anchor point so text doesn't shift when width changes
-    -- CENTER anchor needs CENTER justify to expand from center
+    -- Justify from the anchor, so text grows away from the corner it sits on
+    -- instead of shifting as its own width changes.
+    --
+    -- MATCHED BY SUBSTRING, exactly like UnitFrames.lua's TextJustify. The
+    -- three exact-value tests this replaced (== "CENTER" / "LEFT" / "RIGHT")
+    -- matched no CORNER at all, so a TOPRIGHT-anchored readout fell through
+    -- every branch and kept whatever justification the FontString last had --
+    -- which read as centred inside its own box while the box itself was
+    -- correctly anchored top-right (user report 2026-09-17, name text in the
+    -- Designer).
     local anchorPoint = t.position and t.position[1] or "CENTER"
-    if anchorPoint == "CENTER" then
-        indicator:SetJustifyH("CENTER")
-    elseif anchorPoint == "LEFT" then
+    if anchorPoint:find("LEFT") then
         indicator:SetJustifyH("LEFT")
-    elseif anchorPoint == "RIGHT" then
+    elseif anchorPoint:find("RIGHT") then
         indicator:SetJustifyH("RIGHT")
+    else
+        indicator:SetJustifyH("CENTER")
     end
 
     -- Font handled by HandleIndicators

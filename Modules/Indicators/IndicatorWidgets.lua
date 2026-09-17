@@ -649,6 +649,93 @@ local function CreateSetting_Position(parent)
     widget:Show(); return widget
 end
 
+-- Position with a SINGLE anchor point, the way the unit frames' text elements
+-- work: the indicator's own point and the point it attaches to are always the
+-- same, so "TOPRIGHT" reads as "sit on the top-right corner" rather than
+-- needing two dropdowns to say it.
+--
+-- Cell's model (which the plain CreateSetting_Position above still offers, and
+-- which every other indicator still uses) lets those two differ, so a frame can
+-- hang its TOP off another's BOTTOM. That is genuinely useful for icons and
+-- bars; for a line of text it is two controls to express one idea, and the unit
+-- frames have never needed it (see UnitFrames.lua's ApplyFrameFont:
+-- `fs:SetPoint(anchor, anchorTo, anchor, x, y)`).
+--
+-- STORAGE IS UNCHANGED -- still {point, relativeTo, relativePoint, x, y}, with
+-- relativePoint written equal to point. That is what keeps ApplyPosition, the
+-- Designer's drag handler and every existing profile working untouched: a
+-- saved mismatched pair keeps rendering exactly as it does today until the
+-- dropdown is next touched.
+--
+-- Relative To is KEPT. It is a different question from anchoring (which frame,
+-- not which corner), the shipped defaults split between "button" and
+-- "healthBar", and the unit frames have no equivalent to mirror.
+local function CreateSetting_PositionSingle(parent)
+    local widget
+    if not settingWidgets["position-single"] then
+        -- Layout: one row shorter than CreateSetting_Position, since Anchor
+        -- Point and Relative To share row 1 now that Relative Point is gone.
+        --  y= -32  row1: Anchor Point (110) | Relative To (110)
+        --  y= -70  row2: X Offset (110) | Y Offset (110)
+        -- total height ~148
+        widget = SF_CreateFrame("SFIndicatorSettings_PositionSingle", parent, 300, 148)
+        settingWidgets["position-single"] = widget
+
+        local a = F.GetAccentColor()
+        widget.title = widget:CreateFontString(nil, "OVERLAY")
+        widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
+        widget.title:SetPoint("TOPLEFT", 5, -4)
+        widget.title:SetTextColor(a.r, a.g, a.b, 1)
+        widget.title:SetText("Indicator Position")
+
+        -- Field 3 is the anchor again, never a separate selection.
+        local function GetResult()
+            local point = widget.anchor:GetSelected()
+            return {point, widget.relativeTo:GetSelected(), point,
+                    widget.x:GetValue(), widget.y:GetValue()}
+        end
+
+        widget.anchor = SF_CreateDropdown(widget, 110)
+        widget.anchor:SetPoint("TOPLEFT", 10, -32)
+        local items = {}
+        for _, point in ipairs(anchorPoints) do
+            table.insert(items, { text = point, value = point, onClick = function() widget.func(GetResult()) end })
+        end
+        widget.anchor:SetItems(items)
+        widget.anchorText = CreateLabel(widget, "Anchor Point", "BOTTOMLEFT", 10, 1)
+        widget.anchorText:SetPoint("BOTTOMLEFT", widget.anchor, "TOPLEFT", 0, 1)
+
+        widget.relativeTo = SF_CreateDropdown(widget, 110)
+        widget.relativeTo:SetPoint("TOPLEFT", widget.anchor, "TOPRIGHT", 10, 0)
+        widget.relativeTo:SetItems({
+            { text = "Unit Button", value = "button",    onClick = function() widget.func(GetResult()) end },
+            { text = "Health Bar",  value = "healthBar", onClick = function() widget.func(GetResult()) end },
+        })
+        widget.relativeToText = CreateLabel(widget, "Relative To", "BOTTOMLEFT", 10, 1)
+        widget.relativeToText:SetPoint("BOTTOMLEFT", widget.relativeTo, "TOPLEFT", 0, 1)
+
+        widget.x = SF_CreateSlider("X Offset", widget, -150, 150, 110, 1)
+        widget.x:SetPoint("TOPLEFT", widget.anchor, "BOTTOMLEFT", 0, -14)
+        widget.x.afterValueChangedFn = function() widget.func(GetResult()) end
+
+        widget.y = SF_CreateSlider("Y Offset", widget, -150, 150, 110, 1)
+        widget.y:SetPoint("TOPLEFT", widget.x, "TOPRIGHT", 5, 0)
+        widget.y.afterValueChangedFn = function() widget.func(GetResult()) end
+
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(positionTable)
+            -- Field 1 only: a profile saved with a mismatched pair shows its
+            -- ANCHOR here, and keeps the stored relative point until the user
+            -- changes something (at which point GetResult collapses the two).
+            widget.anchor:SetSelectedValue(positionTable[1])
+            widget.relativeTo:SetSelectedValue(positionTable[2])
+            widget.x:SetValue(positionTable[4])
+            widget.y:SetValue(positionTable[5])
+        end
+    else widget = settingWidgets["position-single"] end
+    widget:Show(); return widget
+end
+
 -- Where Blizzard draws the DURATION TEXT inside a private aura icon
 -- (C_UnitAuras.AddPrivateAuraAnchor's `durationAnchor` field). Deliberately
 -- simpler than CreateSetting_Position: there's no "Relative To" row, because
@@ -3022,6 +3109,76 @@ end
 
 local CreateSetting_PowerFormat = CreateSetting_HealthFormat
 
+-- Text format for the three readouts: ONE token in place of the old
+-- showPercentage / showCurrent / showMax trio, using the same vocabulary as
+-- the unit frames' text elements (SquizzFrames.UNITFRAME_TEXT_FORMATS) so the
+-- two pages cannot drift apart.
+--
+-- One cached widget serves every element. The element arrives at BIND time via
+-- SetDBValue(element, value) -- the way the checkbutton widget takes its key --
+-- because the builder dispatch passes no arguments of its own. Rebuilding the
+-- item list on each bind is what lets Health offer four tokens and Power three
+-- from a single frame.
+local TEXT_FORMAT_LABELS = {
+    name          = "Name",
+    health        = "Health",
+    healthPercent = "Health %",
+    healthBoth    = "Health + %",
+    healthMax     = "Health / Max",
+    power         = "Power",
+    powerPercent  = "Power %",
+    powerMax      = "Power / Max",
+}
+
+local function CreateSetting_TextFormat(parent)
+    local widget
+    if not settingWidgets["textFormat"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_TextFormat", parent, 300, 75)
+        settingWidgets["textFormat"] = widget
+        widget.dd = SF_CreateDropdown(widget, 230)
+        widget.dd:SetPoint("TOPLEFT", 10, -20)
+        widget.ddText = CreateLabel(widget, "Format", "BOTTOMLEFT", 10, 1)
+        widget.ddText:SetPoint("BOTTOMLEFT", widget.dd, "TOPLEFT", 0, 1)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(element, value)
+            local tokens = (SquizzFrames.UNITFRAME_TEXT_FORMATS
+                and SquizzFrames.UNITFRAME_TEXT_FORMATS[element]) or {}
+            local items = {}
+            for _, token in ipairs(tokens) do
+                table.insert(items, {
+                    text = TEXT_FORMAT_LABELS[token] or token,
+                    value = token,
+                    onClick = function() widget.func(token) end,
+                })
+            end
+            widget.dd:SetItems(items)
+            widget.dd:SetSelectedValue(value or tokens[1])
+        end
+    else widget = settingWidgets["textFormat"] end
+    widget:Show(); return widget
+end
+
+-- Character cap for a readout, 0 = no limit.
+--
+-- CHARACTERS rather than pixels because the thing usually being limited is a
+-- name: "18 characters" is a decision made once, where a pixel width has to be
+-- retuned every time the font, the font size or the frame width changes. The
+-- cap is applied to the string itself (see CapLength in BuiltIn_Update.lua),
+-- not by clipping the FontString.
+local function CreateSetting_MaxLength(parent)
+    local widget
+    if not settingWidgets["maxLength"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_MaxLength", parent, 300, 75)
+        settingWidgets["maxLength"] = widget
+        widget.slider = SF_CreateSlider("Max Length (0 = no limit)", widget, 0, 40, 230, 1)
+        widget.slider:SetPoint("TOPLEFT", 10, -20)
+        widget.slider.afterValueChangedFn = function(value) widget.func(value) end
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(value) widget.slider:SetValue(tonumber(value) or 0) end
+    else widget = settingWidgets["maxLength"] end
+    widget:Show(); return widget
+end
+
 -----------------------------------------------------------------------
 -- Stubs for features not yet ported (actions, targetedSpells, etc.)
 -----------------------------------------------------------------------
@@ -3048,6 +3205,7 @@ local builders = {
     ["height"] = CreateSetting_Height,
     ["durationOffset"] = CreateSetting_DurationOffset,
     ["textWidth"] = CreateSetting_TextWidth,
+    ["maxLength"] = CreateSetting_MaxLength,
     ["alpha"] = CreateSetting_Alpha,
     ["healthFormat"] = CreateSetting_HealthFormat,
     ["powerFormat"] = CreateSetting_PowerFormat,
@@ -3143,6 +3301,8 @@ function SquizzFrames.CreateIndicatorSettings(parent, settingsTable, indicatorTy
             table.insert(widgetsTable, builders[setting](parent))
         elseif setting == "position" then
             table.insert(widgetsTable, CreateSetting_Position(parent))
+        elseif setting == "position-single" then
+            table.insert(widgetsTable, CreateSetting_PositionSingle(parent))
         elseif setting == "position-noHCenter" then
             table.insert(widgetsTable, CreateSetting_PositionNoHCenter(parent))
         elseif string.find(setting, "^frameLevel") then
@@ -3155,6 +3315,8 @@ function SquizzFrames.CreateIndicatorSettings(parent, settingsTable, indicatorTy
             table.insert(widgetsTable, CreateSetting_FontNoOffset(parent))
         elseif string.find(setting, "^font") then
             table.insert(widgetsTable, CreateSetting_Font(parent, string.match(setting, "^(font%d?):?.*$")))
+        elseif string.find(setting, "^textFormat:") then
+            table.insert(widgetsTable, CreateSetting_TextFormat(parent))
         elseif string.find(setting, "^checkbutton6") then
             table.insert(widgetsTable, CreateSetting_CheckButton6(parent))
         elseif string.find(setting, "^checkbutton5") then

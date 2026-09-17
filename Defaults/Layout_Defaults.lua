@@ -138,7 +138,9 @@ profile.layout.indicators = {
         position = {"CENTER", "healthBar", "CENTER", 0, 0}, frameLevel = LAYER.TEXT,
         font = {"Friz QT__", 13, "NONE", true},
         color = {"custom_color", 1, 1, 1, 1},
-        textWidth = {"percentage", 0.75},
+        -- Characters, 0 = no limit. Replaced the percentage/length/unlimited
+        -- textWidth table; see Core.lua's MigrateIndicatorTextFormat.
+        maxLength = 0,
     },
     -- 2: Health Text
     {
@@ -147,10 +149,10 @@ profile.layout.indicators = {
         position = {"LEFT", "healthBar", "LEFT", 3, 0}, frameLevel = LAYER.TEXT,
         font = {"Friz QT__", 11, "NONE", true},
         color = {"class_color"},
-        showPercentage = true,
-        showCurrent = false,
-        showMax = false,
-        textWidth = {"percentage", 0.75},
+        -- One token, same vocabulary as the unit frames' text elements.
+        -- "healthPercent" is what showPercentage = true alone used to render.
+        textFormat = "healthPercent",
+        maxLength = 0,
     },
     -- 3: Power Text
     {
@@ -159,10 +161,8 @@ profile.layout.indicators = {
         position = {"RIGHT", "healthBar", "RIGHT", -3, 0}, frameLevel = LAYER.TEXT,
         font = {"Friz QT__", 11, "NONE", true},
         color = {"power_color"},
-        showPercentage = true,
-        showCurrent = false,
-        showMax = false,
-        textWidth = {"percentage", 0.75},
+        textFormat = "powerPercent",
+        maxLength = 0,
     },
     -- 4: Status Text (already wired into the button template as statusText)
     {

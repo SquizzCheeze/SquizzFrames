@@ -53,7 +53,7 @@ SquizzFrames.UNITFRAME_TEXT_ELEMENTS = {"name", "health", "power", "level"}
 SquizzFrames.UNITFRAME_TEXT_FORMATS = {
     name   = {"name"},
     health = {"health", "healthPercent", "healthBoth", "healthMax"},
-    power  = {"power", "powerPercent"},
+    power  = {"power", "powerPercent", "powerMax"},
     level  = {"level", "levelClass"},
 }
 

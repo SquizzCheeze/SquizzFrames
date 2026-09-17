@@ -1063,7 +1063,9 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         -- candidate filters/style directly.
         if indicator.RefreshSpellList then indicator:RefreshSpellList(t) end
         if setting == "customColors" and indicator.SetColor then indicator:SetColor() end
-    elseif setting == "textWidth" or setting == "showGroupNumber" or setting == "hideRealmName" or setting == "vehicleNamePosition"
+    elseif setting == "textFormat" or setting == "maxLength"
+        or setting == "textWidth" or setting == "showGroupNumber" or setting == "hideRealmName"
+        or setting == "vehicleNamePosition"
         or setting == "showPercentage" or setting == "showCurrent" or setting == "showMax" then
         -- nameText/healthText/powerText-specific settings — re-run the text updater so the
         -- FontString reflects the new width/group-number/vehicle position/display-mode.

@@ -195,6 +195,25 @@ migration would silently undo the user's choice on the next reload — the
 `MigrateDispelGradientHeight` (`profile.dispelGradientHeightFull`), both
 2026-09-11, for the pattern.
 
+⚠ **Two ways to get the flag itself wrong**, both silent:
+
+- **Checking it without ever setting it.** The guard reads fine and the
+  migration simply re-runs on every profile load forever. It usually *looks*
+  harmless because the body is nil-guarded, which is exactly why it survives
+  review — the flag is doing nothing at all.
+- **Setting it inside the `listKey` loop.** `RefreshProfile` runs the
+  indicator migrations once per list (`indicators`, then the raid list), so a
+  flag set on the first pass makes the second pass return early and the RAID
+  list never migrates. Set it *after* the loop closes. `MigrateIndicatorTextFormat`
+  (`profile.indicatorTextFormats`, 2026-09-17) is the worked example, and both
+  mistakes were made writing it.
+
+Also: a migration that converts one field to another should leave the OLD field
+alone unless it is genuinely unreadable afterwards. Converting
+`showPercentage`/`showCurrent`/`showMax` to a single `textFormat` token only
+writes the new key — the booleans stay, costing nothing and leaving a way back
+if the mapping turns out wrong for somebody.
+
 ### 7. 12.1 AuraEngine Subsystem (AuraEngine.lua / AuraEngineIndicators.lua)
 
 **Why this exists**: on 12.1, `UNIT_AURA` payloads and `AuraData` structs are **fully secret while auras are secret** (i.e. during combat/encounters) — this is an official Blizzard change, not a bug. A manual `C_UnitAuras.GetAuraDataByIndex` scan (the legacy pipeline) doesn't get flaky in combat, it **permanently** stops seeing anything applied after combat started, for the rest of the encounter. `SecureAuraHeaderTemplate` itself was removed from Mainline in 12.1. The only sanctioned fix is Blizzard's managed `AuraContainer` API, which renders aura icons/cooldowns/text C-side without ever exposing the secret data to addon Lua at all.
@@ -458,6 +477,31 @@ Replaces the name drawn by the `nameText` indicator. Four layers, resolved highe
 - Legacy built-in check/update functions, including the manual-scan versions of `healerHots`/`dispels`/`externalCooldowns`/`defensiveCooldowns`/`debuffs`/`ccIndicator` that AuraEngine now supersedes on 12.1 (still load-bearing on pre-12.1 clients — see AuraEngine section above)
 - **Shared with pet buttons** (which are outside the indicator system entirely): `BU.CreateBorderIndicator`, `BU.CreateBlinkMarker`, `BU.AttachBlinkBehaviour`, and the `BU.Check*` functions for hover/target highlight and both aggro indicators. `PetButton_ApplyBorders` builds those frames by hand and fakes the one field the Check functions need (`indicator._sfTable = {enabled = ...}`). Settings come from the **Party** indicator list entry in every case — these are "universal" indicators, so a pet matches whatever its owner's frame is set to and there's no second set of options. Nothing re-runs a Check for a pet button automatically: `PetFrames.lua` registers the driving events itself (`PLAYER_TARGET_CHANGED`, `UNIT_THREAT_SITUATION_UPDATE`) and filters `UpdateIndicators` down to the five indicators pet buttons actually build.
 
+**The three text readouts mirror the UNIT FRAMES' text model** (2026-09-17), not
+Cell's. `nameText`/`healthText`/`powerText` differ from every other indicator:
+
+- **One format token** (`t.textFormat`) instead of the old
+  `showPercentage`/`showCurrent`/`showMax` trio, drawn from the same vocabulary
+  the unit frames use (`SquizzFrames.UNITFRAME_TEXT_FORMATS` in
+  `UnitFrames_Defaults.lua`). Keep the two lists in step — `powerMax` was added
+  to the unit frames so a party readout set to current/max had somewhere to map.
+- **One anchor point** (`position-single` token). Storage is still the five-field
+  `{point, relativeTo, relativePoint, x, y}` with `relativePoint` written equal
+  to `point`, so `ApplyPosition`, the Designer's drag handler and every other
+  indicator are untouched, and a profile holding a mismatched pair keeps
+  rendering until that dropdown is next used.
+- **`maxLength`** (characters, 0 = unlimited) instead of the
+  percentage/length/unlimited `textWidth` table. The old widget and its binding
+  still exist but are unreachable — see the dormant-scaffolding note under
+  *New Indicator SETTING*.
+
+⚠ **`ApplyTextGeometry` sets an explicit pixel width and is NOT a user setting.**
+A FontString left to size itself from secret-derived text reports nothing usable
+through `GetWidth()`/`GetHeight()`, and that is what the Designer's
+drag-highlight and marching-ants read — without the explicit width these three
+indicators cannot be dragged at all. Visible length is limited by `CapLength` on
+the string, never by clipping the FontString.
+
 ### Indicators/Custom_Dispatch.lua
 - `Scan(button)`: Iterates auras via `C_UnitAuras.GetAuraDataByIndex`, matches against custom indicator `auras` lookup, calls type-specific `Update` (icons, bars, text)
 - Indicator types: `icon`, `bar`, `iconcounter`, `text`, `icons`, `texture`
@@ -546,6 +590,41 @@ CallbackHandler keys registrations by **(owner, event)** and keeps exactly **one
 - For preview/fake data: `pcall(UnitHealth, "player")` + `pcall(function() return val + 0 end)` to sanitize.
 - On 12.1, **aura data is secret too** while auras are secret (combat/encounters) — this is the whole reason the AuraEngine subsystem exists; see section 7 above. Don't try to extend the `pcall`-sanitize pattern to auras — there is no safe manual read, only the managed AuraContainer API.
 
+### Secret STRINGS (not just numbers)
+
+A string can be secret too, and the rules are narrower than for numbers.
+`AbbreviateNumbers()`'s return inherits the taint of what it was handed, and
+`UnitName`/`F.UnitFullName` pass a secret straight through so `SetText` can
+consume it C-side.
+
+What is safe on a secret string, confirmed in `BuiltIn_Update.lua`'s text
+builders:
+
+- **nil-checks** (`if s then`) — safe.
+- **concatenation** (`a .. " / " .. b`) — safe.
+- **handing it to a widget setter** (`SetText`, `SetValue`, `SetMinMaxValues`) — safe.
+
+What throws:
+
+- **comparison**, including `s ~= ""` — "attempt to compare a secret string
+  value". This is why the text builders track presence with plain booleans set
+  from nil-checks instead of testing the string.
+- **measurement or slicing** (`#s`, `s:sub()`, `strlenutf8`) — same class.
+
+**Do not "sanitise" a secret you only need to pass along.** `Secrets.SafeString`
+and friends return `nil` for a secret by design, so laundering a value that was
+only ever going to be handed to a setter destroys it. Squizzumables hit exactly
+this: a mirrored buff bar's fill worked while its countdown stayed blank,
+because the text was passed through `SafeString` first. The fix is to go from
+getter to setter **in one expression** — `dest:SetText(src:GetText())` — so the
+value never lands in Lua at all.
+
+**Where an operation genuinely is needed, gate it and degrade.** `CapLength`
+(character cap on text indicators) skips truncation entirely when
+`F.IsValueNonSecret` fails, and `CheckNameText` skips the group-number prefix
+the same way. The in-code comment states the principle: *losing the group number
+beats losing the name*.
+
 ### Font Resolution
 - Stored font names may be LSM keys (`"Friz QT__"`) or paths (`Fonts\FRIZQT__.TTF`).
 - Use `ResolveFontFile(fontFile)` in Utils/Indicators — checks path prefix, then LSM hash table, falls back to `Fonts\FRIZQT__.TTF`.
@@ -590,6 +669,63 @@ Only needed if the indicator tracks live aura presence/duration and must stay ac
 2. Add dispatcher case in `Custom_Dispatch.lua` → `DispatchIndicatorUpdate`
 3. Add options UI in `IndicatorsPanel.lua`
 4. If it's aura-presence-driven (like `color`/`bar`) and combat reliability matters, consider an AuraEngine-backed variant too — see `Indicators.lua`'s existing `type == "color"`/`type == "bar"` branches for the pattern (legacy factory stays the fallback for `trackByName` and pre-12.1)
+
+### New Indicator SETTING (a control on an existing indicator)
+
+Adding a control is **five places, not one**, and missing any of them fails
+silently rather than erroring — the control simply never appears, or appears and
+does nothing, or the page mis-sizes and clips its last row.
+
+1. **`IndicatorDefaults.lua`** — add the token to that indicator's settings list.
+   This is the only thing that makes the control exist.
+2. **`IndicatorWidgets.lua`** — write `CreateSetting_Xxx(parent)` and register it
+   in the `builders` table, **or** add a branch to the dispatcher in
+   `SquizzFrames.CreateIndicatorSettings` if the token carries a parameter.
+3. **`IndicatorsPanel.lua`'s `names` loop** — only if the token carries a
+   parameter (see below).
+4. **`IndicatorsPanel.lua`'s binding block** — `SetDBValue` to populate from the
+   DB, `SetFunc` to write back and `FireUpdate`. Without this the widget renders
+   and is inert.
+5. **`IndicatorsPanel.lua`'s `TOKEN_HEIGHTS`** — see the raw-token rule below.
+
+And if the setting has to apply live, **`Indicators.lua`'s `ApplySettingToOne`**
+needs a branch too. Several settings shipped storing correctly and doing nothing
+visible until an unrelated event happened to refresh the indicator —
+`showPercentage`/`showCurrent`/`showMax` sat like that, and the in-code comment
+there records it.
+
+**There is NO generic `token:param` splitter.** Every parameterised token
+(`num:5`, `checkbutton:showGroupNumber`, `font1:stackFont`, `textFormat:health`)
+has its own explicit `token:match("^…")` branch in BOTH the dispatcher and the
+`names` loop, and the parameter is recovered again in the binding block
+(`token:match("^checkbutton%d*:(.+)")`). Adding a parameterised token without
+touching all three leaves it falling through to `CreateSetting_Tips`, which
+renders the raw token string as a label.
+
+**`TOKEN_HEIGHTS` is keyed by the RAW token**, not the normalised name. So
+`textFormat:health` and `textFormat:power` each need their own entry; a bare
+`textFormat` key is dead. The file's own comment records the cost of getting
+this wrong: `font1`/`font2` had bare keys while real lists always carry
+`:stackFont`/`:durationFont`, so eleven indicator panels silently undercounted
+by 43px and clipped their bottom row.
+
+**`settingWidgets` keys are a SHARED NAMESPACE — one cached frame per key.**
+Two builders using the same key share one frame, so the second indicator to
+render wins and the first shows the other's values. `CreateSetting_PowerFormat`
+is a live example of the trap: it is `= CreateSetting_HealthFormat`, so both
+cache under `"healthFormat"`. Give every widget its own key
+(`"position-single"` is distinct from `"position"` and `"position_noHCenter"`
+for exactly this reason), and pass per-instance data in at bind time through
+`SetDBValue(key, value)` the way the checkbutton and textFormat widgets do —
+the builder dispatch passes no arguments, so a shared widget cannot know which
+indicator it is serving at construction.
+
+**Dormant scaffolding is easy to create and hard to notice.** A widget can be
+written, registered in `builders`, given a `TOKEN_HEIGHTS` entry AND bound in
+the panel while being referenced by *no* settings list — it is then completely
+unreachable. `healthFormat`/`powerFormat` are in that state today. Before
+writing a new widget, grep `IndicatorDefaults.lua` for the token; you may be
+re-inventing something already half-built.
 
 ### New Module
 1. Create `Modules/MyModule/MyModule.lua` with `SquizzFrames:NewModule("MyModule", "AceEvent-3.0")`

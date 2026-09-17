@@ -594,6 +594,72 @@ local function MigrateCooldownIconSquare(profile, listKey)
     end
 end
 
+-- The three text readouts moved onto the unit frames' own text model
+-- (2026-09-17): one `textFormat` token in place of the showPercentage /
+-- showCurrent / showMax trio, and a character cap in place of the
+-- percentage/length/unlimited `textWidth` table.
+--
+-- ONE-SHOT FLAGGED, not value-detected. Every combination this reads stays
+-- perfectly choosable afterwards through the new dropdown, so a
+-- value-detecting version would silently re-map a deliberate choice on the
+-- next reload -- the "setting won't stick" bug this project keeps
+-- re-inventing. See MigrateUnitFrameAuraDuration for the same reasoning.
+--
+-- textWidth becomes maxLength = 0 (no cap) rather than a converted number:
+-- pixels and percentages do not translate into a character count, and
+-- inventing one would truncate names nobody asked to truncate. The new slider
+-- is opt-in.
+local TEXT_FORMAT_BY_FLAGS = {
+    -- [current][max][percent] -> token, health first then power.
+    health = {
+        ["false,false,true"]  = "healthPercent",  -- the shipped default
+        ["true,false,false"]  = "health",
+        ["true,true,false"]   = "healthMax",
+        ["true,false,true"]   = "healthBoth",
+        ["true,true,true"]    = "healthMax",
+        ["false,true,false"]  = "healthMax",
+        ["false,true,true"]   = "healthMax",
+        ["false,false,false"] = "health",
+    },
+    power = {
+        ["false,false,true"]  = "powerPercent",
+        ["true,false,false"]  = "power",
+        ["true,true,false"]   = "powerMax",
+        ["true,false,true"]   = "powerPercent",
+        ["true,true,true"]    = "powerMax",
+        ["false,true,false"]  = "powerMax",
+        ["false,true,true"]   = "powerMax",
+        ["false,false,false"] = "power",
+    },
+}
+
+local function MigrateIndicatorTextFormat(profile, listKey)
+    listKey = listKey or "indicators"
+    if not profile or not profile.layout or not profile.layout[listKey] then return end
+    if profile.indicatorTextFormats then return end
+
+    for _, ind in ipairs(profile.layout[listKey]) do
+        local kind
+        if ind.indicatorName == "healthText" then kind = "health"
+        elseif ind.indicatorName == "powerText" then kind = "power" end
+
+        if kind and ind.textFormat == nil then
+            local key = ("%s,%s,%s"):format(
+                tostring(ind.showCurrent == true),
+                tostring(ind.showMax == true),
+                tostring(ind.showPercentage == true))
+            ind.textFormat = TEXT_FORMAT_BY_FLAGS[kind][key]
+                or TEXT_FORMAT_BY_FLAGS[kind]["false,false,true"]
+        end
+
+        -- All three readouts lose the width table and gain the cap.
+        if ind.indicatorName == "nameText" or kind then
+            if ind.maxLength == nil then ind.maxLength = 0 end
+            ind.textWidth = nil
+        end
+    end
+end
+
 local function MigrateAggroBlinkMarker(profile, listKey)
     listKey = listKey or "indicators"
     if not profile or not profile.layout or not profile.layout[listKey] then return end
@@ -771,7 +837,11 @@ local function EnsureIndicatorLists(profile)
         -- the new dispelIcons entry for an existing profile -- this only moves
         -- the old settings onto it.
         MigrateDispelIconsSplit(profile, listKey)
+        MigrateIndicatorTextFormat(profile, listKey)
     end
+    -- AFTER the loop, never inside it: the flag is what stops this re-running,
+    -- and setting it on the party pass would skip the raid list entirely.
+    profile.indicatorTextFormats = true
     MigrateAccentColorDefault(profile)
     MigrateHideBlizzardSwitches(profile)
     MigrateUnitFrameTexts(profile)

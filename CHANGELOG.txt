@@ -2,6 +2,41 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.27 (2026-09-17)
+------------------
+
+Changed:
+
+- Name Text, Health Text and Power Text now offer the same settings as the unit
+  frames' text, instead of the older set they were built with.
+
+  They take a single Anchor Point rather than an Anchor Point and a Relative
+  Point: the text sits on the corner or edge you pick, which is what the second
+  dropdown was being used to say anyway. Dragging them around in the Designer
+  works exactly as before, and nothing moves when you update.
+
+  Health Text and Power Text take one Format choice -- Health, Health %,
+  Health + %, Health / Max, and Power, Power %, Power / Max -- in place of the
+  three separate Show Percentage / Show Current / Show Max tickboxes, whose
+  eight combinations included several nobody would pick on purpose. Your
+  current setting carries across to the matching format.
+
+  The Text Width control (unlimited / percentage / length) is replaced by Max
+  Length, measured in characters, with a "..." on anything longer. A name the
+  game is currently hiding from addons cannot be shortened, so it is left
+  whole rather than dropped.
+
+  Power Text can now show current / max, which the unit frames gained at the
+  same time so both offer the same choices.
+
+Fixed:
+
+- Text anchored to a CORNER ignored its anchor when deciding which way to
+  line up, so a name anchored top-right drew from the middle of its own space
+  and looked like it was sitting top-left. Corners now line the text up the
+  same way the unit frames always have.
+
+
 V1.26 (2026-09-17)
 ------------------
 

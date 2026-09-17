@@ -116,7 +116,7 @@ IndicatorDefaults.AURA_TYPES = {
 --- Settings token arrays per built-in indicator. Copied 1:1 from Cell's
 --- Modules/Indicators/Indicators.lua indicatorSettings (retail/Mists branch).
 IndicatorDefaults.BUILT_IN_SETTINGS = {
-    nameText    = {"enabled", "color-class", "textWidth", "checkbutton:showGroupNumber", "checkbutton2:hideRealmName", "vehicleNamePosition", "position", "frameLevel", "font-noOffset"},
+    nameText    = {"enabled", "color-class", "maxLength", "checkbutton:showGroupNumber", "checkbutton2:hideRealmName", "vehicleNamePosition", "position-single", "frameLevel", "font-noOffset"},
     statusText  = {"enabled", "checkbutton:showTimer", "checkbutton2:showBackground", "statusPosition", "frameLevel", "font-noOffset"},
     statusIcon  = {"enabled", "size-square", "position", "frameLevel"},
     -- Same shape as statusIcon (it IS a status icon, just one that gets its
@@ -174,8 +174,14 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- default -- see BuildDispelIconsStyle for why.
     dispelIcons = {"enabled", "dispelShowAll", "dispelTypes", "checkbutton:useSpellIcons", "checkbutton2:showSwipe", "checkbutton3:showIconBorder", "size-square", "growthOrientation", "position", "frameLevel"},
     missingBuffs = {"enabled", "builtInMissingBuffs", "customMissingBuffs", "checkbutton:showIconBorder", "size-square", "num:10", "orientation", "position", "frameLevel"},
-    healthText  = {"enabled", "color-class", "checkbutton:showPercentage", "checkbutton2:showCurrent", "checkbutton3:showMax", "textWidth", "position", "frameLevel", "font-noOffset"},
-    powerText   = {"enabled", "color-class", "color-power", "checkbutton:showPercentage", "checkbutton2:showCurrent", "checkbutton3:showMax", "textWidth", "position", "frameLevel", "font-noOffset"},
+    -- The three readouts mirror the UNIT FRAMES' text options (user request
+    -- 2026-09-17): one Format token instead of the old showPercentage /
+    -- showCurrent / showMax trio, and a character cap instead of the
+    -- percentage/length/unlimited width dropdown. The party-specific extras
+    -- (group number, realm name, vehicle name, power colour) stay -- they have
+    -- no unit-frame equivalent and dropping them would lose real function.
+    healthText  = {"enabled", "color-class", "textFormat:health", "maxLength", "position-single", "frameLevel", "font-noOffset"},
+    powerText   = {"enabled", "color-class", "color-power", "textFormat:power", "maxLength", "position-single", "frameLevel", "font-noOffset"},
     -- Built on AuraEngine (12.1 AuraContainer) instead of the manual scan
     -- path, so it stays accurate in combat.
     --

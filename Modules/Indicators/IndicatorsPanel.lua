@@ -131,11 +131,21 @@ local TOKEN_HEIGHTS = {
     -- underestimate here silently cuts off the bottom slider.
     ["position"] = 199,
     ["position-noHCenter"] = 199,
+    -- One row shorter: Anchor Point and Relative To share row 1 now that there
+    -- is no separate Relative Point. See CreateSetting_PositionSingle.
+    ["position-single"] = 148,
     -- Anchor Point + Relative Point row, then X/Y offsets (no Relative To
     -- row, unlike "position") -- see CreateSetting_DurationPosition.
     ["durationPosition"] = 148,
     ["textScale"] = 75,
     ["textWidth"] = 58,
+    ["maxLength"] = 75,
+    -- estimateTokenHeight looks up the RAW token, so both parameterised forms
+    -- need their own key (the bare 75 fallback would be right by luck here,
+    -- but the font1/font2 undercount below is what happens when that is
+    -- relied on).
+    ["textFormat:health"] = 75,
+    ["textFormat:power"] = 75,
     ["font"] = 259,
     -- estimateTokenHeight looks up the RAW token string (tokens[i]), not the
     -- normalized "font1"/"font2" name used elsewhere for binding -- real
@@ -687,6 +697,11 @@ ShowSettings = function(name)
         elseif token:match("^checkbutton%d*:") then
             -- Store generic name so binding block matches; key extracted from token there.
             names[#names + 1] = "checkbutton"
+        elseif token:match("^textFormat:") then
+            -- "textFormat:health" / "textFormat:power" -> "textFormat". The
+            -- element is recovered from the raw token in the binding block
+            -- below, exactly as checkbutton recovers its key.
+            names[#names + 1] = "textFormat"
         elseif token:match("^font%d+:") then
             -- "font1:stackFont" / "font2:durationFont" → "font1" / "font2"
             local slotNum = token:match("^font(%d+)")
@@ -772,8 +787,11 @@ ShowSettings = function(name)
                 FireUpdate(t.indicatorName, "durationPosition", pos)
             end)
 
-        -- Position (full 5-field widget: anchor, relativeTo, relativePoint, x, y)
-        elseif n == "position" then
+        -- Position. Both widgets store the SAME 5-field table and fire under
+        -- the same "position" setting name -- the single-anchor one just writes
+        -- relativePoint equal to point -- so ApplySettingToOne and the
+        -- Designer's drag handler need to know nothing about the difference.
+        elseif n == "position" or n == "position-single" then
             local default = t.position or {"CENTER", "button", "CENTER", 0, 0}
             w:SetDBValue(default)
             w:SetFunc(function(pos)
@@ -890,7 +908,16 @@ ShowSettings = function(name)
             w:SetDBValue(t.alpha or 1)
             w:SetFunc(function(a) SetField(t, "alpha", a) end)
 
-        -- Text width (unlimited/percentage/length)
+        -- Text width (unlimited/percentage/length).
+        --
+        -- DEAD as of 2026-09-17: no settings list names this token any more --
+        -- the three text readouts moved to maxLength (characters) when they
+        -- were aligned with the unit frames' text options. Kept, rather than
+        -- deleted, only because a profile saved before that still carries the
+        -- table and this is the one place that could ever show it again. Do
+        -- not wire it back up without removing maxLength first; two width
+        -- controls fighting over one FontString is how CreateSetting_PowerFormat
+        -- ended up registered, bound, height-tabled and reachable from nothing.
         elseif n == "textWidth" then
             local default = t.textWidth or {"percentage", 0.75}
             if default ~= "unlimited" and type(default) ~= "table" then default = {"percentage", 0.75} end
@@ -962,6 +989,27 @@ ShowSettings = function(name)
                 if not t.stack then t.stack = {false, false} end
                 t.stack[1] = val
                 FireUpdate(t.indicatorName, "stack", t.stack)
+            end)
+
+        -- Text format for nameText/healthText/powerText. The element decides
+        -- which tokens the dropdown offers, so it has to reach the widget.
+        elseif n == "textFormat" then
+            local element = token:match("^textFormat:(.+)") or "health"
+            local fallback = SquizzFrames.UNITFRAME_TEXT_FORMATS
+                and SquizzFrames.UNITFRAME_TEXT_FORMATS[element]
+                and SquizzFrames.UNITFRAME_TEXT_FORMATS[element][1]
+            w:SetDBValue(element, t.textFormat or fallback)
+            w:SetFunc(function(fmt)
+                t.textFormat = fmt
+                FireUpdate(t.indicatorName, "textFormat", fmt)
+            end)
+
+        -- Max length in characters, 0 = no limit.
+        elseif n == "maxLength" then
+            w:SetDBValue(t.maxLength or 0)
+            w:SetFunc(function(v)
+                t.maxLength = v
+                FireUpdate(t.indicatorName, "maxLength", v)
             end)
 
         -- Health format
