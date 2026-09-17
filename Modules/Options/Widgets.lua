@@ -647,14 +647,49 @@ local function CreateTitledPane(parent, text, yOffset)
 end
 
 -----------------------------------------------------------------------
+-- ApplyFontPreview: draw a FontString in the face it names
+-----------------------------------------------------------------------
+-- Shared by BOTH dropdown implementations -- this file's CreateStyledDropdown
+-- and IndicatorWidgets.lua's separate SF_CreateDropdown -- so a font list
+-- shows the actual typeface instead of just its name, in one copy rather
+-- than two that can drift.
+--
+-- Resolution goes through F.ResolveFontFile, NOT LSM:Fetch. The font list
+-- carries three legacy entries whose value is already a content path
+-- rather than an LSM key, and Fetch returns nil for exactly those -- the
+-- shipped default "Friz QT__" among them, so a Fetch-based preview would
+-- fail on the one row most profiles are actually set to.
+--
+-- F.ResolveFontFile is defined in Indicators.lua, which loads AFTER this
+-- file. That is safe only because this runs when a dropdown is OPENED, never
+-- at load time; don't hoist the lookup to file scope.
+--
+-- A face registered by another addon can be missing or malformed, and
+-- SetFont on a bad path leaves the string BLANK instead of erroring. In a
+-- font list a blank row reads as "this list is broken" rather than "that one
+-- font is bad", so fall back to the default face and keep the name legible.
+local function ApplyFontPreview(fontString, value, size)
+    local path = F.ResolveFontFile and F.ResolveFontFile(value)
+    local ok = path and pcall(fontString.SetFont, fontString, path, size, "OUTLINE")
+    if not ok or not fontString:GetFont() then
+        fontString:SetFont("Fonts\\FRIZQT__.TTF", size, "OUTLINE")
+    end
+end
+
+-----------------------------------------------------------------------
 -- CreateStyledDropdown: Dropdown with class-color highlight
 -----------------------------------------------------------------------
 
--- previewLSMType (optional): an LSM media type (e.g. "statusbar"). When set,
--- each popup row resolves item.value as a texture registered under that
--- type and paints it as the row's own background (Ellesmere-style texture
--- picker), instead of a plain text-only row. Existing callers that don't
--- pass this are unaffected.
+-- previewLSMType (optional): an LSM media type. Two preview styles, picked
+-- by the type itself:
+--   "font"  -- each row's LABEL is drawn in the face it selects, and so is
+--              the button's own text for the current selection. A font is
+--              the one media type whose preview belongs in the text rather
+--              than behind it.
+--   anything else (e.g. "statusbar") -- each row resolves item.value as a
+--              texture registered under that type and paints it as the row's
+--              own background (Ellesmere-style texture picker).
+-- Existing callers that don't pass this are unaffected.
 local function CreateStyledDropdown(parent, width, height, label, items, getValue, setValue, previewLSMType)
     -- items = { {value = "x", text = "Label"}, ... }
     local container = CreateFrame("Frame", nil, parent)
@@ -705,6 +740,9 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
         for _, item in ipairs(dd.items) do
             if item.value == dd.selectedValue then
                 dd.text:SetText(item.text)
+                if previewLSMType == "font" then
+                    ApplyFontPreview(dd.text, item.value, 11)
+                end
                 return
             end
         end
@@ -742,13 +780,22 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
         popup:SetFrameStrata("TOOLTIP")  -- higher than DIALOG so it draws on top
         popup:SetFrameLevel(100)
 
-        -- Position popup below the dropdown button using screen coordinates
-        local left, bottom = dd:GetLeft(), dd:GetBottom()
-        if left and bottom and left > 0 and bottom > 0 then
-            popup:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, bottom - 2)
-        else
-            popup:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
-        end
+        -- Anchored to the BUTTON, not to absolute screen coordinates.
+        --
+        -- The popup stays PARENTED to UIParent -- that is what keeps it out of
+        -- the options pane's clipping and frame-level context, and is
+        -- load-bearing for row clicks (see CreateMenu's notes below for the
+        -- two failed attempts that established it). Anchoring is a separate
+        -- thing from parenting: pointing at a frame in another parent chain
+        -- does not reintroduce clipping.
+        --
+        -- Screen coordinates were captured ONCE at open time, so scrolling the
+        -- page moved the button while the popup stayed frozen mid-air,
+        -- detached from its own dropdown (user report 2026-09-17). Anchoring
+        -- to dd makes it track. This also drops the `left > 0 and bottom > 0`
+        -- guard, which existed because GetLeft/GetBottom return nil until the
+        -- frame's rect resolves -- an anchor has no such failure mode.
+        popup:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
 
         -- Long item lists (LibSharedMedia's full statusbar registry, for the
         -- bar-texture pickers) previously made this popup grow tall enough
@@ -788,7 +835,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
             -- two textures on one layer isn't guaranteed by creation order
             -- alone), which stays transparent when idle, so the texture
             -- shows through clearly except when hovered/selected.
-            if previewLSMType and LSM then
+            if previewLSMType and previewLSMType ~= "font" and LSM then
                 local texPath = LSM:Fetch(previewLSMType, item.value)
                 if texPath then
                     local preview = row:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -813,6 +860,11 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
             rowText:SetPoint("LEFT", 6, 0)
             rowText:SetTextColor(1, 1, 1, 1)
             rowText:SetText(item.text)
+
+            -- Font preview: the row's own label wears the face it selects.
+            if previewLSMType == "font" then
+                ApplyFontPreview(rowText, item.value, 11)
+            end
 
             row:SetScript("OnEnter", function()
                 row.bg:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.4)
@@ -2039,6 +2091,7 @@ SquizzFrames.Widgets = {
     CreateStyledButton = CreateStyledButton,
     CreateStyledCheckbox = CreateStyledCheckbox,
     CreateStyledDropdown = CreateStyledDropdown,
+    ApplyFontPreview = ApplyFontPreview,
     CreateStyledSlider = CreateStyledSlider,
     CreateCompactSlider = CreateCompactSlider,
     CreateStyledSwitch = CreateStyledSwitch,

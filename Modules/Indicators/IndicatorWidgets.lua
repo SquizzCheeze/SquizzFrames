@@ -92,7 +92,12 @@ end
 -- Dropdown with late-binding API
 -- Returns a frame with :SetItems(items), :SetSelectedValue(val),
 -- :SetSelectedItem(index), :GetSelected(), .func (callback)
-local function SF_CreateDropdown(parent, width)
+--
+-- previewLSMType (optional): pass "font" to draw every row's label -- and the
+-- button's own text -- in the face it selects. Mirrors the parameter of the
+-- same name on Widgets.lua's CreateStyledDropdown, and shares its single
+-- implementation (W.ApplyFontPreview) rather than carrying a second copy.
+local function SF_CreateDropdown(parent, width, previewLSMType)
     -- Must be a Button (not a Frame) so it supports an OnClick script.
     local dd = CreateFrame("Button", nil, parent, "BackdropTemplate")
     dd:SetSize(width or 110, 24)
@@ -161,6 +166,9 @@ local function SF_CreateDropdown(parent, width)
         for _, item in ipairs(dd.items) do
             if item.value == dd._selectedValue then
                 dd.text:SetText(item.text or "")
+                if previewLSMType == "font" and W and W.ApplyFontPreview then
+                    W.ApplyFontPreview(dd.text, item.value, 11)
+                end
                 -- Show preview icon in button if item has icon
                 if item.icon then
                     dd.previewIcon:SetTexture(item.icon)
@@ -192,12 +200,15 @@ local function SF_CreateDropdown(parent, width)
         popup = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
         popup:SetFrameStrata("TOOLTIP")
         popup:SetFrameLevel(100)
-        local left, bottom = dd:GetLeft(), dd:GetBottom()
-        if left and bottom and left > 0 and bottom > 0 then
-            popup:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, bottom - 2)
-        else
-            popup:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
-        end
+        -- Anchored to the BUTTON, not to absolute screen coordinates. Still
+        -- PARENTED to UIParent (that is what keeps it clear of the settings
+        -- pane's clipping and level context); anchoring across a parent
+        -- boundary changes position only, never clipping. Screen coordinates
+        -- were captured once at open time, so scrolling the page left the
+        -- popup frozen mid-air, detached from its dropdown (user report
+        -- 2026-09-17). Same fix as Widgets.lua's CreateStyledDropdown, which
+        -- this dropdown does NOT share code with (see note above).
+        popup:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
         -- Long item lists (LibSharedMedia's full statusbar registry, for the
         -- bar-texture pickers) previously made this popup grow tall enough
         -- to run off the bottom of the screen with no way to reach the rest
@@ -268,6 +279,11 @@ local function SF_CreateDropdown(parent, width)
             t:SetJustifyH("LEFT")
             t:SetWordWrap(false)
             t:SetText(item.text or "")
+
+            -- Font preview: the row's own label wears the face it selects.
+            if previewLSMType == "font" and W and W.ApplyFontPreview then
+                W.ApplyFontPreview(t, item.value, 11)
+            end
 
             row:SetScript("OnMouseDown", function()
                 dd._selectedValue = item.value
@@ -1282,7 +1298,7 @@ local function CreateSetting_FontNoOffset(parent)
             { text = "Monochrome", value = "MONOCHROME" },
         }
 
-        widget.font = SF_CreateDropdown(widget, 100)
+        widget.font = SF_CreateDropdown(widget, 100, "font")
         widget.font:SetPoint("TOPLEFT", 5, -20)
         widget.font:SetItems(fonts)
         widget.fontText = CreateLabel(widget, "Font", "BOTTOMLEFT", 5, 1)
@@ -1393,7 +1409,7 @@ local function CreateSetting_Font(parent, index)
         local anchors = {}
         for _, p in ipairs(anchorPoints) do table.insert(anchors, { text = p, value = p }) end
 
-        widget.font = SF_CreateDropdown(widget, 100)
+        widget.font = SF_CreateDropdown(widget, 100, "font")
         widget.font:SetPoint("TOPLEFT", 5, -34)
         widget.font:SetItems(fonts)
         widget.fontText = CreateLabel(widget, "Font", "BOTTOMLEFT", 5, 1)

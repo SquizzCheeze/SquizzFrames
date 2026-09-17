@@ -318,6 +318,7 @@ local function BuildSpec(index, kind, row, cfg)
     local size = row.size or 32
     local style = BuildStyle(index, kind, row, cfg)
     local perRow = math.max(1, row.num or 4)
+    local rows = math.max(1, row.maxRows or 1)
     local layout = {
         elementWidth = size,
         elementHeight = size,
@@ -338,11 +339,16 @@ local function BuildSpec(index, kind, row, cfg)
         end
     else
         local preset = cfg.debuffFilter or "boss_role"
+        -- Capacity is per-row x rows. The debuff row has exactly ONE group, so
+        -- capping it at `perRow` made the Rows slider dead on this row: the
+        -- group could never hold more icons than one line fits, so there was
+        -- never anything to wrap onto a second line. The defensives row got
+        -- two lines "for free" only because it declares two groups.
         groups[1] = {
             key = "sfttDebuff",
             filter = DEBUFF_FILTER_TOKENS[preset] or DEBUFF_FILTER_TOKENS.all,
             candidateFilters = DEBUFF_CANDIDATES[preset],
-            maxFrameCount = perRow,
+            maxFrameCount = perRow * rows,
             style = style,
             layout = layout,
         }
@@ -351,7 +357,16 @@ local function BuildSpec(index, kind, row, cfg)
     return {
         layout = {
             axis = "HORIZONTAL",
-            maximumLineSize = perRow * (size + (row.spacing or 2)),
+            -- `rowWidth`, NOT `maximumLineSize`. AE.ApplyContainerLayout reads
+            -- exactly one key for the wrap width and it is rowWidth; the
+            -- engine method it forwards to is what is called
+            -- SetFlowLayoutMaximumLineSize, and that method name got written
+            -- here as the field name. Nothing read it, so the container was
+            -- left at its default unlimited line size and NO tank tracker row
+            -- ever wrapped -- on live or in the preview. Silent because a spec
+            -- carrying an unknown key is not an error (user report
+            -- 2026-09-17: "the preview is not wrapping the icons").
+            rowWidth = perRow * (size + (row.spacing or 2)),
         },
         groups = groups,
     }

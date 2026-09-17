@@ -615,7 +615,7 @@ local function SecText(host, y, cfg, t)
                 c.font = c.font or {}
                 c.font[1] = v
             end)
-        end)
+        end, "font")
     ddFace:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
@@ -1098,7 +1098,7 @@ local function SecCastBar(host, y, cfg, t)
             local ddFace = W.CreateStyledDropdown(host, 200, 40, L["Font"] or "Font",
                 F.GetFontDropdownItems and F.GetFontDropdownItems() or {},
                 function() return Font(1, "Friz QT__") end,
-                function(v) SetFont(1, v) end)
+                function(v) SetFont(1, v) end, "font")
             ddFace:SetPoint("TOPLEFT", 15, y - 20)
             y = y - 70
 

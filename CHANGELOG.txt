@@ -2,6 +2,41 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.25 (2026-09-17)
+------------------
+
+Added:
+
+- Font dropdowns draw every font in its own typeface, so you can see what you
+  are choosing without applying it first. The closed dropdown shows your
+  current font in itself too. A font that will not load falls back to the
+  default face instead of leaving a blank row, so one bad font from another
+  addon cannot make the list look broken.
+
+Changed:
+
+- The Tank Tracker's "Max Icons" slider is now called "Max Per Row", which is
+  what it has always actually done - a row holds this many icons times Rows.
+  The label change is cosmetic; your settings are untouched.
+
+Fixed:
+
+- Dropdown lists stayed put when you scrolled the page behind them, leaving
+  the open list floating away from the dropdown it belongs to. They now travel
+  with the page.
+
+- Tank Tracker icon rows never wrapped onto a second line - not on your frames
+  and not in the options preview - however high Rows was set. The wrap width
+  was being handed to the game under a name nothing read, so every row was
+  left running as one unlimited line. The debuff row had a second reason on
+  top of that: it could only ever hold a single line's worth of icons, so even
+  with wrapping working there was nothing to spill onto the next line. Rows
+  now does what it says on both rows.
+
+  Defensives rows with a lot of icons will look different as a result: they
+  used to run out sideways in one long line and now wrap at the per-row count.
+
+
 V1.24 (2026-09-16)
 ------------------
 

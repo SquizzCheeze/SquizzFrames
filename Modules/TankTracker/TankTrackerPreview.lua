@@ -107,12 +107,18 @@ local function RefreshRow(p, kind, cfg)
     local size = row.size or 32
     local spacing = row.spacing or 2
     local num = math.max(1, row.num or 4)
-    -- How many lines the live row can actually fill: each GROUP holds at most
-    -- `num`, and the defensive row has two (big + external) that flow on
-    -- after one another. Capped by Rows so the mock never claims more space
-    -- than the wrapper reserves.
-    local groups = (kind == "def") and 2 or 1
-    local lines = math.min(groups, math.max(1, row.maxRows or 1))
+    -- How many lines the live row can actually fill, which is a different sum
+    -- for each row and must track BuildSpec's capacity exactly or the mock
+    -- lies about the real frame.
+    --   debuffs    -- one group holding perRow x Rows, so Rows lines.
+    --   defensives -- two groups (big + external) of perRow each, flowing on
+    --                 after one another, so at most 2 lines however high Rows
+    --                 goes.
+    -- Both capped by Rows so the mock never claims more space than PlaceRow
+    -- reserves on the wrapper.
+    local maxRows = math.max(1, row.maxRows or 1)
+    local capacityLines = (kind == "def") and 2 or maxRows
+    local lines = math.min(capacityLines, maxRows)
     local shown = num * lines
 
     -- A throwaway style built from the settings being edited right now, not

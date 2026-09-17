@@ -453,7 +453,7 @@ local function BuildPetFrameFields(frame)
 
     if GetPetNameEnabled() then
         local ddFont = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Font"] or "Font",
-            GetPetFontItems(), GetPetNameFont, SetPetNameFont)
+            GetPetFontItems(), GetPetNameFont, SetPetNameFont, "font")
         ddFont:SetPoint("TOPLEFT", 15, yOffset - 20)
         yOffset = yOffset - 70
 

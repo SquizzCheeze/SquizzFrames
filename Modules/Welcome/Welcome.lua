@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.25"] = {
+        "Font dropdowns show each font in its own typeface, so you can see what you are picking before you apply it.",
+        "Open dropdown lists now follow the page when you scroll, instead of staying behind and floating away from their dropdown.",
+        "Tank Tracker icon rows wrap onto a second line properly. The Rows setting never actually did anything before - on your frames or in the preview.",
+        "The Tank Tracker's Max Icons slider is now called Max Per Row, which is what it always did. A row holds that many times Rows. Your settings are unchanged.",
+    },
     ["1.24"] = {
         "Fixed the addon failing to start for anyone running few enough other addons, with a \"Cannot find a library instance of AceConfigDialog-3.0\" error.",
         "/rl now reloads your interface, the same as /reload. It is only claimed if no other addon already provides it.",

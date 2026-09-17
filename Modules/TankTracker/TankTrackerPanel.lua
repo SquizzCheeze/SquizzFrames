@@ -198,7 +198,7 @@ local function TextControls(host, y, sub, prefix)
     local function get(field) return function() return TS()[field] end end
 
     local ddFace = W.CreateStyledDropdown(host, 200, 40, L["Font"] or "Font",
-        FontItems(), get("face"), R.set(prefix .. "Font"))
+        FontItems(), get("face"), R.set(prefix .. "Font"), "font")
     ddFace:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
@@ -278,7 +278,15 @@ local function BuildRow(host, y, label, sub, extra)
     sSize:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
 
-    local sNum = W.CreateStyledSlider(host, 200, 1, 10, 1, L["Max Icons"] or "Max Icons",
+    -- "Max Per Row", not "Max Icons": this caps ONE line, and the row's total
+    -- capacity is this x Rows (BuildSpec multiplies them into maxFrameCount).
+    -- Labelled as a total it read as a hard ceiling that Rows then appeared to
+    -- ignore. The stored key is still `num` -- this is a label change only, so
+    -- no profile is touched.
+    --
+    -- The unit frames' aura rows keep L["Max Icons"]: they have no Rows
+    -- setting and no wrap width, so num really is the total there.
+    local sNum = W.CreateStyledSlider(host, 200, 1, 10, 1, L["Max Per Row"] or "Max Per Row",
         R.get("num", 4), R.set("num"))
     sNum:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
@@ -457,7 +465,7 @@ local function BuildGeneral(host, y)
             c.font = c.font or {}
             c.font[1] = v
             Changed()
-        end)
+        end, "font")
     ddFont:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
