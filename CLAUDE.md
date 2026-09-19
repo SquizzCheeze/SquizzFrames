@@ -50,7 +50,7 @@ SquizzFrames/
     │   ├── Custom_Dispatch.lua    # Legacy aura scanner + per-type dispatch (still used for trackByName customs, text/icon customs, and all customs pre-12.1)
     │   └── IndicatorsPanel.lua    # Options UI for indicators
     ├── Welcome/            # First-run greeting + per-version release notes; RELEASE_NOTES table is a manual per-release step (see Releasing)
-    ├── TankTracker/         # Per-tank frame: boss/role debuffs above, defensives below; own AuraEngine rows, plain (non-secure) frames
+    ├── TankTracker/         # Per-tank frame: incoming debuffs above, defensives below; own AuraEngine rows, plain (non-secure) frames. Debuff filter defaults to the duration-bounded `encounter` preset, NOT the boss/role flags — see section 7 on why flag presets render empty rows in untagged encounters
     │   ├── TankTracker.lua      # Engine: tank discovery (secret-safe, fail-closed on identity), stacking, aura rows, mover
     │   ├── TankTrackerPreview.lua # 1:1 options mock; IS a real tank frame (CreateTankFrame/DressFrame/PlaceRow/StyleFields), only the icons are static
     │   └── TankTrackerPanel.lua # Options page ("tankTracker" nav entry); General/Debuffs/Defensives sub-tabs + pinned preview; shell over profile.tankTracker
@@ -137,8 +137,9 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 
 ### 4. Indicator System (Indicators.lua)
 - Mirrors **Cell's** indicator architecture
-- **Built-in indicators** (25 defaults, `IndicatorDefaults.BUILT_IN_COUNT`): nameText, healthText, powerText, statusText, statusIcon, roleIcon, leaderIcon, playerRaidIcon, aggroBlink, aggroBorder, shieldBar, externalCooldowns, defensiveCooldowns, debuffs, ccIndicator, dispels, missingBuffs, healerHots, shieldOverlay, healAbsorb, targetHighlight, hoverHighlight, frameBorder, dispelIcons, phasedIcon
+- **Built-in indicators** (26 defaults, `IndicatorDefaults.BUILT_IN_COUNT`): nameText, healthText, powerText, statusText, statusIcon, roleIcon, leaderIcon, playerRaidIcon, aggroBlink, aggroBorder, shieldBar, externalCooldowns, defensiveCooldowns, debuffs, ccIndicator, dispels, missingBuffs, healerHots, shieldOverlay, healAbsorb, targetHighlight, hoverHighlight, frameBorder, dispelIcons, phasedIcon, pingMarker
   - Adding one means four places, not one: an entry in `Defaults/Layout_Defaults.lua` (both `indicatorIndices` and `profile.layout.indicators`), a bump to `BUILT_IN_COUNT` plus name/settings entries in `Modules/Indicators/IndicatorDefaults.lua`, a category in `IndicatorsPanel.lua`'s `INDICATOR_CATEGORY`, and the create/check wiring in `BuiltIn_Update.lua`. Existing profiles pick it up automatically — `Core.lua`'s `MigrateMissingBuiltIns` adds any default entry the profile lacks, matched **by name**, for both the party and raid lists.
+  - ⚠️ **A `Check*` function must be AUTHORITATIVE — decide show AND hide, every pass.** `HandleIndicators`' generic apply loop does `if t.enabled then indicator:Show() else indicator:Hide() end` (`Indicators.lua:461`) on **every** rebuild, and `ApplySettingToOne`'s "enabled" branch does the same. A Check that only hides under particular conditions therefore lets any rebuild resurrect whatever the indicator last drew. `pingMarker` shipped that way for a day: its textures kept the atlas from the last real ping, so a roster sync re-showed a ping nobody had sent, and nothing could clear it because the expiry had already nil'd the very fields the hide conditions tested — `/reload` only. Every other built-in survives that line by deciding outright. If an indicator can hold visual state, blank it on hide too, so a stray `Show()` can only ever produce an empty frame.
 - **Custom indicators** created by user via options; stored in `profile.layout.indicators` array
 - **Runtime**: `indicatorList` = current profile's indicator array
 - **Per-button**: `button.indicators[name]` = frame; `button._indicatorsReady` flag guards custom dispatcher
@@ -247,6 +248,11 @@ if the mapping turns out wrong for somebody.
 - **`CustomAuraButtonTemplate` must exist, by that exact name, as an empty virtual template** (`AuraButtonTemplate.xml`). Blizzard's internal container code hardcodes an implicit inherit of a template literally named that, but never shipped one — omit it and `AddAuraGroup`/`AddAuraSlot` fails with "Couldn't find inherited node". XML `<Layers>` children do NOT attach to `type="AuraButton"` nodes on this build — all region creation happens in Lua via `initializeFrame`, not XML.
 - **Group/slot `layout.elementWidth/elementHeight` only feeds the engine's flow-anchoring math**, not the button's actual rendered size — you must `button:SetSize(...)` yourself in the initializer. **This is the single most expensive thing on this list to get wrong**, because every symptom points somewhere else: the group attaches, `AddAuraGroup` returns cleanly, the frame pool fills with buttons, candidate filters match, the container reports `visible=true` with its flow layout fully applied — and nothing appears, because the buttons are zero-sized. A co-tank tracker built in Squizzumables (2026-09-08) died on exactly this and was abandoned after a session of chasing container sizing, `UpdateAllAuras`, flow-layout configuration and filter semantics, none of which were the fault. If icons do not render and everything looks correct, check the button size in the initializer first.
 - **Spell-ID candidate filters are silently SKIPPED for a harmful aura on an assistable unit** — not applied and not rejected. `AuraContainerUtil.CanApplyIdentityCandidateFilters` returns true only for `auraData.isHelpful and UnitIsPlayerControlledOrGroupMember(unitToken)`, so a HARMFUL group with an `includeSpellIDs` whitelist shows **everything** while looking like it filters. The helpful side of this asymmetry is documented above under `NoiseFloorMaxDuration`; this is the other half. Use `maxDuration` or the boss/priority flags for debuff filtering, never a spell-ID list.
+  - **The gate covers ONLY `includeSpellIDs`/`excludeSpellIDs`** (read the function: the identity test wraps just those two). Every other key — `isBossAura`, `isBossOrRoleAura`, `isRoleAura`, `isPriorityAura`, `maxDuration`, `include/excludeDispelTypes`, `canApplyAura`, `isFromPlayerOrPlayerPet`, `isStealable`, `nameplateShow*`, `processedAuraType` — is evaluated unconditionally and *does* work on party members' debuffs. Don't over-apply the gate when diagnosing.
+  - **The one exemption is `NeverSecret`.** `C_Secrets.GetSpellAuraSecrecy(spellID)` returns `Enum.SecrecyLevel`: **NeverSecret = 0, AlwaysSecret = 1, ContextuallySecret = 2**. Only 0 lets a spell-ID filter through, which is why the Sated/Exhaustion blacklist works and why blacklisting Monk Stagger cannot: Stagger measures 2 (confirmed in game 2026-09-19).
+- **Candidate filters are ANDed, never ORed** — every key is an independent early `return false` in `DoesAuraPassCandidateFilters`. Putting two flags in one table INTERSECTS them (narrower than either), which reads as a union and is the opposite. A real union needs **two groups**, the second negating the first (`{isPriorityAura = true, isBossOrRoleAura = false}`) so they are mutually exclusive by construction and need no Lua-side dedup — the same shape `DEF_GROUPS` uses for defensives. Groups are **add-only**, so declare the second permanently at `maxFrameCount = 0` and flip the cap live; and remember `maxFrameCount` is a *static per-group* cap, so two groups cannot share one budget — split it, or accept 2× the stated icon count.
+- **`isBossOrRoleAura`/`isPriorityAura` are flags BLIZZARD AUTHORS PER AURA, and plenty of encounters carry neither.** A flag-based filter then renders an **empty row**, silently, and nothing on our side can help. The Lost Explorers (Venomous Abyss) is the worked example: Steady Strikes (1291930) and Shredding Shards (1295858) measure `priority=false` and carry no boss or role tag, so *every* flag preset misses them — which is why the tank tracker's default is now the duration-bounded `encounter` preset instead. `isRaid` is not a rescue: it is not a candidate-filter key at all (only the `RAID` filter-string token) and for a debuff it means "dispellable by the player", so undispellable encounter debuffs fail it too.
+- **Two flags ARE queryable from a spell ID alone** — no aura, no group, no encounter: `C_Spell.IsPriorityAura(id)` and `C_UnitAuras.AuraIsBigDefensive(id)` (this is how Blizzard's own `AuraUtil` resolves them), plus `C_Secrets.GetSpellAuraSecrecy(id)`. `isBossAura` and the three role flags have **no** by-ID query — they exist only on a live `AuraData`, which is fully secret in combat, so they can only be established empirically by watching what a filter actually shows. See `/sfspell` and `/sfauras`.
 - **`SetGradient` permanently breaks plain `SetAlpha`/`SetColorTexture` alpha on that same texture object** afterward (confirmed by debugging — not documented). Dispels' gradient overlay mode uses a dedicated second texture (`d.gradientOverlay`) rather than reusing `d.overlay`, so full/fill mode's plain alpha stays reliable regardless of gradient mode ever having run.
 - A PTR5 upstream bug: `SetDurationText`'s `textColorCurve` option can hard-error and abort the WHOLE button batch if the engine's C binding argument count doesn't match. `AE.SetDurationTextSafe` tries with the curve, falls back to without it on failure — self-heals once Blizzard fixes it upstream.
 
@@ -281,6 +287,46 @@ There is **no automated test suite**. Development is done by:
 2. `/reload` in-game (or log out/in for TOC/XML changes)
 3. Using `/sf` to open options panel
 4. Checking chat for debug prints (prefixed `|cff33cc99[SquizzFrames]|r`)
+
+### Static checks — there IS tooling, and it is not luac
+
+"No build step" does not mean "nothing can be checked before a reload". There is no Lua
+interpreter here, which is easy to mistake for *no verification at all* — that mistake was made
+for a whole session on 2026-09-19, and two releases were shipped with "not syntax-checked"
+disclaimers that were simply wrong. Both of these run in seconds:
+
+**1. The `wowlua_ls` CLI is the real gate.** It has the WoW API stubbed in, so it catches
+undefined globals and undefined fields, not just parse errors:
+
+```sh
+"$HOME/.vscode/extensions/tradeskillmaster.wowlua-ls-<ver>/server/win32-x64/wowlua_ls.exe" \
+    check "C:/World of Warcraft/_retail_/Interface/AddOns/SquizzFrames"
+```
+
+Take the highest installed version. 94 files / ~78k lines in ~3s. **Baseline as of 2026-09-19:
+160 warnings, every one pre-existing in `UnitFrames.lua` and `Utils.lua`.** That baseline is the
+point — a new warning in a file you actually touched is signal, and `grep`ing the output down to
+your changed files turns a wall of noise into a yes/no answer.
+
+**2. Squizzumables' `.claude/` scripts are path-agnostic** and catch corruption classes a type
+checker passes happily (mangled escapes, truncated strings, block imbalance). SquizzFrames has
+none of its own — run them from that folder against these files:
+
+```sh
+perl .claude/check-backslashes.pl <files>   # lone backslashes: "Fonts\FRIZQT__.TTF"
+perl .claude/check-strings.pl     <files>   # unterminated strings / mangled escapes
+awk  -f .claude/check-balance.awk <file>    # per-function block balance
+```
+
+Three invocation traps, all hit first time out:
+
+- **Quote every path.** "World of Warcraft" contains spaces; unquoted, the scripts die with
+  `cannot open C:/World` — which looks like the check failing rather than the command being wrong.
+- **`check-balance.awk` must be run ONE FILE PER INVOCATION.** Given several files it carries
+  state across the boundaries and reports phantom `UNBALANCED` functions attributed to the *wrong
+  file* — alarming, and entirely an artefact. Per-file, this codebase is clean.
+- **`check-backslashes.pl` flags every `[[...]]` long-bracket literal** (`[[Interface\Icons\...]]`),
+  where a single backslash is correct. ~57 of those here; they are all expected.
 
 ### Releasing
 Tagging is what publishes — pushes to `main` never reach CurseForge.
@@ -399,6 +445,8 @@ sh .tools/check-xml.sh
 | `/sf nick test` | Solo self-check of the nickname sync pipeline (wire round-trip via whisper-to-self, receive path, sanitizer); `test clean` removes its entries |
 | `/sfdrinktest` | Dev/debug helper (`PartyFrames.lua`) |
 | `/sfauratest` | 12.1-only: spawns a throwaway AuraEngine test group above the player button (see AuraEngine section above) |
+| `/sfspell [id ...]` | Aura flags **from a spell ID alone** — solo, no group, no aura needed (`TankTracker.lua`). Prints name, `IsPriorityAura`, `GetSpellAuraSecrecy` (+NeverSecret), `AuraIsBigDefensive`. Defaults to the Lost Explorers debuffs + the three Stagger IDs. The printed NAME is the check that an ID is the applied aura and not the cast |
+| `/sfauras [unit] [help]` | The per-aura flags `/sfspell` cannot reach — `isRaid`, `isBossAura`, the three role flags, dispel type (`TankTracker.lua`). **Out of combat only**: `AuraData` is fully secret in combat and every field reads back secret, which the header states explicitly |
 | `/reload` | Reload UI (required after TOC/XML changes) |
 
 ### Debug Prints

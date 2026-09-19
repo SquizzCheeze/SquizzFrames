@@ -42,8 +42,8 @@
          TankTracker.lua). Same trick as point 1 -- evaluated on both paths,
          and it implicitly drops permanent auras (duration == 0 fails the
          test), which is exactly the noise a tank does not want. It answers
-         "what is on this tank right now" instead of "what did Blizzard
-         remember to flag".
+         what is on this tank right now, rather than what Blizzard remembered
+         to flag.
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
