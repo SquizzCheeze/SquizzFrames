@@ -207,6 +207,7 @@ local TOKEN_HEIGHTS = {
     ["orientation"] = 34,
     ["growthOrientation"] = 68,
     ["barOrientation"] = 34,
+    ["debuffFilter"] = 34,
     ["durationVisibility"] = 34,
     ["durationVisibilitySimple"] = 34,
     ["durationOffset"] = 75,
@@ -299,6 +300,7 @@ local INDICATOR_CATEGORY = {
     phasedIcon = "Alerts",
     targetHighlight = "Alerts", hoverHighlight = "Alerts",
     roleIcon = "Alerts", playerRaidIcon = "Alerts", leaderIcon = "Alerts",
+    pingMarker = "Alerts",
     shieldBar = "Vitals", shieldOverlay = "Vitals", healAbsorb = "Vitals",
     missingBuffs = "Other",
 }
@@ -962,6 +964,14 @@ ShowSettings = function(name)
                 t.orientation = orientation
                 t.growthDirection = growth
                 FireUpdate(t.indicatorName, "growthOrientation", orientation, growth)
+            end)
+
+        -- Debuff filter (Everything / Priority / Boss & role)
+        elseif n == "debuffFilter" then
+            w:SetDBValue(t.debuffFilter or "all")
+            w:SetFunc(function(v)
+                t.debuffFilter = v
+                FireUpdate(t.indicatorName, "debuffFilter", v)
             end)
 
         -- Duration visibility

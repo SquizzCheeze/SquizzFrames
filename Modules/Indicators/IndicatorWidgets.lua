@@ -2027,6 +2027,45 @@ local function CreateSetting_OrientationCenterable(parent)
 end
 
 -----------------------------------------------------------------------
+-- Debuff filter
+-----------------------------------------------------------------------
+-- Everything / Priority / Boss & role.
+--
+-- The narrowing is a CANDIDATE filter, not a filter-string token, and it has
+-- to be: IMPORTANT is flagged on HELPFUL auras, so "HARMFUL|IMPORTANT" is an
+-- empty set and no string token means "this debuff matters". isPriorityAura
+-- and isBossOrRoleAura are the harmful equivalents -- and unlike
+-- include/excludeSpellIDs they are NOT subject to Blizzard's identity gate, so
+-- they still apply to debuffs on party members (which is exactly where a
+-- spell-ID blacklist silently lapses). See BuildDebuffCandidateFilters.
+--
+-- Separate from the Hide Crowd Control tick on purpose: that one IS a string
+-- token, and the two are independent axes -- "priority debuffs, and also hide
+-- CC" is a legitimate combination.
+--
+-- Own settingWidgets cache key. That table is a shared namespace: two builders
+-- under one key share a single frame, so the second indicator to render wins
+-- and the first shows the other's values.
+local function CreateSetting_DebuffFilter(parent)
+    local widget
+    if not settingWidgets["debuffFilter"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_DebuffFilter", parent, 300, ROW_HEIGHT)
+        settingWidgets["debuffFilter"] = widget
+        local modes = {"Everything", "Priority debuffs", "Boss & role mechanics", "Priority + Boss & role"}
+        local values = {"all", "important", "boss_role", "both"}
+        widget.dd = LayoutDropdownRow(widget, "Filter", 140)
+        local items = {}
+        for i, m in ipairs(modes) do
+            table.insert(items, { text = m, value = values[i], onClick = function() widget.func(values[i]) end })
+        end
+        widget.dd:SetItems(items)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(val) widget.dd:SetSelectedValue(val or "all") end
+    else widget = settingWidgets["debuffFilter"] end
+    widget:Show(); return widget
+end
+
+-----------------------------------------------------------------------
 -- Duration / Stack / DurationVisibility
 -----------------------------------------------------------------------
 local function CreateSetting_DurationVisibility(parent)
@@ -3209,6 +3248,7 @@ local builders = {
     ["alpha"] = CreateSetting_Alpha,
     ["healthFormat"] = CreateSetting_HealthFormat,
     ["powerFormat"] = CreateSetting_PowerFormat,
+    ["debuffFilter"] = CreateSetting_DebuffFilter,
     ["durationVisibility"] = CreateSetting_DurationVisibility,
     ["durationVisibilitySimple"] = CreateSetting_DurationVisibilitySimple,
     ["orientation"] = CreateSetting_Orientation,

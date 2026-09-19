@@ -1191,6 +1191,25 @@ function BU.CreateBuiltInIndicator(button, t)
         -- which cell is visible (SetTexCoord/SetSpriteSheetCell), never
         -- re-sets the texture file itself.
         indicator.tex:SetTexture(RAID_MARKER_TEX)
+    elseif name == "pingMarker" then
+        -- Mirror of the marker Blizzard draws on its own compact raid frames.
+        -- Two textures, because the ping art is a background plus a symbol and
+        -- each is its own atlas; the driver near CheckAll sets both. Built by
+        -- hand rather than via CreateIconIndicator, which owns a single
+        -- texture and a SetIcon contract this does not use.
+        indicator = CreateFrame("Frame", button:GetName() .. "PingMarker", button)
+        indicator:SetSize(30, 30)
+        indicator:Hide()
+        -- Never mouse-enabled: a frame under the cursor that the ping system
+        -- picks up as a receiver but which answers "not pingable" counts as
+        -- BLOCKING UI and kills the ping outright, which would make this
+        -- indicator break the very feature it displays.
+        indicator:EnableMouse(false)
+        indicator._sfType = "builtin"
+        indicator.bg = indicator:CreateTexture(nil, "BACKGROUND")
+        indicator.bg:SetPoint("CENTER")
+        indicator.tex = indicator:CreateTexture(nil, "ARTWORK")
+        indicator.tex:SetPoint("CENTER")
     elseif name == "aggroBlink" then
         -- A small solid block that pulses in and out, placed wherever the user
         -- drags it. This is the indicator's ORIGINAL shape, restored on
@@ -3677,6 +3696,186 @@ local function CheckMissingBuffs(button)
 end
 
 -- ------------------------------------------------------------------
+-- Ping marker driver
+--
+-- Blizzard draws a marker on a pinged group member's compact raid frame, and
+-- there is no way to listen for it: UNIT_PING_PIN_ADDED/_REMOVED are
+-- restricted events an addon may not RegisterEvent (like the combat log), and
+-- the template that consumes them cannot be instantiated from addon code.
+--
+-- What IS reachable is the ping icon object Blizzard already builds on each of
+-- its own compact frames. HideBlizzard.lua only ever REPARENTS those frames --
+-- deliberately never UnregisterAllEvents -- so the raid manager still runs
+-- every roster layout through CompactUnitFrame_SetUpFrame and the icons stay
+-- live even while the frames are parked out of sight. A secure post-hook on
+-- ShowPing/ClearPing then hands us the texture kit and the owning frame's unit
+-- token, which maps to our button. Blizzard applies the "show pings on raid
+-- frames" CVar gate before calling either, so ours inherits that setting.
+--
+-- Recipe confirmed against EllesmereUIRaidFrames' working implementation.
+-- ------------------------------------------------------------------
+-- How long a mirrored marker may live without Blizzard clearing it.
+--
+-- This is the PRIMARY way a marker comes down, not a backstop: Blizzard's
+-- UNIT_PING_PIN_REMOVED handler only calls ClearPing when IsGUIDMatch still
+-- passes, and that closure is `frame.unit and guid == UnitGUID(frame.unit)`,
+-- so a pinged player whose compact frame changed occupant between the pin
+-- being added and removed never gets cleared at all. Blizzard's own icon
+-- stays lit too -- it is parked off-screen, so only our mirror is ever seen.
+--
+-- The number is empirical, not derived: the pin's real lifetime lives in the
+-- engine and is exposed nowhere in the UI source. A ping lasts a few seconds,
+-- so this is deliberately close to that -- the first version used 20s, which
+-- left a stale marker sitting there long enough to read as permanent.
+local PING_EXPIRE = 6
+local pingHooked = setmetatable({}, { __mode = "k" })    -- Blizzard icon -> hooked yes/never
+local pingLitButton = setmetatable({}, { __mode = "k" }) -- Blizzard icon -> the button it lit
+
+-- Atlas at its native size, then scaled by the configured factor, so each
+-- texture keeps its own proportions instead of being squashed to the frame.
+local function SetPingAtlas(tex, atlas, factor)
+    tex:SetAtlas(atlas, true)
+    if factor and factor ~= 1 then
+        local w, h = tex:GetSize()
+        tex:SetSize(w * factor, h * factor)
+    end
+end
+
+local function HidePingMarker(button)
+    if not button then return end
+    local indicator = button.indicators and button.indicators.pingMarker
+    if indicator then indicator:Hide() end
+end
+
+local function LightPingMarker(button, kit, unit)
+    local indicator = button and button.indicators and button.indicators.pingMarker
+    if not indicator then return end
+    local t = indicator._sfTable or indicator.configs
+    if not t or not t.enabled then indicator:Hide() return end
+
+    -- Blizzard's art is authored at 30px, so the user's size is expressed as a
+    -- factor of that rather than forced onto both textures as a flat size.
+    local factor = (indicator:GetWidth() or 30) / 30
+    SetPingAtlas(indicator.bg, "Ping_Frame_BG_" .. kit, factor)
+    SetPingAtlas(indicator.tex, "Ping_Frame_" .. kit, factor)
+    indicator._sfPingUnit = unit
+    indicator:Show()
+
+    -- Expiry, in two independent forms, because this is what actually takes a
+    -- marker down in the common case (see PING_EXPIRE).
+    --
+    -- The timer is the fast path. The timestamp is what makes the state
+    -- self-describing: a marker that somehow outlives its timer -- the closure
+    -- never running, or a stamp bumped by a ping we then failed to clear --
+    -- still carries the moment it was lit, so CheckPingMarker can retire it on
+    -- any later pass without needing that closure to have survived.
+    local stamp = (indicator._sfPingStamp or 0) + 1
+    indicator._sfPingStamp = stamp
+    indicator._sfPingShownAt = GetTime()
+    C_Timer.After(PING_EXPIRE, function()
+        if indicator._sfPingStamp == stamp then
+            indicator._sfPingShownAt = nil
+            indicator:Hide()
+        end
+    end)
+end
+
+local function OnCompactPingShown(icon, kit)
+    -- kit is handed straight to a string concat below, so it must be a real
+    -- string: issecretvalue first, because type() alone reports a secret's
+    -- real type and the concat would then throw.
+    if issecretvalue and issecretvalue(kit) then return end
+    if type(kit) ~= "string" then return end
+    local owner = icon:GetParent()
+    local unit = owner and owner.unit
+    if type(unit) ~= "string" then return end
+
+    local PF = SquizzFrames:GetModule("PartyFrames", true)
+    local button = PF and PF.FindButtonByUnit and PF.FindButtonByUnit(unit)
+    -- The same Blizzard icon can be re-lit for a different occupant after a
+    -- re-sort; release whatever it lit last time before claiming a new one.
+    local prev = pingLitButton[icon]
+    if prev and prev ~= button then HidePingMarker(prev) end
+    pingLitButton[icon] = button
+    if button then LightPingMarker(button, kit, unit) end
+end
+
+local function OnCompactPingCleared(icon)
+    local button = pingLitButton[icon]
+    if not button then return end
+    pingLitButton[icon] = nil
+    HidePingMarker(button)
+end
+
+local function HookCompactPingIcon(cuf)
+    local icon = cuf and cuf.pingIconFrame
+    if not icon then return end
+    if pingHooked[icon] ~= nil then return end
+    -- Nameplate compact frames carry the same child and are never ours.
+    local okName, frameName = pcall(cuf.GetName, cuf)
+    if okName and type(frameName) == "string" and frameName:find("^NamePlate") then
+        pingHooked[icon] = false
+        return
+    end
+    local okForbidden, forbidden = pcall(icon.IsForbidden, icon)
+    if not okForbidden or forbidden then
+        pingHooked[icon] = false
+        return
+    end
+    pingHooked[icon] = true
+    hooksecurefunc(icon, "ShowPing", OnCompactPingShown)
+    hooksecurefunc(icon, "ClearPing", OnCompactPingCleared)
+end
+
+if type(CompactUnitFrame_SetUpFrame) == "function" then
+    hooksecurefunc("CompactUnitFrame_SetUpFrame", HookCompactPingIcon)
+end
+
+-- Release a marker whose button has changed hands. The secure header reassigns
+-- unit tokens across buttons on every re-sort, so the button showing a marker
+-- may now be someone else entirely -- and Blizzard's clear never arrives for
+-- that case (see the expiry note in LightPingMarker).
+local function CheckPingMarker(button)
+    local indicator = button.indicators and button.indicators.pingMarker
+    if not indicator then return end
+    local t = indicator._sfTable or indicator.configs
+    if not t or not t.enabled then indicator:Hide() return end
+
+    -- AUTHORITATIVE, and it has to be. HandleIndicators' generic apply loop
+    -- shows every enabled indicator on every rebuild (Indicators.lua's
+    -- `if t.enabled then indicator:Show()`), while our two textures keep the
+    -- atlas from the last real ping. A Check that only hid under particular
+    -- conditions therefore let any rebuild resurrect a long-dead ping -- a
+    -- marker nobody sent, which nothing could then take down, because the
+    -- expiry had already cleared the very fields those conditions tested.
+    -- Every other built-in survives that line by deciding show/hide outright;
+    -- so does this one now. A live ping is the ONLY thing that keeps it up.
+    local shownAt = indicator._sfPingShownAt
+    local unit = button.unit or button:GetAttribute("unit")
+    local live = shownAt and (GetTime() - shownAt) <= PING_EXPIRE
+    -- The button may also have changed hands mid-ping: the secure header
+    -- reassigns unit tokens on every re-sort, and Blizzard's clear never
+    -- arrives for that case (see PING_EXPIRE).
+    if live and indicator._sfPingUnit and indicator._sfPingUnit ~= unit then
+        live = false
+    end
+
+    if live then
+        indicator:Show()
+        return
+    end
+
+    indicator._sfPingShownAt = nil
+    indicator._sfPingUnit = nil
+    indicator:Hide()
+    -- Blank the art as well as hiding. The atlas is what makes a stray Show()
+    -- look like a real ping rather than an empty frame, so a stale one must
+    -- never be left loaded and ready to draw.
+    indicator.bg:SetTexture(nil)
+    indicator.tex:SetTexture(nil)
+end
+
+-- ------------------------------------------------------------------
 -- CheckAll: run every built-in's Check (used after HandleIndicators rebuilds)
 -- ------------------------------------------------------------------
 function BU.CheckAll(button)
@@ -3687,6 +3886,7 @@ function BU.CheckAll(button)
     BU.CheckRoleIcon(button)
     CheckLeaderIcon(button)
     CheckPlayerRaidIcon(button)
+    CheckPingMarker(button)
     CheckAggroBlink(button)
     CheckAggroBorder(button)
     CheckTargetHighlight(button)
@@ -3715,7 +3915,10 @@ local eventMap = {
     UNIT_CONNECTION          = { CheckStatusIcon, CheckNameText },
     -- ResetPhasedIcons wipes the unit-token-keyed phase cache (once per
     -- frame, not once per button) before re-rendering -- see its comment.
-    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight, ResetPhasedIcons },
+    -- CheckPingMarker is here because a roster change re-sorts the header and
+    -- hands unit tokens to different buttons, which is exactly when a marker
+    -- can end up sitting on the wrong person.
+    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight, ResetPhasedIcons, CheckPingMarker },
     -- The actual "a unit's assigned role changed" event -- GROUP_ROSTER_UPDATE
     -- only fires on membership changes (someone joining/leaving), not on an
     -- in-place role reassignment (role-check UI, LFG role swap, manually

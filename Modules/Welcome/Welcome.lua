@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.28"] = {
+        "Ping Marker: when a group member is pinged, the marker the game draws on its own raid frames now appears on yours too. It follows your \"show pings on raid frames\" setting, and sits under Alerts in the Designer with its own position and size.",
+        "Debuffs has a new Filter -- Everything, Priority debuffs, Boss & role mechanics, or both -- on the party/raid indicator and on the unit frames' debuff row. It sits alongside Hide Crowd Control rather than replacing it.",
+        "Everything stays the default on purpose: the narrower filters rely on the game having flagged a debuff, and show nothing at all in an encounter it has not flagged.",
+        "Tank Tracker now defaults to a new \"Encounter debuffs\" filter, which shows what a fight actually applies instead of relying on the game's boss and role tagging. The old default showed an empty row in encounters that were never tagged - The Lost Explorers being the fight that found it. A filter you picked yourself is kept.",
+    },
     ["1.27"] = {
         "Name, Health and Power Text now offer the same settings as the unit frames' text: a single Anchor Point instead of two dropdowns, and one Format choice instead of the Show Percentage / Show Current / Show Max tickboxes. Your current settings carry across and nothing moves.",
         "Text Width is replaced by Max Length, measured in characters, with a \"...\" on anything longer.",

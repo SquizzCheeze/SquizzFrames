@@ -29,6 +29,21 @@
          curated priority-debuff list the raid frames use) and isBossOrRoleAura
          (boss auras plus role auras), and the latter is where 12.1 actually
          delivers tank mechanics as readable auras.
+
+      3. NEITHER OF THOSE FLAGS IS GUARANTEED. Blizzard authors them per aura,
+         so an encounter whose debuffs carry neither shows nothing under either
+         preset -- and no setting of ours can make an unflagged aura flagged.
+         Found 2026-09-19: the Lost Explorers' debuffs appeared on the party/
+         raid Debuffs indicator, which applies NO candidate filters, and on
+         nothing in the tank tracker.
+
+         That is what `encounter` is for, and why it is the default: no flag
+         narrowing at all, only a maxDuration bound (DEBUFF_MAX_DURATION in
+         TankTracker.lua). Same trick as point 1 -- evaluated on both paths,
+         and it implicitly drops permanent auras (duration == 0 fails the
+         test), which is exactly the noise a tank does not want. It answers
+         "what is on this tank right now" instead of "what did Blizzard
+         remember to flag".
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
@@ -47,8 +62,10 @@ local profile = defaults.profile
 -- filter string plus candidate filters in TankTracker.lua -- see the note
 -- above for why the interesting half is the candidate filters, not the string.
 SquizzFrames.TANKTRACKER_DEBUFF_FILTERS = {
+    {value = "encounter",      text = "Encounter debuffs"},
     {value = "boss_role",      text = "Boss & role mechanics"},
     {value = "important",      text = "Priority debuffs"},
+    {value = "both",           text = "Priority + Boss & role"},
     {value = "raid_important", text = "Priority, raid-relevant only"},
     {value = "raid",           text = "Raid-relevant"},
     {value = "all",            text = "Everything"},
@@ -160,7 +177,10 @@ profile.tankTracker = {
         anchor = "topleft", offsetY = 2, size = 32, num = 4,
         durationSize = 11,
     },
-    debuffFilter = "boss_role",
+    -- Duration-bounded rather than flag-based, deliberately -- see point 3 of
+    -- the header note. A flag-based default shows NOTHING AT ALL in any
+    -- encounter Blizzard did not flag, and does it silently.
+    debuffFilter = "encounter",
     -- A permanent debuff has no duration to run down and is rarely the thing a
     -- tank is watching for; off by default because hiding them is the common
     -- want, not because they are never interesting.

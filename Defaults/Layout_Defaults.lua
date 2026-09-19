@@ -121,6 +121,7 @@ profile.indicatorIndices = {
     frameBorder = 23,
     dispelIcons = 24,
     phasedIcon = 25,
+    pingMarker = 26,
     customIndicators = {},
 }
 
@@ -281,6 +282,11 @@ profile.layout.indicators = {
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
                 {"Friz QT__", 11, "OUTLINE", false, "BOTTOMRIGHT", 2, -1, {1, 1, 1}}},
         dispellableByMe = false, hideCCDebuffs = false, orientation = "left-to-right",
+        -- "all" = no narrowing, which is what this indicator has always done.
+        -- The other presets depend on Blizzard having FLAGGED the aura, so
+        -- either can render an empty row in content the game never tagged --
+        -- see BuildDebuffCandidateFilters. Opt-in for that reason.
+        debuffFilter = "all",
         -- Explicit -- see Missing Buffs' identical comment on why an unset
         -- value here would make the checkbox and rendered state disagree.
         showIconBorder = true,
@@ -505,6 +511,22 @@ profile.layout.indicators = {
         -- in a different instance group. Distinct cause, distinct fix -- they
         -- need to zone to you, not walk to you.
         showLFGEye = true,
+    },
+    -- 26: Ping Marker
+    --
+    -- Mirrors the marker Blizzard draws on its own compact raid frames when a
+    -- group member is pinged (Attack, Assist, On My Way...). Driven by a hook
+    -- on Blizzard's own ping icons rather than by an event -- see the ping
+    -- marker driver in BuiltIn_Update.lua for why no event is available.
+    --
+    -- Blizzard authors this art at 30px centred on the frame, so those are the
+    -- defaults here too. The "show pings on raid frames" setting is applied by
+    -- Blizzard before our hook ever runs, so this follows it for free.
+    {
+        name = "Ping Marker", indicatorName = "pingMarker", type = "built-in",
+        enabled = true,
+        position = {"CENTER", "button", "CENTER", 0, 0}, frameLevel = LAYER.STATUS_ICON,
+        size = {30, 30}, alpha = 1,
     },
 }
 

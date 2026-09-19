@@ -38,7 +38,7 @@ end
 
 --- Built-in count constant. Indicators 1..BUILT_IN_COUNT are built-ins;
 --- everything after is custom.
-IndicatorDefaults.BUILT_IN_COUNT = 25
+IndicatorDefaults.BUILT_IN_COUNT = 26
 
 --- Display names for the built-ins, keyed by indicatorName.
 IndicatorDefaults.BUILT_IN_NAMES = {
@@ -67,6 +67,7 @@ IndicatorDefaults.BUILT_IN_NAMES = {
     frameBorder = "Frame Border",
     dispelIcons = "Dispel Icons",
     phasedIcon = "Phased Icon",
+    pingMarker = "Ping Marker",
 }
 
 --- Every custom indicator type the runtime knows how to dispatch, whether or
@@ -126,6 +127,10 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     roleIcon    = {"enabled", "checkbutton:hideDamager", "size-square", "roleTexture", "position", "frameLevel"},
     leaderIcon  = {"enabled", "checkbutton:hideInCombat", "size-square", "position", "frameLevel"},
     playerRaidIcon = {"enabled", "size-square", "alpha", "position", "frameLevel"},
+    -- Same shape as playerRaidIcon: art we only place and scale, never
+    -- recolour. Size is square because both ping atlases are authored square
+    -- at 30px and are scaled in proportion, not stretched.
+    pingMarker  = {"enabled", "size-square", "alpha", "position", "frameLevel"},
     -- A movable/resizable pulsing block, so it takes the full position+size
     -- treatment (see BuiltIn_Update.lua's aggroBlink creation). aggroBorder
     -- stays a full-button border and has no geometry of its own.
@@ -156,7 +161,7 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- doesn't exist on the AuraEngine wrapper, so the checkbox is a silent
     -- no-op once 12.1 takes over -- same tradeoff as everything else in this
     -- comment, just not dropped outright since it's still useful pre-12.1).
-    debuffs     = {"enabled", "checkbutton:dispellableByMe", "checkbutton2:showStack", "checkbutton3:hideCCDebuffs", "debuffBlacklist", "durationVisibility", "checkbutton6:showIconBorder", "size-square", "num:10", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    debuffs     = {"enabled", "debuffFilter", "checkbutton:dispellableByMe", "checkbutton2:showStack", "checkbutton3:hideCCDebuffs", "debuffBlacklist", "durationVisibility", "checkbutton6:showIconBorder", "size-square", "num:10", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
     ccIndicator = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "durationVisibility", "size-square", "num:3", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- Built on AuraEngine (12.1 AuraContainer), mirroring EllesmereUI's
     -- architecture -- see AEI.CreateDispelsIndicator in

@@ -385,6 +385,35 @@ local function MigrateUnitFrameAuraDuration(profile)
     end
 end
 
+-- Move the tank tracker's debuff filter default from "boss_role" to the new
+-- duration-bounded "encounter" preset (2026-09-19, user report: the Lost
+-- Explorers' debuffs showed on the party/raid Debuffs indicator and on nothing
+-- in the tank tracker).
+--
+-- The old default asked the engine for isBossOrRoleAura, a flag Blizzard
+-- authors PER AURA -- so an encounter whose debuffs carry neither that nor
+-- isPriorityAura renders an empty row, silently, and no setting of ours can
+-- make an unflagged aura flagged. See point 3 of the header note in
+-- TankTracker_Defaults.lua.
+--
+-- One-shot FLAG, not value detection, and for the usual reason: "boss_role"
+-- stays a perfectly choosable entry in the same dropdown afterwards, so a
+-- value-detecting version would silently undo a deliberate choice on the next
+-- profile load -- the "setting won't stick" bug this project keeps
+-- re-inventing. Same shape as MigrateUnitFrameAuraDuration above.
+--
+-- Only the EXACT old default is rewritten; anyone who picked a different
+-- preset keeps it.
+local function MigrateTankTrackerDebuffFilter(profile)
+    if not profile or profile.tankTrackerEncounterDebuffs then return end
+    profile.tankTrackerEncounterDebuffs = true
+
+    local tt = profile.tankTracker
+    if not tt or tt.debuffFilter ~= "boss_role" then return end
+    tt.debuffFilter = "encounter"
+    MigrationPrint("switched the tank tracker's debuff filter to Encounter debuffs, which does not depend on Blizzard flagging the fight's debuffs")
+end
+
 -- Move the dispel gradient's height default from half the health bar to all of
 -- it (2026-09-11, user request), for the party/raid indicator lists AND the
 -- unit frames -- the two describe the same overlay and must not disagree.
@@ -848,6 +877,7 @@ local function EnsureIndicatorLists(profile)
     MigrateUnitFrameNicknames(profile)
     MigrateUnitFrameAuraDuration(profile)
     MigrateDispelGradientHeight(profile)
+    MigrateTankTrackerDebuffFilter(profile)
 end
 
 -- Print with addon prefix

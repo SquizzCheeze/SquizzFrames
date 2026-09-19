@@ -1122,7 +1122,7 @@ local function ApplySettingToOne(button, name, setting, value, value2)
             BuiltIn.CheckAll(indicator:GetParent())
         end
     elseif setting == "debuffBlacklist" or setting == "bigDebuffCC" or setting == "dispellableByMe"
-        or setting == "hideCCDebuffs" then
+        or setting == "hideCCDebuffs" or setting == "debuffFilter" then
         -- Debuffs-specific filtering settings (bigDebuffCC is legacy-only,
         -- dropped from the AuraEngine version -- see CreateDebuffsIndicator's
         -- comment -- but harmless to still check for here since nothing

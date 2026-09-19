@@ -1221,6 +1221,17 @@ local function BuildAuraBlock(host, y, t, kind, label)
     ddGrowth:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
+    -- Debuffs only. Buffs share this builder (see the note above it), and
+    -- "which of these matters" is not a meaningful question about a buff row.
+    if kind == "debuffs" then
+        local ddFilter = W.CreateStyledDropdown(host, 200, 40, L["Filter"] or "Filter",
+            (A and A.DEBUFF_FILTER_ITEMS) or {},
+            function() return a.debuffFilter or "all" end,
+            function(v) AuraSet(function(c) c.debuffFilter = v end) end)
+        ddFilter:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
     local sNum = W.CreateStyledSlider(host, 200, 1, 40, 1, L["Max Icons"] or "Max Icons",
         function() return a.num or 8 end,
         function(v) AuraSet(function(c) c.num = v end) end)

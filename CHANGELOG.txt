@@ -2,6 +2,42 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.28 (2026-09-19)
+------------------
+
+New:
+
+- Ping Marker. When someone pings a group member, the marker the game draws on
+  its own raid frames now appears on yours as well. It follows your "show pings
+  on raid frames" setting, and lives under Alerts in the Designer with its own
+  position, size and frame level like any other indicator.
+
+- Debuffs has a Filter: Everything, Priority debuffs, Boss & role mechanics, or
+  Priority + Boss & role. It sits alongside Hide Crowd Control rather than
+  replacing it, so the two combine, and the unit frames' debuff row offers the
+  same choices.
+
+  Everything stays the default, and the reason the others are opt-in is worth
+  knowing: they rely on the game having FLAGGED a debuff as a boss, role or
+  priority mechanic. Not every encounter's debuffs are flagged, and when they
+  are not, a narrowed row shows nothing at all.
+
+- Tank Tracker has a new debuff filter, "Encounter debuffs", and it is now the
+  default. Instead of asking the game which debuffs are boss or role mechanics,
+  it shows what the fight actually applies and drops anything permanent -- food,
+  flasks, auras, forms.
+
+  It replaces "Boss & role mechanics" as the default because that setting
+  silently showed an EMPTY row in any encounter the game had not tagged. The
+  Lost Explorers is the fight that found it: both of its tank swaps, Steady
+  Strikes and Shredding Shards, carry no boss or role tag at all. If you had
+  chosen a different filter yourself, your choice is kept.
+
+  One trade worth knowing: a Brewmaster's Stagger shows under this filter. It
+  carries none of the tags that would let it be filtered back out, so for now
+  that is the price of seeing debuffs the game has not tagged.
+
+
 V1.27 (2026-09-17)
 ------------------
 

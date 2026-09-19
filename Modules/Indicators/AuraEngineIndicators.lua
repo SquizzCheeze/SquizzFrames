@@ -1332,8 +1332,87 @@ local function DebuffFilterTokens(t)
     return tokens
 end
 
+-- Preset narrowing for the Debuffs indicator's Filter dropdown.
+--
+-- CANDIDATE filters, not filter-string tokens, and necessarily so: IMPORTANT
+-- is flagged on HELPFUL auras, so "HARMFUL|IMPORTANT" is an empty set. These
+-- are the harmful equivalents, and unlike include/excludeSpellIDs they are NOT
+-- gated by CanApplyIdentityCandidateFilters, so they keep working on debuffs
+-- applied to party members.
+--
+-- Both depend on Blizzard having FLAGGED the aura, which is their weakness:
+-- either can render an empty row in content the game never tagged. That is not
+-- hypothetical -- the tank tracker's equivalent boss_role preset showed nothing
+-- at all for the Lost Explorers (2026-09-19). Hence "all" is the default and
+-- these are opt-in.
+local DEBUFF_FILTER_CANDIDATES = {
+    important = { isPriorityAura = true },
+    boss_role = { isBossOrRoleAura = true },
+    -- "both" is a UNION, and a union cannot live in one group: candidate
+    -- filters are ANDed (every key is an independent early reject in
+    -- DoesAuraPassCandidateFilters), so pairing the two flags here would
+    -- INTERSECT them -- narrower than either, the opposite of the intent.
+    -- The primary group therefore takes boss/role and a second group takes
+    -- the priority half; see DEBUFF_UNION_SECOND.
+    both      = { isBossOrRoleAura = true },
+}
+
+-- The union's second group: priority auras that are NOT boss/role. The
+-- negation makes the two groups mutually exclusive BY CONSTRUCTION, so no aura
+-- can match both and no Lua-side dedup is needed -- the same trick the CC
+-- indicator's removed second group used with the "!" filter token.
+local DEBUFF_UNION_SECOND = { isPriorityAura = true, isBossOrRoleAura = false }
+
+-- Second group key. Declared for the life of the container whether the union
+-- is selected or not: groups are ADD-ONLY, so one not declared at creation can
+-- never appear when the dropdown changes later. A cap of 0 is how a declared
+-- group is held inert (SetAuraGroupEnabled is 12.1.5 and not live yet).
+local DEBUFFS_GROUP_KEY_PRIORITY = "debuffs_priority"
+
+-- Icon capacity for the two groups.
+--
+-- A fixed split, because maxFrameCount is a STATIC per-group cap -- the engine
+-- gives a group no way to borrow slots another group left unused, so a true
+-- "first come, first served up to N total" is not expressible. Boss/role takes
+-- the larger half so the more important category wins the odd icon.
+--
+-- The trade-off is under-fill: with no priority debuffs up, the row shows at
+-- most the boss/role half rather than the full number. The alternative was
+-- giving both groups the full cap and rendering up to 2x what the slider says,
+-- which is how the CC indicator behaved before its second group was dropped.
+local function DebuffGroupCaps(t)
+    local num = t.num or 10
+    if (t.debuffFilter or "all") ~= "both" then return num, 0 end
+    local second = math.floor(num / 2)
+    return num - second, second
+end
+
 local function BuildDebuffCandidateFilters(t)
     local filters = {}
+    local preset = DEBUFF_FILTER_CANDIDATES[t.debuffFilter or "all"]
+    if preset then
+        -- Copied in rather than referenced: the blacklist below writes into
+        -- this same table, and the preset tables are shared module state.
+        for k, v in pairs(preset) do filters[k] = v end
+    end
+    if t.debuffBlacklist and t.debuffBlacklist[1] then
+        local set = {}
+        for _, id in ipairs(t.debuffBlacklist) do set[id] = true end
+        filters.excludeSpellIDs = set
+    end
+    return filters
+end
+
+-- Candidate filters for the union's SECOND group. nil when the union is not
+-- selected, which leaves that group matching nothing worth showing -- its cap
+-- is 0 in that case anyway (see DebuffGroupCaps).
+--
+-- Carries the blacklist too: a user who excluded a spell means it everywhere,
+-- not just in whichever group happens to catch it first.
+local function BuildDebuffUnionFilters(t)
+    if (t.debuffFilter or "all") ~= "both" then return nil end
+    local filters = {}
+    for k, v in pairs(DEBUFF_UNION_SECOND) do filters[k] = v end
     if t.debuffBlacklist and t.debuffBlacklist[1] then
         local set = {}
         for _, id in ipairs(t.debuffBlacklist) do set[id] = true end
@@ -1360,14 +1439,26 @@ local function BuildDebuffSpec(t)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[DEBUFFS_STYLE_KEY], t.font)
 
+    local primaryCap, secondCap = DebuffGroupCaps(t)
+
     return {
         layout = FlowLayout(t.orientation),
         groups = {
             {
                 key = DEBUFFS_GROUP_KEY,
                 filter = DebuffFilterTokens(t),
-                maxFrameCount = t.num or 10,
+                maxFrameCount = primaryCap,
                 candidateFilters = BuildDebuffCandidateFilters(t),
+                style = DEBUFFS_STYLE_KEY,
+                layout = { elementWidth = w, elementHeight = h },
+            },
+            -- Always declared, capped at 0 unless the union is selected -- see
+            -- DEBUFFS_GROUP_KEY_PRIORITY on why this cannot be added later.
+            {
+                key = DEBUFFS_GROUP_KEY_PRIORITY,
+                filter = DebuffFilterTokens(t),
+                maxFrameCount = secondCap,
+                candidateFilters = BuildDebuffUnionFilters(t),
                 style = DEBUFFS_STYLE_KEY,
                 layout = { elementWidth = w, elementHeight = h },
             },
@@ -1419,7 +1510,12 @@ function AEI.CreateDebuffsIndicator(button, t)
         wrapper._w, wrapper._h = width, height
         local container = wrapper._container
         if container then
-            container:SetAuraGroupLayout(DEBUFFS_GROUP_KEY, { elementWidth = width, elementHeight = height })
+            -- BOTH groups. Sizing only the primary one leaves the union's
+            -- priority half at the old element size, i.e. a row of icons that
+            -- do not match each other.
+            local elements = { elementWidth = width, elementHeight = height }
+            container:SetAuraGroupLayout(DEBUFFS_GROUP_KEY, elements)
+            pcall(container.SetAuraGroupLayout, container, DEBUFFS_GROUP_KEY_PRIORITY, elements)
             local style = AE.styles[DEBUFFS_STYLE_KEY]
             if style then
                 style.width, style.height = width, height
@@ -1437,9 +1533,19 @@ function AEI.CreateDebuffsIndicator(button, t)
 
     function wrapper:SetNum(n)
         wrapper._num = n
+        -- Written back onto the settings table BEFORE the split is computed:
+        -- DebuffGroupCaps reads t.num, so without this the caps would be
+        -- derived from the previous number and the new one would not take.
+        if wrapper._t then wrapper._t.num = n end
         local container = wrapper._container
         if container then
-            container:SetAuraGroupMaxFrameCount(DEBUFFS_GROUP_KEY, n)
+            -- Through DebuffGroupCaps, not the raw n. Assigning n straight to
+            -- the primary group would hand it the WHOLE budget and leave the
+            -- union's second group on a stale cap -- so "max 3" could render
+            -- more than 3, which is the one promise this number makes.
+            local primaryCap, secondCap = DebuffGroupCaps(wrapper._t or {})
+            container:SetAuraGroupMaxFrameCount(DEBUFFS_GROUP_KEY, primaryCap)
+            pcall(container.SetAuraGroupMaxFrameCount, container, DEBUFFS_GROUP_KEY_PRIORITY, secondCap)
         end
         if RepositionFallback then RepositionFallback() end
     end
@@ -1488,8 +1594,20 @@ function AEI.CreateDebuffsIndicator(button, t)
         wrapper._t = newT or wrapper._t
         local container = wrapper._container
         if container then
-            pcall(container.SetAuraGroupFilterString, container, DEBUFFS_GROUP_KEY, AE.Filter(unpack(DebuffFilterTokens(wrapper._t))))
+            local filterString = AE.Filter(unpack(DebuffFilterTokens(wrapper._t)))
+            local primaryCap, secondCap = DebuffGroupCaps(wrapper._t)
+
+            pcall(container.SetAuraGroupFilterString, container, DEBUFFS_GROUP_KEY, filterString)
             container:SetAuraGroupCandidateFilters(DEBUFFS_GROUP_KEY, BuildDebuffCandidateFilters(wrapper._t))
+            pcall(container.SetAuraGroupMaxFrameCount, container, DEBUFFS_GROUP_KEY, primaryCap)
+
+            -- BOTH groups, every time. Pushing only the first is the silent
+            -- failure this whole subsystem is prone to: the union's second
+            -- group would keep whatever cap and filters it was created with,
+            -- so switching the dropdown would half-apply.
+            pcall(container.SetAuraGroupFilterString, container, DEBUFFS_GROUP_KEY_PRIORITY, filterString)
+            pcall(container.SetAuraGroupCandidateFilters, container, DEBUFFS_GROUP_KEY_PRIORITY, BuildDebuffUnionFilters(wrapper._t))
+            pcall(container.SetAuraGroupMaxFrameCount, container, DEBUFFS_GROUP_KEY_PRIORITY, secondCap)
         end
     end
 

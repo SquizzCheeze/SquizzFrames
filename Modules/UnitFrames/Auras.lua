@@ -109,6 +109,75 @@ local function FilterTokens(kind, cfg)
     return tokens
 end
 
+-- Debuff preset narrowing, mirroring the party/raid Debuffs indicator's Filter
+-- dropdown (AuraEngineIndicators.lua's DEBUFF_FILTER_CANDIDATES) so the same
+-- word means the same thing on both pages.
+--
+-- Candidate filters rather than filter-string tokens: IMPORTANT is flagged on
+-- HELPFUL auras, so there is no string token for "this debuff matters". Both
+-- presets depend on Blizzard having FLAGGED the aura and can therefore show
+-- nothing at all in untagged content, which is why "all" is the default.
+--
+-- Offered for DEBUFFS ONLY. Buffs share this file's builders, and "which of
+-- these matters" is not a meaningful question about a buff row.
+Auras.DEBUFF_FILTER_ITEMS = {
+    {value = "all",       text = "Everything"},
+    {value = "important", text = "Priority debuffs"},
+    {value = "boss_role", text = "Boss & role mechanics"},
+    {value = "both",      text = "Priority + Boss & role"},
+}
+
+local DEBUFF_FILTER_CANDIDATES = {
+    important = { isPriorityAura = true },
+    boss_role = { isBossOrRoleAura = true },
+    -- Union: candidate filters are ANDed, so the two flags in ONE table would
+    -- intersect rather than combine. The primary group takes boss/role, a
+    -- second group takes priority-but-not-boss/role (DEBUFF_UNION_SECOND), and
+    -- the negation keeps them mutually exclusive so nothing renders twice.
+    both      = { isBossOrRoleAura = true },
+}
+
+local DEBUFF_UNION_SECOND = { isPriorityAura = true, isBossOrRoleAura = false }
+
+-- Fresh table per call: the engine keeps what it is handed, and these preset
+-- tables are shared module state.
+local function CopyFilters(src)
+    if not src then return nil end
+    local out = {}
+    for k, v in pairs(src) do out[k] = v end
+    return out
+end
+
+-- nil for "no narrowing" -- AE.UpdateGroup pushes this straight through to
+-- SetAuraGroupCandidateFilters unconditionally, and nil is how that is cleared.
+local function CandidateFilters(kind, cfg)
+    if kind ~= "debuffs" then return nil end
+    return CopyFilters(DEBUFF_FILTER_CANDIDATES[cfg.debuffFilter or "all"])
+end
+
+local function UnionCandidateFilters(kind, cfg)
+    if kind ~= "debuffs" then return nil end
+    if (cfg.debuffFilter or "all") ~= "both" then return nil end
+    return CopyFilters(DEBUFF_UNION_SECOND)
+end
+
+local function UnionGroupKey(kind)
+    return GroupKey(kind) .. "_priority"
+end
+
+-- Fixed split so "Max Icons" stays honest. maxFrameCount is a STATIC per-group
+-- cap -- a group cannot borrow slots another left unused -- so boss/role takes
+-- the larger half and priority-only the rest. Cost: with no priority debuffs
+-- up the row under-fills rather than showing the full number.
+local function GroupCaps(kind, cfg)
+    local num = cfg.num or 8
+    if kind ~= "debuffs" or (cfg.debuffFilter or "all") ~= "both" then
+        return num, 0
+    end
+    local second = math.floor(num / 2)
+    return num - second, second
+end
+
 -- Fill in a row's style FIELDS, independent of where the table lives.
 --
 -- Public because the options page's 1:1 preview has to draw its mock icons --
@@ -161,6 +230,39 @@ local function BuildStyle(unit, kind, cfg)
     return key
 end
 
+-- Debuff rows declare TWO groups for the whole life of the container, the
+-- second capped at 0 unless the union is selected. Groups are ADD-ONLY, so one
+-- not declared at creation can never appear when the dropdown changes later
+-- (SetAuraGroupEnabled is 12.1.5 and not live yet). Buff rows keep one group:
+-- they offer no filter, so a second could never be anything but dead weight.
+local function BuildGroups(unit, kind, cfg, size)
+    local primaryCap, secondCap = GroupCaps(kind, cfg)
+    local style = BuildStyle(unit, kind, cfg)
+    local layout = { elementWidth = size, elementHeight = size }
+
+    local groups = {
+        {
+            key = GroupKey(kind),
+            filter = FilterTokens(kind, cfg),
+            candidateFilters = CandidateFilters(kind, cfg),
+            maxFrameCount = primaryCap,
+            style = style,
+            layout = layout,
+        },
+    }
+    if kind == "debuffs" then
+        groups[2] = {
+            key = UnionGroupKey(kind),
+            filter = FilterTokens(kind, cfg),
+            candidateFilters = UnionCandidateFilters(kind, cfg),
+            maxFrameCount = secondCap,
+            style = style,
+            layout = layout,
+        }
+    end
+    return groups
+end
+
 local function BuildSpec(unit, kind, cfg)
     local size = cfg.size or 20
     local axis, growthH, growthV = ResolveFlow(EffectiveGrowth(cfg))
@@ -171,15 +273,7 @@ local function BuildSpec(unit, kind, cfg)
             growthH = growthH,
             growthV = growthV,
         },
-        groups = {
-            {
-                key = GroupKey(kind),
-                filter = FilterTokens(kind, cfg),
-                maxFrameCount = cfg.num or 8,
-                style = BuildStyle(unit, kind, cfg),
-                layout = { elementWidth = size, elementHeight = size },
-            },
-        },
+        groups = BuildGroups(unit, kind, cfg, size),
     }
 end
 
@@ -315,12 +409,26 @@ function Auras.ApplySettings(wrapper, parent, t, kind)
     -- silent no-op the moment a candidate filter was added. It is exactly what
     -- the tank tracker's debuff row uses, and exactly what was frozen there.
     if AE.UpdateGroup then
+        local primaryCap, secondCap = GroupCaps(kind, cfg)
         AE.UpdateGroup(container, {
             key = groupKey,
             filter = FilterTokens(kind, cfg),
-            maxFrameCount = num,
+            candidateFilters = CandidateFilters(kind, cfg),
+            maxFrameCount = primaryCap,
             layout = { elementWidth = size, elementHeight = size },
         })
+        -- The union's second group, pushed every time rather than only when
+        -- the union is on: switching AWAY from it has to take the cap back to
+        -- 0, or its icons would linger under the new filter.
+        if kind == "debuffs" then
+            AE.UpdateGroup(container, {
+                key = UnionGroupKey(kind),
+                filter = FilterTokens(kind, cfg),
+                candidateFilters = UnionCandidateFilters(kind, cfg),
+                maxFrameCount = secondCap,
+                layout = { elementWidth = size, elementHeight = size },
+            })
+        end
     end
     AE.RestyleSoon(styleKey)
     Auras.ApplyLayout(wrapper, cfg)

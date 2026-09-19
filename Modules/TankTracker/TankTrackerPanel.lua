@@ -547,12 +547,12 @@ local function BuildFields(frame)
         BuildRow(host, y, L["Debuffs"] or "Debuffs", "debuffs", function(h, yy)
             local ddFilter = W.CreateStyledDropdown(h, 200, 40, L["Filter"] or "Filter",
                 SquizzFrames.TANKTRACKER_DEBUFF_FILTERS or {},
-                C.get("debuffFilter", "boss_role"), C.set("debuffFilter"))
+                C.get("debuffFilter", "encounter"), C.set("debuffFilter"))
             ddFilter:SetPoint("TOPLEFT", 15, yy - 20)
             yy = yy - 70
 
             return Note(h, yy, L["TankTrackerFilterNote"]
-                or "Boss & role mechanics is where the game delivers tank-relevant debuffs. The wider settings will show a lot more.")
+                or "Encounter debuffs shows what the fight actually applies, minus permanent things like food and flasks. The flag-based filters below it are tighter, but show nothing at all in an encounter the game has not flagged.")
         end)
     else
         BuildRow(host, y, L["Defensives"] or "Defensives", "defensives")

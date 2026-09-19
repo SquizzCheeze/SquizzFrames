@@ -199,16 +199,45 @@ local DEBUFF_FILTER_TOKENS = {
     important      = {"HARMFUL"},
     raid_important = {"HARMFUL", "RAID"},
     boss_role      = {"HARMFUL"},
+    encounter      = {"HARMFUL"},
+    both           = {"HARMFUL"},
 }
 
 -- The half that actually does the filtering. isPriorityAura is the curated
 -- priority-debuff list Blizzard's own raid frames use; isBossOrRoleAura is
 -- boss auras plus role auras, which is where 12.1 delivers tank mechanics.
+--
+-- Both are FLAGS BLIZZARD AUTHORS PER AURA, and that is their weakness: an
+-- encounter whose debuffs carry neither is invisible under either preset, with
+-- nothing on our side able to help (user report 2026-09-19 -- see point 3 of
+-- the header note in TankTracker_Defaults.lua).
+--
+-- Note also that candidate filters are ANDed, not ORed: every key in one of
+-- these tables is an independent early reject in Blizzard's
+-- DoesAuraPassCandidateFilters, so pairing two flags here NARROWS the result
+-- rather than widening it. A union would need two groups, the way DEF_GROUPS
+-- above splits the defensives.
+--
+-- `encounter` therefore does no flag narrowing at all, just a duration bound --
+-- the same trick DEFENSIVE_MAX_DURATION uses above. maxDuration is evaluated
+-- on both the list-query and UNIT_AURA paths, and implicitly drops permanent
+-- auras too (Blizzard rejects duration == 0), which removes precisely the
+-- noise a tank does not care about: food, flasks, auras, forms.
+local DEBUFF_MAX_DURATION = 300
 local DEBUFF_CANDIDATES = {
     important      = { isPriorityAura = true },
     raid_important = { isPriorityAura = true },
     boss_role      = { isBossOrRoleAura = true },
+    encounter      = { maxDuration = DEBUFF_MAX_DURATION },
+    -- Union. Its primary group is boss/role; the priority half rides in a
+    -- SECOND group (DEBUFF_UNION_SECOND) because these tables are ANDed -- see
+    -- the note above. Same shape the defensives row has always used.
+    both           = { isBossOrRoleAura = true },
 }
+
+-- Priority auras that are NOT boss/role, so the union's two groups are
+-- mutually exclusive by construction and nothing renders twice.
+local DEBUFF_UNION_SECOND = { isPriorityAura = true, isBossOrRoleAura = false }
 
 local function StyleKey(index, kind)
     return "sfTT_" .. kind .. "_" .. index
@@ -338,17 +367,39 @@ local function BuildSpec(index, kind, row, cfg)
             }
         end
     else
-        local preset = cfg.debuffFilter or "boss_role"
+        local preset = cfg.debuffFilter or "encounter"
         -- Capacity is per-row x rows. The debuff row has exactly ONE group, so
         -- capping it at `perRow` made the Rows slider dead on this row: the
         -- group could never hold more icons than one line fits, so there was
         -- never anything to wrap onto a second line. The defensives row got
         -- two lines "for free" only because it declares two groups.
+        --
+        -- The union splits that capacity rather than doubling it: maxFrameCount
+        -- is a static per-group cap, so boss/role takes the larger half and the
+        -- priority-only group the rest. Under-fills when one half is empty,
+        -- which is the honest trade for the row never exceeding its own number.
+        local cap = perRow * rows
+        local secondCap = 0
+        if preset == "both" then
+            secondCap = math.floor(cap / 2)
+            cap = cap - secondCap
+        end
+        local tokens = DEBUFF_FILTER_TOKENS[preset] or DEBUFF_FILTER_TOKENS.all
         groups[1] = {
             key = "sfttDebuff",
-            filter = DEBUFF_FILTER_TOKENS[preset] or DEBUFF_FILTER_TOKENS.all,
+            filter = tokens,
             candidateFilters = DEBUFF_CANDIDATES[preset],
-            maxFrameCount = perRow * rows,
+            maxFrameCount = cap,
+            style = style,
+            layout = layout,
+        }
+        -- Declared even when the union is off (cap 0): groups are add-only, so
+        -- one absent at creation could never appear on a later filter change.
+        groups[2] = {
+            key = "sfttDebuffPriority",
+            filter = tokens,
+            candidateFilters = (preset == "both") and DEBUFF_UNION_SECOND or nil,
+            maxFrameCount = secondCap,
             style = style,
             layout = layout,
         }
@@ -865,3 +916,200 @@ end
 SquizzFrames.TankTracker = TankTracker
 SquizzFrames.modules = SquizzFrames.modules or {}
 SquizzFrames.modules["TankTracker"] = TankTracker
+
+-----------------------------------------------------------------------
+-- TEMPORARY DIAGNOSTIC: /sfspell [spellID ...]
+-----------------------------------------------------------------------
+-- Reads the aura flags that decide which debuff FILTER can see a spell --
+-- from the spell ID alone, with no aura present, solo, out of any group.
+--
+-- That is the whole point of it: the flags we need are otherwise only
+-- observable on a live AuraData during the encounter, and they are published
+-- nowhere (Wowhead omits them, wago.tools renders client-side, the wikis
+-- document the field names but never per-spell values).
+--
+-- Three of them ARE queryable by ID, because Blizzard's own AuraUtil resolves
+-- them that way (Blizzard_FrameXMLUtil/AuraUtil.lua):
+--
+--   C_Spell.IsPriorityAura(id)          -> isPriorityAura. The ONLY open
+--                                          question for the "Priority + Boss
+--                                          & role" union: boss/role is already
+--                                          known false for these debuffs,
+--                                          since the boss_role preset shows
+--                                          nothing in that fight.
+--   C_Secrets.GetSpellAuraSecrecy(id)   -> NeverSecret decides whether a
+--                                          spell-ID blacklist can EVER work on
+--                                          it. Sated/Exhaustion are NeverSecret
+--                                          and filter fine; Stagger evidently
+--                                          is not, which is why blacklisting it
+--                                          silently did nothing.
+--   C_UnitAuras.AuraIsBigDefensive(id)  -> free, same shape, used by the
+--                                          defensives row.
+--
+-- isBossAura and isTankRoleAura have NO by-ID query -- they exist only on a
+-- live AuraData -- so they are deliberately absent here rather than faked.
+--
+-- Both of the first two are UNDOCUMENTED (seen only in Blizzard's own code),
+-- so every call is pcall'd and reports "unavailable" rather than assuming.
+-- The resolved NAME is printed for each ID on purpose: it is the check that
+-- the ID is the applied AURA and not the cast, which is exactly the trap
+-- Shredding Shards sets (1295854 is the 3.5s channel; 1295858 is the debuff).
+--
+-- Temporary. Delete once the filter question is settled.
+local SPELL_DIAG_DEFAULTS = {
+    1291930,  -- Steady Strikes (First Mate Nama) -- may be the cast, not the aura
+    1295854,  -- Shredding Shards -- the 3.5s CHANNEL, here only for contrast
+    1295858,  -- Shredding Shards -- the applied debuff, the one that matters
+    124275,   -- Light Stagger
+    124274,   -- Moderate Stagger
+    124273,   -- Heavy Stagger
+}
+
+local function SpellDiagLine(id)
+    local name
+    local okN, n = pcall(function()
+        return C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)
+    end)
+    if okN and type(n) == "string" then name = n end
+
+    local priority = "unavailable"
+    local okP, p = pcall(function()
+        return C_Spell and C_Spell.IsPriorityAura and C_Spell.IsPriorityAura(id)
+    end)
+    if okP then priority = tostring(p) end
+
+    local secrecy, never = "unavailable", "?"
+    local okS, s = pcall(function()
+        return C_Secrets and C_Secrets.GetSpellAuraSecrecy and C_Secrets.GetSpellAuraSecrecy(id)
+    end)
+    if okS then
+        secrecy = tostring(s)
+        local okE, isNever = pcall(function()
+            return Enum and Enum.SecrecyLevel and s == Enum.SecrecyLevel.NeverSecret
+        end)
+        if okE then never = tostring(isNever) end
+    end
+
+    local bigDef = "unavailable"
+    local okB, b = pcall(function()
+        return C_UnitAuras and C_UnitAuras.AuraIsBigDefensive and C_UnitAuras.AuraIsBigDefensive(id)
+    end)
+    if okB then bigDef = tostring(b) end
+
+    -- tostring on every value, never "%s" on a raw boolean: in Lua 5.1 that
+    -- raises "string expected, got boolean" and would take the whole dump out.
+    print(string.format("  %s  %s", tostring(id), name or "|cffff0009UNKNOWN SPELL|r"))
+    print(string.format("      priority=%s  secrecy=%s (NeverSecret=%s)  bigDefensive=%s",
+        priority, secrecy, never, bigDef))
+end
+
+SLASH_SQUIZZSPELLDIAG1 = "/sfspell"
+SlashCmdList["SQUIZZSPELLDIAG"] = function(msg)
+    local PREFIX = "|cff33cc99[SquizzFrames]|r "
+    local ok, err = pcall(function()
+        local ids = {}
+        for token in tostring(msg or ""):gmatch("%d+") do
+            ids[#ids + 1] = tonumber(token)
+        end
+        if #ids == 0 then
+            for _, id in ipairs(SPELL_DIAG_DEFAULTS) do ids[#ids + 1] = id end
+        end
+        print(PREFIX .. "spell flag dump (" .. tostring(#ids) .. " spells):")
+        for _, id in ipairs(ids) do
+            SpellDiagLine(id)
+        end
+    end)
+    if not ok then
+        print(PREFIX .. "dump FAILED: " .. tostring(err))
+    end
+    -- Terminator: silence in a loop is indistinguishable from the loop never
+    -- having run, so the report always ends with a line proving it did.
+    print(PREFIX .. "end of spell flag dump")
+end
+
+-----------------------------------------------------------------------
+-- TEMPORARY DIAGNOSTIC: /sfauras [unit] [help]
+-----------------------------------------------------------------------
+-- Dumps the aura flags that exist ONLY on a live AuraData -- isRaid,
+-- isBossAura and the three role flags -- for whatever is currently on a unit
+-- (default "player"; pass target/focus/party1/... and "help" for buffs).
+--
+-- Separate from /sfspell because these are per-aura-INSTANCE, not per-spell:
+-- no by-ID query exists for them, so they can only be read off a real aura.
+-- isRaid in particular has no C_Spell equivalent -- the wiki defines it only
+-- as "meets the conditions of the RAID aura filter".
+--
+-- MUST BE RUN OUT OF COMBAT. On 12.1 AuraData is fully secret while auras are
+-- secret, so in combat every field here reads back secret. That is the entire
+-- reason the AuraEngine subsystem exists -- it is not a fault in this command,
+-- and the header below says so explicitly when it happens.
+--
+-- SOLO USE, which is the point of it: put a debuff on yourself that you can
+-- get without a group -- self-cast Bloodlust/Time Warp leaves Sated for ten
+-- minutes, and any world mob's poison or bleed works -- then read how isRaid
+-- tracks the dispel type. That relationship is what says whether an
+-- UNDISPELLABLE raid debuff could ever pass a RAID filter, and it can be
+-- established without setting foot in the raid.
+--
+-- Temporary. Delete alongside /sfspell.
+local function AuraDiagValue(v)
+    if v == nil then return "nil" end
+    if F and F.IsValueNonSecret and not F.IsValueNonSecret(v) then
+        return "|cffff0009secret|r"
+    end
+    return tostring(v)
+end
+
+SLASH_SQUIZZAURADIAG1 = "/sfauras"
+SlashCmdList["SQUIZZAURADIAG"] = function(msg)
+    local PREFIX = "|cff33cc99[SquizzFrames]|r "
+    local ok, err = pcall(function()
+        local text = tostring(msg or ""):lower()
+        local wantHelpful = text:find("help") ~= nil
+        local unit = text:match("(party%d)") or text:match("(raid%d+)")
+            or (text:find("target") and "target") or (text:find("focus") and "focus")
+            or "player"
+        local filter = wantHelpful and "HELPFUL" or "HARMFUL"
+
+        print(string.format("%saura dump: unit=%s filter=%s", PREFIX, unit, filter))
+        if not UnitExists(unit) then
+            print("  that unit does not exist")
+            return
+        end
+
+        -- Stated up front, because it changes how every line below reads.
+        local secretNow = "?"
+        local okS, s = pcall(function()
+            return C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret()
+        end)
+        if okS then secretNow = tostring(s) end
+        print("  auras secret right now: " .. secretNow
+            .. (secretNow == "true" and "  <- run this OUT OF COMBAT, fields will be unreadable" or ""))
+
+        local i, found = 1, 0
+        while true do
+            local a = C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
+            if not a then break end
+            found = found + 1
+            print(string.format("  [%d] %s  %s", i,
+                AuraDiagValue(a.spellId), AuraDiagValue(a.name)))
+            -- isRaid FIRST: it is the whole reason this command exists.
+            print(string.format("      isRaid=%s  dispel=%s  boss=%s  tankRole=%s  healRole=%s  dpsRole=%s",
+                AuraDiagValue(a.isRaid), AuraDiagValue(a.dispelName),
+                AuraDiagValue(a.isBossAura), AuraDiagValue(a.isTankRoleAura),
+                AuraDiagValue(a.isHealerRoleAura), AuraDiagValue(a.isDPSRoleAura)))
+            print(string.format("      dur=%s  fromPlayerOrPet=%s  canApply=%s  npPersonal=%s  npAll=%s",
+                AuraDiagValue(a.duration), AuraDiagValue(a.isFromPlayerOrPlayerPet),
+                AuraDiagValue(a.canApplyAura), AuraDiagValue(a.nameplateShowPersonal),
+                AuraDiagValue(a.nameplateShowAll)))
+            i = i + 1
+            if i > 60 then break end
+        end
+        print(string.format("  (%d auras)", found))
+    end)
+
+    if not ok then
+        print(PREFIX .. "dump FAILED: " .. tostring(err))
+    end
+    print(PREFIX .. "end of aura dump")
+end

@@ -357,6 +357,12 @@ local function DefaultFrame(opts)
             -- Debuffs default to yours only on a target: an enemy in a raid
             -- carries far too many for an unfiltered row to be readable.
             onlyMine = false,
+            -- Same vocabulary as the party/raid Debuffs indicator's Filter
+            -- dropdown, so one word means one thing in both places. "all" = no
+            -- narrowing; the others depend on Blizzard flagging the aura and
+            -- can therefore show nothing at all. See Auras.lua's
+            -- DEBUFF_FILTER_CANDIDATES.
+            debuffFilter = "all",
             showDuration = true,
             showStack = true,
             showBorder = true,
