@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.29"] = {
+        "Emergency Soul Link is built into click casting: choose Item, then \"Emergency Soul Link (any quality)\". One binding covers both qualities, uses the better one you are carrying, and switches by itself when that runs out.",
+        "Fixed item click-cast bindings on SquizzFrames' own frames, which did nothing but throw an error on every click.",
+    },
     ["1.28"] = {
         "Ping Marker: when a group member is pinged, the marker the game draws on its own raid frames now appears on yours too. It follows your \"show pings on raid frames\" setting, and sits under Alerts in the Designer with its own position and size.",
         "Debuffs has a new Filter -- Everything, Priority debuffs, Boss & role mechanics, or both -- on the party/raid indicator and on the unit frames' debuff row. It sits alongside Hide Crowd Control rather than replacing it.",
