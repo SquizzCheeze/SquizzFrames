@@ -92,6 +92,8 @@ local function FormatAction(b)
         local id = tonumber(a)
         return id and (F.GetSpellInfo(id) or ("Spell " .. id)) or (a or "")
     elseif t == "item" then
+        local group = F.GetClickCastItemGroup(a)
+        if group then return F.GetClickCastItemGroupName(group) .. " (any quality)" end
         return type(a) == "number" and ("Item " .. a) or tostring(a or "")
     elseif t == "macro" or t == "custom" then
         local s = tostring(a or "")
@@ -511,6 +513,21 @@ local function OnActionClick(row)
                 ShowItemEditBox(row.actionGrid, b, idx, row)
             end,
         })
+        -- Hard-coded item groups (every quality in one binding), pinned
+        -- under the ID entry so they are there whether or not you carry one.
+        for _, key in ipairs(F.CLICKCAST_ITEM_GROUP_ORDER) do
+            local group = F.CLICKCAST_ITEM_GROUPS[key]
+            local label = F.GetClickCastItemGroupName(group) .. " (any quality)"
+            tinsert(items, {
+                text = label,
+                onClick = function()
+                    b.action = "group:" .. key
+                    row.actionGrid:SetText(label)
+                    row:SetChanged(true)
+                    MarkChanged(idx)
+                end,
+            })
+        end
         local equipped = F.GetClickCastingItemsFromCell()
         for _, it in ipairs(equipped) do
             local name, id = it.name, it.id

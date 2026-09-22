@@ -689,6 +689,61 @@ function F.GetClickCastingItemsFromCell()
     return items
 end
 
+-- Hard-coded click-cast ITEM GROUPS: one binding that covers every crafted
+-- quality of an item. Stored in the binding as the string "group:<key>"
+-- instead of a numeric item ID, and resolved to a real item ID each time the
+-- bindings are written (F.ResolveClickCastItem).
+--
+-- The IDs are listed without claiming which is which quality: the resolver
+-- asks the game (C_TradeSkillUI.GetItemCraftedQualityByItemInfo), so the order
+-- here does not matter and cannot be got backwards.
+F.CLICKCAST_ITEM_GROUPS = {
+    emergencySoulLink = {
+        name = "Emergency Soul Link",   -- Midnight engineering battle res
+        ids = { 248486, 269586 },
+    },
+}
+F.CLICKCAST_ITEM_GROUP_ORDER = { "emergencySoulLink" }
+
+-- "group:<key>" -> the group table, or nil.
+function F.GetClickCastItemGroup(action)
+    local key = type(action) == "string" and action:match("^group:(.+)$")
+    return key and F.CLICKCAST_ITEM_GROUPS[key] or nil
+end
+
+-- Display name for a group, localized from the item cache when it is loaded.
+function F.GetClickCastItemGroupName(group)
+    local name = C_Item.GetItemNameByID and C_Item.GetItemNameByID(group.ids[1])
+    return (F.IsValueNonSecret(name) and name) or group.name
+end
+
+local function CraftedQuality(itemID)
+    if not (C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo) then return 0 end
+    local ok, q = pcall(C_TradeSkillUI.GetItemCraftedQualityByItemInfo, itemID)
+    return (ok and F.IsValueNonSecret(q) and q) or 0
+end
+
+-- The item ID a click-cast "item" binding should use right now: a plain ID
+-- as-is; for a group, the highest-quality member in the bags, or (carrying
+-- none) the highest-quality member overall, so the binding still points at
+-- something sensible and starts working the moment one is looted or crafted.
+function F.ResolveClickCastItem(action)
+    local id = tonumber(action)
+    if id then return id end
+    local group = F.GetClickCastItemGroup(action)
+    if not group then return nil end
+    local best, bestQ, bestOwned
+    for _, itemID in ipairs(group.ids) do
+        local owned = (C_Item.GetItemCount(itemID) or 0) > 0
+        local q = CraftedQuality(itemID)
+        local better = best == nil
+            or (owned and not bestOwned)
+            or (owned == bestOwned and q > bestQ)
+        if better then best, bestQ, bestOwned = itemID, q, owned end
+    end
+    return best
+end
+
 function F.GetAccentColor()
     local prof = SquizzFrames.db and SquizzFrames.db.profile
     if prof and prof.appearance and prof.appearance.general and prof.appearance.general.accentColor then

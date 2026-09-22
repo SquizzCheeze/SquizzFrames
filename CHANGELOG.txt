@@ -2,6 +2,18 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.29
+-----
+
+New:
+
+- Emergency Soul Link is built into click casting. Pick Item, then
+  "Emergency Soul Link (any quality)" from the list: one binding covers both
+  crafted qualities, uses the better one you are carrying, and switches by
+  itself when that runs out (out of combat). It stays in the list whether or
+  not you have one in your bags, so a healer can bind it ahead of time.
+
+
 V1.28 (2026-09-19)
 ------------------
 

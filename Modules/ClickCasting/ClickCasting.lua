@@ -51,6 +51,11 @@ local ccPass = 0
 -- not anything had been deferred.
 local combatApplyPending = false
 
+-- Item-group bindings ("group:<key>") -> the item ID last written for them.
+-- BAG_UPDATE_DELAYED compares against this so bags changing only re-applies
+-- when a group would now resolve to a different quality.
+local resolvedItemGroups = {}
+
 -----------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------
@@ -548,8 +553,12 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
             target:SetAttribute(macrotextKey, action or "")
         end
     elseif bindType == "item" then
-        local itemId = tonumber(action)
+        -- A plain item ID, or an item group ("group:<key>", e.g. every quality
+        -- of Emergency Soul Link) resolved to the best one in the bags now.
+        -- Bag changes re-run this (see BAG_UPDATE_DELAYED in OnInitialize).
+        local itemId = F.ResolveClickCastItem(action)
         if itemId then
+            resolvedItemGroups[action] = itemId
             if globalChild then
                 -- /use with [@mouseover] so items target the hovered unit.
                 SetMacrotext("/use [@mouseover,exists] item:" .. itemId)
@@ -1068,7 +1077,12 @@ function ClickCasting:ApplyToAll(onlyNew)
     combatApplyPending = false
     -- A full pass invalidates every stamp, so the frames it is about to write
     -- are the only ones carrying the new value afterwards.
-    if not onlyNew then ccPass = ccPass + 1 end
+    if not onlyNew then
+        ccPass = ccPass + 1
+        -- Rebuilt by this pass's writes; a removed group binding must stop
+        -- triggering bag-driven re-applies.
+        wipe(resolvedItemGroups)
+    end
     -- Ensure the combat-state driver exists (creates the wrapFrame).
     EnsureWrapFrame()
 
@@ -1294,6 +1308,19 @@ function ClickCasting:OnInitialize()
     -- own party frames are actually running; this keeps foreign frames correct
     -- even for someone using SquizzFrames purely as a click-casting layer.
     -- Delayed so the owning addon has finished creating them first.
+    -- Item-group bindings pick the best quality in the bags when written, so
+    -- re-apply when what they would pick changes (used up the R2, looted an
+    -- R2...). Plain item-ID bindings never trigger this, and ApplyToAll
+    -- already defers itself to PLAYER_REGEN_ENABLED in combat.
+    self:RegisterEvent("BAG_UPDATE_DELAYED", function()
+        for action, lastID in pairs(resolvedItemGroups) do
+            if F.ResolveClickCastItem(action) ~= lastID then
+                self:ApplyToAll()
+                return
+            end
+        end
+    end)
+
     self:RegisterEvent("GROUP_ROSTER_UPDATE", function()
         -- Only the frames that need it -- this exists to catch frames another
         -- addon just created, and ours are covered by the wiring path above.
