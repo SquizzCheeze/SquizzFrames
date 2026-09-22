@@ -13,6 +13,14 @@ New:
   itself when that runs out (out of combat). It stays in the list whether or
   not you have one in your bags, so a healer can bind it ahead of time.
 
+Fixed:
+
+- Item click-cast bindings did nothing on SquizzFrames' own frames except
+  throw a "bad argument ... C_Item.IsEquippableItem" error on every click. The
+  item was handed to the game as a bare number, which it reads as an
+  equipment slot rather than an item. Bindings made with Blizzard's frames or
+  the mouseover option were unaffected.
+
 
 V1.28 (2026-09-19)
 ------------------

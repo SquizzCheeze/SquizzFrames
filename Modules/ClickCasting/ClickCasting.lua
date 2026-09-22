@@ -565,7 +565,14 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
             else
                 target:SetAttribute(attrKey, "item")
                 local itemKey = attrKey:gsub("type", "item", 1)
-                target:SetAttribute(itemKey, itemId)
+                -- MUST be the "item:<id>" string, never the bare number.
+                -- SECURE_ACTIONS.item hands the attribute to SecureCmdItemParse,
+                -- which reads a bare number as an INVENTORY SLOT (slot 269586):
+                -- name comes back nil and C_Item.IsEquippableItem(nil) throws
+                -- "bad argument #1" on every click. Every numeric item binding
+                -- on our own frames was broken this way; the global mouseover
+                -- path was not, because it builds "/use item:<id>".
+                target:SetAttribute(itemKey, "item:" .. itemId)
             end
         end
     elseif bindType == "general" or bindType == "target" or bindType == "focus"
