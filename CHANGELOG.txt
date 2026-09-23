@@ -2,6 +2,16 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.30
+-----
+
+Fixed:
+
+- The transparency slider in every colour picker ran backwards: dragging it
+  towards opaque made the colour more transparent, and a colour's saved
+  opacity opened at the opposite end of the slider.
+
+
 V1.29 (2026-09-22)
 ------------------
 

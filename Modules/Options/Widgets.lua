@@ -1599,35 +1599,38 @@ local function CreateColorPicker(parent, label, getColor, setColor)
     -- this client -- every color swatch click threw "attempt to call a nil
     -- value" at ColorPickerFrame:SetColorRGB (confirmed via BugGrabber log,
     -- most recent error in the session). Replaced with the current
-    -- SetupColorPickerAndShow(info) API. Note WoW's "opacity" here is
-    -- inverted from normal alpha (1 = fully transparent, 0 = fully opaque),
-    -- hence the `1 - x` conversions on both sides -- this inversion was
-    -- already present in the old code's OpacitySliderFrame reads, so it's
-    -- an existing API convention, not something introduced by this fix.
+    -- SetupColorPickerAndShow(info) API.
+    --
+    -- Alpha is passed through UNINVERTED (1 = opaque). The old API's
+    -- OpacitySliderFrame was inverted and this code carried `1 - x` over from
+    -- it, which made the picker's transparency slider run backwards on Retail
+    -- (user report 2026-09-23). The 10.2.5 picker is plain alpha on Mainline;
+    -- AceGUI's own ColorPicker widget only inverts off-Mainline
+    -- (INVERTED_ALPHA), which is the confirmation. Cancel restores from our
+    -- own captured values rather than the picker's previousValues table, so
+    -- it cannot pick up that table's convention either.
     container.swatch:SetScript("OnClick", function()
         local r, g, b, a = getColor()
         r, g, b, a = r or 1, g or 1, b or 1, a or 1
         local info = {}
         info.swatchFunc = function()
             local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-            local na = 1 - ColorPickerFrame:GetColorAlpha()
+            local na = ColorPickerFrame:GetColorAlpha()
             setColor(nr, ng, nb, na)
             UpdateSwatch()
         end
         info.opacityFunc = function()
             local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-            local na = 1 - ColorPickerFrame:GetColorAlpha()
+            local na = ColorPickerFrame:GetColorAlpha()
             setColor(nr, ng, nb, na)
             UpdateSwatch()
         end
-        info.cancelFunc = function(previousValues)
-            if previousValues then
-                setColor(previousValues.r, previousValues.g, previousValues.b, 1 - (previousValues.opacity or 0))
-                UpdateSwatch()
-            end
+        info.cancelFunc = function()
+            setColor(r, g, b, a)
+            UpdateSwatch()
         end
         info.hasOpacity = true
-        info.opacity = 1 - a
+        info.opacity = a
         info.r, info.g, info.b = r, g, b
         ColorPickerFrame:SetupColorPickerAndShow(info)
     end)
