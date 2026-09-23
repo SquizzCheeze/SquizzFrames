@@ -2,6 +2,22 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.32
+-----
+
+Changed:
+
+- The unit frames follow the same rule as the party and raid indicators:
+  every element now starts at an X/Y offset of 0,0 on its anchor. That is the
+  Name, Health and Level text (2 pixels in from their edge before), the buff
+  and debuff rows (2 pixels off the frame), and the aura stack counts (1 pixel
+  off their corner).
+
+  Existing profiles are updated once, on the first load after the update: an
+  element still at its old default moves to 0,0, and anything you placed
+  yourself keeps your position.
+
+
 V1.31 (2026-09-24)
 ------------------
 

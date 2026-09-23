@@ -148,12 +148,12 @@ local function DefaultFrame(opts)
         -- a small frame badly.
         texts = {
             name   = DefaultText{enabled = opts.nameText ~= false, format = "name",
-                                 anchor = "LEFT", x = 2},
+                                 anchor = "LEFT"},
             health = DefaultText{enabled = opts.healthText ~= false,
                                  format = opts.healthFormat or "healthBoth",
-                                 anchor = "RIGHT", x = -2},
+                                 anchor = "RIGHT"},
             power  = DefaultText{format = "powerPercent", anchor = "CENTER"},
-            level  = DefaultText{format = "level", anchor = "TOPLEFT", x = 2},
+            level  = DefaultText{format = "level", anchor = "TOPLEFT"},
         },
 
         font = {"Friz QT__", 12, "OUTLINE", true},
@@ -321,7 +321,7 @@ local function DefaultFrame(opts)
             num = 8,
             size = 20,
             offsetX = 0,
-            offsetY = 2,
+            offsetY = 0,
             onlyMine = false,
             showDuration = true,
             showStack = true,
@@ -344,8 +344,8 @@ local function DefaultFrame(opts)
             durationX = 0,
             durationY = 0,
             stackPoint = "BOTTOMRIGHT",
-            stackX = 1,
-            stackY = -1,
+            stackX = 0,
+            stackY = 0,
         },
         debuffs = {
             anchor = opts.debuffs or "none",
@@ -353,7 +353,7 @@ local function DefaultFrame(opts)
             num = 8,
             size = 22,
             offsetX = 0,
-            offsetY = -2,
+            offsetY = 0,
             -- Debuffs default to yours only on a target: an enemy in a raid
             -- carries far too many for an unfiltered row to be readable.
             onlyMine = false,
@@ -384,8 +384,8 @@ local function DefaultFrame(opts)
             durationX = 0,
             durationY = 0,
             stackPoint = "BOTTOMRIGHT",
-            stackX = 1,
-            stackY = -1,
+            stackX = 0,
+            stackY = 0,
         },
 
         -- Cast bar (Phase 2). Per-frame rather than shared: you almost

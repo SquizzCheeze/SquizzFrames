@@ -211,8 +211,8 @@ function Auras.StyleFields(cfg, into)
     -- stackPoint is used for BOTH the text's point and the icon's -- the
     -- engine does not take a separate relative point for stacks.
     style.stackPoint = cfg.stackPoint or "BOTTOMRIGHT"
-    style.stackX = cfg.stackX or 1
-    style.stackY = cfg.stackY or -1
+    style.stackX = cfg.stackX or 0
+    style.stackY = cfg.stackY or 0
     style.showDuration = (cfg.showDuration ~= false)
     style.showStack = (cfg.showStack ~= false)
     style.border = (cfg.showBorder ~= false) and { 0, 0, 0, 1, size = 1 } or nil

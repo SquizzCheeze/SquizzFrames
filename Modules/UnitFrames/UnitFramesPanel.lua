@@ -1327,14 +1327,14 @@ local function BuildAuraBlock(host, y, t, kind, label)
 
         local sSX = W.CreateStyledSlider(host, 200, -50, 50, 1,
             L["Stack Offset X"] or "Stack Offset X",
-            function() return a.stackX or 1 end,
+            function() return a.stackX or 0 end,
             function(v) AuraSet(function(c) c.stackX = v end) end)
         sSX:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65
 
         local sSY = W.CreateStyledSlider(host, 200, -50, 50, 1,
             L["Stack Offset Y"] or "Stack Offset Y",
-            function() return a.stackY or -1 end,
+            function() return a.stackY or 0 end,
             function(v) AuraSet(function(c) c.stackY = v end) end)
         sSY:SetPoint("TOPLEFT", 15, y - 20)
         y = y - 65

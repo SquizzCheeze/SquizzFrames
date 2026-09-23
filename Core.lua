@@ -528,6 +528,58 @@ local function MigrateIndicatorOffsetsZero(profile)
     end
 end
 
+-- The unit frames' half of MigrateIndicatorOffsetsZero (2026-09-24): the
+-- name/health/level texts sat 2px in from their anchor, the buff/debuff rows
+-- 2px off the frame, and aura stack counts 1px off their corner. Same rules:
+-- one-shot flag, and only an element still exactly on its old default
+-- (anchor included) moves, so anything the user placed keeps its value.
+local function MigrateUnitFrameOffsetsZero(profile)
+    local uf = profile and profile.unitFrames
+    if not uf or uf.offsetsZeroed then return end
+    uf.offsetsZeroed = true
+    local moved = 0
+
+    local OLD_TEXT = {
+        name   = {anchor = "LEFT",    x = 2},
+        health = {anchor = "RIGHT",   x = -2},
+        level  = {anchor = "TOPLEFT", x = 2},
+    }
+
+    local function MoveRow(row, oldOffsetY)
+        if type(row) ~= "table" then return end
+        if (row.offsetX or 0) == 0 and row.offsetY == oldOffsetY then
+            row.offsetY = 0
+            moved = moved + 1
+        end
+        if (row.stackPoint or "BOTTOMRIGHT") == "BOTTOMRIGHT"
+            and row.stackX == 1 and row.stackY == -1 then
+            row.stackX, row.stackY = 0, 0
+            moved = moved + 1
+        end
+    end
+
+    local function MoveFrame(t)
+        if type(t) ~= "table" then return end
+        for key, old in pairs(OLD_TEXT) do
+            local tx = type(t.texts) == "table" and t.texts[key]
+            if type(tx) == "table" and tx.anchor == old.anchor
+                and tx.x == old.x and (tx.y or 0) == 0 then
+                tx.x = 0
+                moved = moved + 1
+            end
+        end
+        MoveRow(t.buffs, 2)
+        MoveRow(t.debuffs, -2)
+    end
+
+    for _, t in pairs(uf.frames or {}) do MoveFrame(t) end
+    MoveFrame(uf.boss)
+
+    if moved > 0 then
+        MigrationPrint("moved " .. moved .. " unit frame element(s) from an old default offset to 0,0")
+    end
+end
+
 -- Purge `useNicknames` from every unit frame except the player's.
 --
 -- It shipped as part of every frame's default table, but the options page has
@@ -953,6 +1005,7 @@ local function EnsureIndicatorLists(profile)
     MigrateDispelGradientHeight(profile)
     MigrateTankTrackerDebuffFilter(profile)
     MigrateIndicatorOffsetsZero(profile)
+    MigrateUnitFrameOffsetsZero(profile)
 end
 
 -- Print with addon prefix
