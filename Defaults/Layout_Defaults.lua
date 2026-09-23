@@ -149,7 +149,7 @@ profile.layout.indicators = {
     {
         name = "Health Text", indicatorName = "healthText", type = "built-in",
         enabled = true,
-        position = {"LEFT", "healthBar", "LEFT", 3, 0}, frameLevel = LAYER.TEXT,
+        position = {"LEFT", "healthBar", "LEFT", 0, 0}, frameLevel = LAYER.TEXT,
         font = {"Friz QT__", 11, "NONE", true},
         color = {"class_color"},
         -- One token, same vocabulary as the unit frames' text elements.
@@ -161,7 +161,7 @@ profile.layout.indicators = {
     {
         name = "Power Text", indicatorName = "powerText", type = "built-in",
         enabled = false,
-        position = {"RIGHT", "healthBar", "RIGHT", -3, 0}, frameLevel = LAYER.TEXT,
+        position = {"RIGHT", "healthBar", "RIGHT", 0, 0}, frameLevel = LAYER.TEXT,
         font = {"Friz QT__", 11, "NONE", true},
         color = {"power_color"},
         textFormat = "powerPercent",
@@ -189,7 +189,7 @@ profile.layout.indicators = {
     {
         name = "Status Icon", indicatorName = "statusIcon", type = "built-in",
         enabled = true,
-        position = {"TOP", "button", "TOP", 0, -3}, frameLevel = LAYER.STATUS_ICON,
+        position = {"TOP", "button", "TOP", 0, 0}, frameLevel = LAYER.STATUS_ICON,
         size = {18, 18},
     },
     -- 6: Role Icon (already wired into the button template as roleIcon)
@@ -203,7 +203,7 @@ profile.layout.indicators = {
     {
         name = "Leader Icon", indicatorName = "leaderIcon", type = "built-in",
         enabled = true, hideInCombat = true,
-        position = {"TOPLEFT", "button", "TOPLEFT", 1, -10},
+        position = {"TOPLEFT", "button", "TOPLEFT", 0, 0},
         -- LAYER.ICON, matching Role Icon -- this is its closest sibling in
         -- both shape (CreateIconIndicator) and placement (button corner), and
         -- the two overlapping was the whole reason a frame level was wanted.
@@ -213,7 +213,7 @@ profile.layout.indicators = {
     {
         name = "Raid Icon (player)", indicatorName = "playerRaidIcon", type = "built-in",
         enabled = true,
-        position = {"TOP", "button", "TOP", 0, 3}, frameLevel = LAYER.ICON,
+        position = {"TOP", "button", "TOP", 0, 0}, frameLevel = LAYER.ICON,
         size = {14, 14}, alpha = 0.77,
     },
     -- 9: Aggro (blink) -- a small pulsing block in the button's top-left
@@ -222,7 +222,7 @@ profile.layout.indicators = {
     {
         name = "Aggro (blink)", indicatorName = "aggroBlink", type = "built-in",
         enabled = true, frameLevel = LAYER.AGGRO_BLINK,
-        position = {"TOPLEFT", "button", "TOPLEFT", 1, -1},
+        position = {"TOPLEFT", "button", "TOPLEFT", 0, 0},
         size = {11, 11},
         color = {"custom_color", 1, 0, 0, 1},
         blinkOptions = {0.5, 25},
@@ -248,7 +248,7 @@ profile.layout.indicators = {
     {
         name = "External Cooldowns", indicatorName = "externalCooldowns", type = "built-in",
         enabled = true,
-        position = {"RIGHT", "button", "RIGHT", 2, 5}, frameLevel = LAYER.AURA,
+        position = {"RIGHT", "button", "RIGHT", 0, 0}, frameLevel = LAYER.AURA,
         size = {20, 20}, showDuration = false, showAnimation = true,
         num = 2, orientation = "right-to-left",
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
@@ -262,7 +262,7 @@ profile.layout.indicators = {
     {
         name = "Defensive Cooldowns", indicatorName = "defensiveCooldowns", type = "built-in",
         enabled = true,
-        position = {"LEFT", "button", "LEFT", -2, 5}, frameLevel = LAYER.AURA,
+        position = {"LEFT", "button", "LEFT", 0, 0}, frameLevel = LAYER.AURA,
         size = {20, 20}, showDuration = false, showAnimation = true,
         num = 2, orientation = "left-to-right",
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
@@ -276,7 +276,7 @@ profile.layout.indicators = {
     {
         name = "Debuffs", indicatorName = "debuffs", type = "built-in",
         enabled = true,
-        position = {"BOTTOMLEFT", "button", "BOTTOMLEFT", 1, 4}, frameLevel = LAYER.ICON,
+        position = {"BOTTOMLEFT", "button", "BOTTOMLEFT", 0, 0}, frameLevel = LAYER.ICON,
         -- Flat {w,h} -- was the nested {{normal},{big}} shape for the
         -- dropped bigDebuffCC size-boost, no longer meaningful.
         size = {13, 13}, showDuration = false,
@@ -302,7 +302,7 @@ profile.layout.indicators = {
     {
         name = "CC Indicator", indicatorName = "ccIndicator", type = "built-in",
         enabled = true,
-        position = {"CENTER", "button", "CENTER", 0, 3}, frameLevel = LAYER.TEXT,
+        position = {"CENTER", "button", "CENTER", 0, 0}, frameLevel = LAYER.TEXT,
         size = {22, 22}, num = 1,
         font = {{"Friz QT__", 11, "OUTLINE", false, "TOPRIGHT", 2, 1, {1, 1, 1}},
                 {"Friz QT__", 11, "OUTLINE", false, "BOTTOMRIGHT", 2, -1, {1, 1, 1}}},
@@ -348,7 +348,7 @@ profile.layout.indicators = {
     {
         name = "Missing Buffs", indicatorName = "missingBuffs", type = "built-in",
         enabled = false,
-        position = {"BOTTOMRIGHT", "button", "BOTTOMRIGHT", 0, 4}, frameLevel = LAYER.AURA,
+        position = {"BOTTOMRIGHT", "button", "BOTTOMRIGHT", 0, 0}, frameLevel = LAYER.AURA,
         size = {13, 13}, orientation = "right-to-left",
         -- Explicit (not left to a code fallback) since the checkbox
         -- widget's own default display (SetChecked(not not t.showIconBorder))
@@ -363,7 +363,7 @@ profile.layout.indicators = {
     {
         name = "Healer HoTs", indicatorName = "healerHots", type = "built-in",
         enabled = true,
-        position = {"TOP", "button", "TOP", 0, 2}, frameLevel = LAYER.AURA,
+        position = {"TOP", "button", "TOP", 0, 0}, frameLevel = LAYER.AURA,
         size = {16, 16}, num = 5, orientation = "right-to-left",
         castBy = "me",
         -- Stack + duration font, same two-slot shape (and same values) as
@@ -465,7 +465,7 @@ profile.layout.indicators = {
     {
         name = "Dispel Icons", indicatorName = "dispelIcons", type = "built-in",
         enabled = false,
-        position = {"RIGHT", "healthBar", "RIGHT", 2, 0}, frameLevel = LAYER.DISPEL,
+        position = {"RIGHT", "healthBar", "RIGHT", 0, 0}, frameLevel = LAYER.DISPEL,
         size = {16, 16},
         -- Row/column and which way the icons grow. Resolved by
         -- ResolveOrientation in AuraEngineIndicators.lua into the flow axis,

@@ -1169,7 +1169,7 @@ function SquizzFrames:OnInitialize()
             externalCooldowns.builtInExternals = true
             externalCooldowns.num = 3
             externalCooldowns.size = {14, 22}
-            externalCooldowns.position = {"RIGHT", "button", "RIGHT", 4, 5}
+            externalCooldowns.position = {"RIGHT", "button", "RIGHT", 0, 0}
         end
 
         local defensiveCooldowns = FindInd("defensiveCooldowns")
@@ -1178,7 +1178,7 @@ function SquizzFrames:OnInitialize()
             defensiveCooldowns.builtInDefensives = true
             defensiveCooldowns.num = 3
             defensiveCooldowns.size = {14, 22}
-            defensiveCooldowns.position = {"LEFT", "button", "LEFT", -4, 5}
+            defensiveCooldowns.position = {"LEFT", "button", "LEFT", 0, 0}
         end
 
         local debuffs = FindInd("debuffs")
@@ -1187,7 +1187,7 @@ function SquizzFrames:OnInitialize()
             debuffs.dispellableByMe = true
             debuffs.num = 5
             debuffs.size = {16, 16}
-            debuffs.position = {"BOTTOMLEFT", "button", "BOTTOMLEFT", 2, 4}
+            debuffs.position = {"BOTTOMLEFT", "button", "BOTTOMLEFT", 0, 0}
         end
 
         local ccIndicator = FindInd("ccIndicator")
@@ -1195,7 +1195,7 @@ function SquizzFrames:OnInitialize()
             ccIndicator.enabled = true
             ccIndicator.num = 1
             ccIndicator.size = {26, 26}
-            ccIndicator.position = {"CENTER", "button", "CENTER", 0, 4}
+            ccIndicator.position = {"CENTER", "button", "CENTER", 0, 0}
         end
 
         local dispels = FindInd("dispels")
@@ -1203,7 +1203,7 @@ function SquizzFrames:OnInitialize()
             dispels.enabled = true
             dispels.filters = {dispellableByMe = true, Curse = true, Disease = true, Magic = true, Poison = true, Bleed = true}
             dispels.size = {14, 14}
-            dispels.position = {"BOTTOMRIGHT", "button", "BOTTOMRIGHT", -2, 4}
+            dispels.position = {"BOTTOMRIGHT", "button", "BOTTOMRIGHT", 0, 0}
         end
 
         local aggroBlink = FindInd("aggroBlink")
