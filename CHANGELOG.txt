@@ -17,6 +17,9 @@ New:
 
 Fixed:
 
+- The unit frames' options preview ignored "Class Color the Bar" on the cast
+  bar, so with it ticked, changing Bar Color recoloured the preview but not
+  the real bar. The preview now shows the class colour the real bar uses.
 - The transparency slider in every colour picker ran backwards: dragging it
   towards opaque made the colour more transparent, and a colour's saved
   opacity opened at the opposite end of the slider.

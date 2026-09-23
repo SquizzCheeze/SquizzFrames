@@ -523,8 +523,17 @@ function Preview.Refresh(p, t)
             p.castBar:SetPoint("TOP", p, "BOTTOM", cb.offsetX or 0, (cb.offsetY or 0) - 2)
         end
         p.castBar:SetStatusBarTexture(tex)
-        local c = cb.color or {0.9, 0.7, 0.1, 1}
-        p.castBar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+        -- Through CastBar.ApplyColor, not a copy: the copy that stood here
+        -- ignored "Class Color the Bar", so with it ticked the preview
+        -- followed the Bar Color picker while the real bar stayed class
+        -- coloured -- which reads as the live bar not updating (2026-09-23).
+        local CBC = SquizzFrames.UnitFrameCastBar
+        if CBC and CBC.ApplyColor then
+            CBC.ApplyColor(p.castBar, cb, unit)
+        else
+            local c = cb.color or {0.9, 0.7, 0.1, 1}
+            p.castBar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+        end
 
         local iconInset = 0
         if cb.showIcon then
