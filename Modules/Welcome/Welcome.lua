@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.30"] = {
+        "Frame Opacity on the General page: one slider each for Party, Raid, Unit Frames, Pet Frames and the Tank Tracker. It works together with Fade Out of Range.",
+        "Name, Health and Power Text each have a Custom Color picker in the Indicators tab.",
+        "Fixed the transparency slider in every colour picker running backwards.",
+        "Fixed the unit frames' preview ignoring \"Class Color the Bar\" on the cast bar.",
+    },
     ["1.29"] = {
         "Emergency Soul Link is built into click casting: choose Item, then \"Emergency Soul Link (any quality)\". One binding covers both qualities, uses the better one you are carrying, and switches by itself when that runs out.",
         "Fixed item click-cast bindings on SquizzFrames' own frames, which did nothing but throw an error on every click.",
