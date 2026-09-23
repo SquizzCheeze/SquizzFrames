@@ -761,6 +761,7 @@ function TankTracker.ApplyLayout()
             end
         else
             frame:SetScale(scale)
+            frame:SetAlpha(cfg.opacity or 1)
             TankTracker.DressFrame(frame, cfg)
             frame:ClearAllPoints()
             local dx, dy = StackOffset(cfg, i)
@@ -901,6 +902,12 @@ function TankTracker:OnEnable()
 
     self:RegisterMessage("TankTrackerChanged", Relayout)
     self:RegisterMessage("ProfileChanged", Relayout)
+    -- Blanket opacity slider: alpha only, so no full relayout per drag tick.
+    self:RegisterMessage("FrameOpacityChanged", function()
+        local cfg = GetConfig()
+        local a = (cfg and cfg.opacity) or 1
+        for _, frame in pairs(frames) do frame:SetAlpha(a) end
+    end)
     -- "EditModeChanged", not "LockChanged": OptionsFrame.lua sets
     -- SquizzFrames.editMode and fires that one. Lock is a separate concept.
     self:RegisterMessage("EditModeChanged", function(_, enabled)

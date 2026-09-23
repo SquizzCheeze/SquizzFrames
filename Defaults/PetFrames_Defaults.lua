@@ -39,6 +39,7 @@ local function DefaultPetNameText(size)
 end
 
 profile.petFrames = {
+    opacity = 1,  -- blanket alpha for every pet button (General page)
     main = {
         enabled = false,
         mode = "attached",       -- "attached" | "floating"

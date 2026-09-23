@@ -44,7 +44,7 @@ local NAV_ITEMS = {
 -- Fixed content heights per simple page (content can exceed; scrolls if
 -- needed). Indicators pages manage their own layout and aren't part of this.
 local pageHeights = {
-    ["general"] = 220, -- -30: Edit Mode's button moved to the title bar
+    ["general"] = 540, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
@@ -556,6 +556,16 @@ local function SetFadeOut(checked)
 end
 
 
+-- The General page's blanket opacity sliders. Each row names the table that
+-- holds its `opacity` (0-1); the modules read the same field.
+local FRAME_OPACITY_ROWS = {
+    {label = "Party Frames", path = function(p) return p and p.layout and p.layout.main end},
+    {label = "Raid Frames",  path = function(p) return p and p.layout and p.layout.raid end},
+    {label = "Unit Frames",  path = function(p) return p and p.unitFrames end},
+    {label = "Pet Frames",   path = function(p) return p and p.petFrames end},
+    {label = "Tank Tracker", path = function(p) return p and p.tankTracker end},
+}
+
 -----------------------------------------------------------------------
 -- General Page Content
 -----------------------------------------------------------------------
@@ -608,6 +618,27 @@ local function BuildGeneralFields(frame)
     local cb4 = W.CreateStyledCheckbox(fieldsHost, L["Fade Out of Range"] or "Fade Out of Range", GetFadeOut, SetFadeOut)
     cb4:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 25
+
+    -- Section: Frame Opacity -- one blanket slider per frame group. Built
+    -- from a table so five controls cost this file no extra locals.
+    yOffset = yOffset - 15
+    W.CreateTitledPane(fieldsHost, L["Frame Opacity"] or "Frame Opacity", yOffset)
+    yOffset = yOffset - 45
+    for _, row in ipairs(FRAME_OPACITY_ROWS) do
+        local s = W.CreateStyledSlider(fieldsHost, 200, 0, 100, 5, row.label,
+            function()
+                local tbl = row.path(GetProfile())
+                return math.floor(((tbl and tbl.opacity) or 1) * 100 + 0.5)
+            end,
+            function(v)
+                local tbl = row.path(GetProfile())
+                if not tbl then return end
+                tbl.opacity = v / 100
+                SquizzFrames:Fire("FrameOpacityChanged")
+            end)
+        s:SetPoint("TOPLEFT", 15, yOffset)
+        yOffset = yOffset - 52
+    end
 
     -- Edit Mode's toggle used to be a button here. It now lives in the title
     -- bar (CreateOptionsFrame) so it's reachable from every tab -- see

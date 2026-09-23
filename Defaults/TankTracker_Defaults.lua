@@ -125,6 +125,7 @@ local function DefaultRow(opts)
 end
 
 profile.tankTracker = {
+    opacity = 1,  -- blanket alpha for every tank frame (General page)
     enabled = false,
 
     -- WHO. includeSelf is the setting the reference addon does not have: it

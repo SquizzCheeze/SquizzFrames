@@ -276,10 +276,27 @@ end
 -- button. Each button's "unit" attribute is set exactly once here (pet slot
 -- tokens are stable, see PET_SLOTS' comment) -- nothing else in this file
 -- ever calls SetAttribute("unit", ...) again.
+-- Blanket opacity for every pet button (petFrames.opacity). Range fading
+-- writes the buttons' OWN alpha (PartyFrames' UpdateRangeAlpha), so the
+-- setting lives one level up: every pet button is parented to this plain,
+-- full-screen, mouse-transparent holder instead of straight to UIParent, and
+-- the holder's alpha multiplies into theirs. The holder is sized once, at
+-- creation, before any secure child exists, and is never moved, sized or
+-- hidden afterwards -- so its gaining protected descendants costs nothing,
+-- and SetAlpha is not a protected call anyway. The containers' own "never
+-- reparented under a container" rule below is untouched: this is not one.
+local petOpacityHolder = CreateFrame("Frame", "SquizzFramesPetOpacity", UIParent)
+petOpacityHolder:SetAllPoints(UIParent)
+
+function PetFrames.ApplyOpacity()
+    local prof = GetProfile()
+    petOpacityHolder:SetAlpha((prof and prof.petFrames and prof.petFrames.opacity) or 1)
+end
+
 local function CreatePetButtons()
     if next(petButtons) then return end
     for _, slot in ipairs(PET_SLOTS) do
-        local button = CreateFrame("Button", "SquizzFramesPetButton" .. slot, UIParent, "SquizzFramesPetButtonTemplate")
+        local button = CreateFrame("Button", "SquizzFramesPetButton" .. slot, petOpacityHolder, "SquizzFramesPetButtonTemplate")
         button:SetAttribute("unit", slot)
         button.petUnit = slot
         -- Also mirrored onto the generic .unit field (not just .petUnit) --
@@ -729,6 +746,7 @@ end
 -- protected once combat starts, and schedule-time-only InCombatLockdown
 -- checks miss the case where combat begins before a deferred call fires.
 local function ApplyPetLayout()
+    PetFrames.ApplyOpacity()
     if applyingPetLayout then return end
     if InCombatLockdown() then
         if not applyPetLayoutRetryFrame then
@@ -900,6 +918,7 @@ function PetFrames:OnInitialize()
         PetFrames.RefreshBorders()
     end)
     self:RegisterMessage("PetFramesChanged", function() ApplyPetLayout() end)
+    self:RegisterMessage("FrameOpacityChanged", function() PetFrames.ApplyOpacity() end)
     -- The party layout's own width is an INPUT to pet sizing once
     -- either match option is on (see ResolvePetSize), and nothing else re-runs
     -- the pet layout when the Width slider on the Layout page moves.

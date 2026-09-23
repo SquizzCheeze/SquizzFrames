@@ -1953,7 +1953,21 @@ local relayoutWireQueued = false
 -- /reload -- confirmed via a past user report on that exact code path).
 -- Assigns to the forward-declared local at the top of this file (so
 -- WireUpAllButtons, defined earlier, can call it) -- NOT a new local.
+-- Blanket opacity for the whole party or raid block, per mode
+-- (layout.main.opacity / layout.raid.opacity). On the CONTAINER rather than
+-- the buttons: range fading writes button alpha all over this file, and a
+-- parent's alpha multiplies into its children's, so the two compose without
+-- either knowing about the other. SetAlpha is not a protected call, so this
+-- runs ahead of ApplyLayout's combat guard and a mid-fight party -> raid
+-- switch picks up the raid value at once.
+function PartyFrames.ApplyOpacity()
+    if not partyFrame then return end
+    local layout = GetActiveLayout()
+    partyFrame:SetAlpha((layout and layout.opacity) or 1)
+end
+
 function ApplyLayout()
+    PartyFrames.ApplyOpacity()
     if not header then return end
     -- Re-entrancy guard, with a stuck-flag escape hatch (2026-08-07).
     --
@@ -2659,6 +2673,7 @@ function PartyFrames:OnInitialize()
     self:RegisterMessage("GroupTypeChanged", function() self:OnGroupTypeChanged() end)
     self:RegisterMessage("LayoutChanged", function() self:OnLayoutChanged() end)
     self:RegisterMessage("ProfileChanged", function() self:OnProfileChanged() end)
+    self:RegisterMessage("FrameOpacityChanged", function() PartyFrames.ApplyOpacity() end)
     -- Edit mode checkbox is the master toggle; Lock Frames syncs to it
     self:RegisterMessage("EditModeChanged", function(_, enabled)
         self:SetEditMode(enabled)
@@ -3102,7 +3117,7 @@ function PartyFrames:OnEnable()
         --         if frame then openBlizzardPanels[frame] = nil end
         --     end)
         -- end
-        partyFrame:SetAlpha(1)
+        PartyFrames.ApplyOpacity()
 
         initialized = true
         SquizzFrames.partyFrame = partyFrame
@@ -3562,7 +3577,7 @@ function ApplyBlizzardPanelVisibility()
     if not anyOpen and next(openBlizzardPanels) then
         anyOpen = true
     end
-    partyFrame:SetAlpha(anyOpen and 0 or 1)
+    if anyOpen then partyFrame:SetAlpha(0) else PartyFrames.ApplyOpacity() end
 end
 
 -- Party <-> raid transition. Bug fix (2026-08-07, user-reported priority):

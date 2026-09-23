@@ -24,6 +24,7 @@ local LAYER = SquizzFrames.F.LAYER
 profile.layout = {
     main = {
         width = 100,
+        opacity = 1,        -- blanket alpha for the whole party block (General page)
         height = 40,
         powerHeight = 4,
         orientation = "vertical",
@@ -57,6 +58,7 @@ profile.layout = {
     -- (spacingY remains the gap between units within one subgroup).
     raid = {
         width = 70,
+        opacity = 1,        -- blanket alpha for the whole raid block (General page)
         height = 24,
         powerHeight = 3,
         orientation = "vertical",

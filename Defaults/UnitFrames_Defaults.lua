@@ -475,6 +475,7 @@ local function DefaultFrame(opts)
 end
 
 profile.unitFrames = {
+    opacity = 1,  -- blanket alpha for every unit frame + cast bar (General page)
     -- Master switch. Off by default -- this module hides Blizzard's own unit
     -- frames when it runs, which is far too invasive to inflict on an existing
     -- user who updates the addon and never asked for it.

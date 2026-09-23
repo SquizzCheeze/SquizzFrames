@@ -1053,7 +1053,23 @@ end
 -- ApplyPetLayout: these are secure frames carrying a "unit" attribute, so
 -- SetPoint/SetSize on them is protected once combat starts, and a
 -- schedule-time-only check misses combat beginning before a deferred call runs.
+-- Blanket opacity for every unit frame (unitFrames.opacity), cast bars
+-- included: they are separate UIParent children, so the frame's alpha does
+-- not reach them. Nothing else writes alpha on either frame (their own alpha
+-- work is all on child textures), so a plain SetAlpha is enough, and it is
+-- not a protected call, so it applies in combat too.
+function UnitFrames.ApplyOpacity()
+    local cfg = GetConfig()
+    local a = (cfg and cfg.opacity) or 1
+    for _, unit in ipairs(ALL_UNITS) do
+        if frames[unit] then frames[unit]:SetAlpha(a) end
+        local bar = _G["SquizzFramesCastBar" .. unit]
+        if bar then bar:SetAlpha(a) end
+    end
+end
+
 function ApplyLayout()
+    UnitFrames.ApplyOpacity()
     if applyingLayout then return end
     if InCombatLockdown() then
         if not applyRetryFrame then
@@ -1401,6 +1417,7 @@ function UnitFrames:OnInitialize()
     self:RegisterMessage("LayoutChanged", function()
         ApplyLayout()
     end)
+    self:RegisterMessage("FrameOpacityChanged", function() UnitFrames.ApplyOpacity() end)
     self:RegisterMessage("EditModeChanged", function(_, enabled)
         self:SetEditMode(enabled)
     end)
