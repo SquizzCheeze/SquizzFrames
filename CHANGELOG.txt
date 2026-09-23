@@ -5,6 +5,12 @@ SquizzFrames - Changelog
 V1.30
 -----
 
+New:
+
+- Name, Health and Power Text each have a Custom Color picker in the
+  Indicators tab, with opacity. Picking a colour switches the text to it;
+  ticking Class Color (or Power Color) and back again restores it.
+
 Fixed:
 
 - The transparency slider in every colour picker ran backwards: dragging it

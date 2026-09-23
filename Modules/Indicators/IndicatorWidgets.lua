@@ -1668,6 +1668,40 @@ local function CreateSetting_ClassColor(parent)
     widget:Show(); return widget
 end
 
+-- The custom colour for the three text readouts (name/health/power), which
+-- the renderers have always honoured as {"custom_color", r, g, b, a} but no
+-- control could set: the Class/Power checkboxes only ever wrote white when
+-- unticked. Picking a colour here switches the text to it; the panel's
+-- binding keeps the checkboxes in step and remembers the colour separately
+-- (t.customTextColor) so ticking Class and back does not lose it.
+local function CreateSetting_TextColor(parent)
+    local widget
+    if not settingWidgets["textColor"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_TextColor", parent, 300, 38)
+        settingWidgets["textColor"] = widget
+        local _r, _g, _b, _a = 1, 1, 1, 1
+        widget.color = W.CreateColorPicker(widget, "Custom Color",
+            function() return _r, _g, _b, _a end,
+            function(r, g, b, a)
+                _r, _g, _b, _a = r, g, b, a
+                -- See CreateSetting_ColorAlpha: the alpha slider fires this
+                -- during its own construction, before SetFunc has run.
+                if widget.func then widget.func({"custom_color", r, g, b, a}) end
+            end)
+        widget.color:SetPoint("TOPLEFT", 5, -8)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(colorTable)
+            if colorTable and colorTable[1] == "custom_color" and #colorTable >= 4 then
+                _r, _g, _b, _a = colorTable[2], colorTable[3], colorTable[4], colorTable[5] or 1
+            else
+                _r, _g, _b, _a = 1, 1, 1, 1
+            end
+            widget.color.UpdateSwatch()
+        end
+    else widget = settingWidgets["textColor"] end
+    widget:Show(); return widget
+end
+
 local function CreateSetting_Color(parent)
     local widget
     if not settingWidgets["color"] then
@@ -3266,6 +3300,7 @@ local builders = {
     ["expiringColor"] = CreateSetting_ExpiringColor,
     ["color-class"] = CreateSetting_ClassColor,
     ["color-power"] = CreateSetting_PowerColor,
+    ["textColor"] = CreateSetting_TextColor,
     ["statusColors"] = CreateSetting_StatusColors,
     ["duration"] = CreateSetting_Duration,
     ["stack"] = CreateSetting_Stack,

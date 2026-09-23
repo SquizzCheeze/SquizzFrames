@@ -231,6 +231,7 @@ local TOKEN_HEIGHTS = {
     ["expiringColor"] = 96,
     ["color-class"] = 38,
     ["color-power"] = 38,
+    ["textColor"] = 38,
     ["statusColors"] = 38,
     ["castBy"] = 34,
     ["maxValue"] = 38,
@@ -727,6 +728,32 @@ ShowSettings = function(name)
         FireUpdate(t.indicatorName, "font", t.font)
     end
 
+    -- The text readouts' custom colour: the live one if the text is on
+    -- custom, else the one remembered from the last time it was, else white.
+    -- Always a fresh table so t.color and t.customTextColor never alias.
+    local function CustomTextColor(tbl)
+        local c = (tbl.color and tbl.color[1] == "custom_color") and tbl.color
+            or tbl.customTextColor
+        if c and #c >= 4 then
+            return {"custom_color", c[2], c[3], c[4], c[5] or 1}
+        end
+        return {"custom_color", 1, 1, 1, 1}
+    end
+
+    -- Repaint the Class / Power / Custom Color controls from t.color after
+    -- any one of them writes it. SetChecked and UpdateSwatch both repaint
+    -- without firing their callbacks.
+    local function SyncTextColorWidgets()
+        for i, sw in ipairs(widgets) do
+            local sn = names[i]
+            if sn == "color-class" or sn == "color-power" then
+                sw:SetDBValue(t.color)
+            elseif sn == "textColor" then
+                sw:SetDBValue(CustomTextColor(t))
+            end
+        end
+    end
+
     -- Per-widget binding: SetFunc wires the value-change callback; SetDBValue
     -- populates the widget from the DB table.
     for i, w in ipairs(widgets) do
@@ -1100,19 +1127,33 @@ ShowSettings = function(name)
             w:SetDBValue(t.glowColor or {"custom_color", 1, 1, 1, 1})
             w:SetFunc(function(c) t.glowColor = c; FireUpdate(t.indicatorName, "glowColor", c) end)
 
+        -- Text colour: Class / Power checkboxes plus the Custom Color swatch
+        -- all write the one t.color, so each resyncs its siblings. Unticking
+        -- falls back to the remembered custom colour, not white.
         elseif n == "color-class" then
             w:SetDBValue(t.color)
             w:SetFunc(function(useClass)
-                t.color = useClass and {"class_color", "any"} or {"custom_color", 1, 1, 1, 1}
+                t.color = useClass and {"class_color", "any"} or CustomTextColor(t)
                 FireUpdate(t.indicatorName, "color", t.color)
+                SyncTextColorWidgets()
                 BuildIndicatorList()
             end)
 
         elseif n == "color-power" then
             w:SetDBValue(t.color)
             w:SetFunc(function(usePower)
-                t.color = usePower and {"power_color", "any"} or {"custom_color", 1, 1, 1, 1}
+                t.color = usePower and {"power_color", "any"} or CustomTextColor(t)
                 FireUpdate(t.indicatorName, "color", t.color)
+                SyncTextColorWidgets()
+            end)
+
+        elseif n == "textColor" then
+            w:SetDBValue(CustomTextColor(t))
+            w:SetFunc(function(c)
+                t.customTextColor = c
+                t.color = {c[1], c[2], c[3], c[4], c[5]}
+                FireUpdate(t.indicatorName, "color", t.color)
+                SyncTextColorWidgets()
             end)
 
         -- Status colors (statusText)
