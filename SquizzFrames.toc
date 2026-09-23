@@ -1,6 +1,6 @@
 ## Interface: 120100, 120105
 ## Title: SquizzFrames
-## Version: 1.31
+## Version: 1.32
 ## Author: Squizz
 ## X-Curse-Project-ID: 1649203
 ## X-Flavor: Mainline

@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.32"] = {
+        "The unit frames now start every element at an X/Y offset of 0,0 too: the Name, Health and Level text, the buff and debuff rows, and the aura stack counts.",
+        "Your profiles were updated once: anything still at its old default offset moved to 0,0, and anything you had placed yourself kept its position.",
+    },
     ["1.31"] = {
         "Every indicator now starts at an X/Y offset of 0,0 on its anchor instead of a few pixels off it - built-ins, the Healer preset and new custom indicators.",
         "Your profiles were updated once: an indicator still at its old default offset moved to 0,0. Anything you had moved yourself kept its position.",
