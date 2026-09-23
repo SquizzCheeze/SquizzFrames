@@ -454,6 +454,80 @@ local function MigrateDispelGradientHeight(profile)
     end
 end
 
+-- Every indicator's default X/Y offset moved to 0,0 (2026-09-24, V1.31).
+-- A profile is a deep copy, so that reached nobody who had already played;
+-- this carries it across for an indicator still sitting EXACTLY on an old
+-- default -- point, relative frame, relative point and both offsets must all
+-- match -- so anything the user has moved keeps its value.
+--
+-- One-shot flag, not value detection: 3,0 or 0,3 stay perfectly choosable
+-- afterwards, and re-running would silently undo that choice. Self-contained
+-- (walks both lists itself, like MigrateDispelGradientHeight) and called
+-- AFTER RefreshProfile's listKey loop, so the flag cannot cut the raid list.
+--
+-- Built-ins match by indicatorName, customs by their type (the templates in
+-- Defaults/Indicator_Defaults.lua). The Healer preset's own placements are
+-- listed as alternates for the five indicators it moved.
+local OLD_INDICATOR_OFFSETS = {
+    healthText         = {{"LEFT", "healthBar", "LEFT", 3, 0}},
+    powerText          = {{"RIGHT", "healthBar", "RIGHT", -3, 0}},
+    statusIcon         = {{"TOP", "button", "TOP", 0, -3}},
+    leaderIcon         = {{"TOPLEFT", "button", "TOPLEFT", 1, -10}},
+    playerRaidIcon     = {{"TOP", "button", "TOP", 0, 3}},
+    aggroBlink         = {{"TOPLEFT", "button", "TOPLEFT", 1, -1}},
+    externalCooldowns  = {{"RIGHT", "button", "RIGHT", 2, 5}, {"RIGHT", "button", "RIGHT", 4, 5}},
+    defensiveCooldowns = {{"LEFT", "button", "LEFT", -2, 5}, {"LEFT", "button", "LEFT", -4, 5}},
+    debuffs            = {{"BOTTOMLEFT", "button", "BOTTOMLEFT", 1, 4}, {"BOTTOMLEFT", "button", "BOTTOMLEFT", 2, 4}},
+    ccIndicator        = {{"CENTER", "button", "CENTER", 0, 3}, {"CENTER", "button", "CENTER", 0, 4}},
+    missingBuffs       = {{"BOTTOMRIGHT", "button", "BOTTOMRIGHT", 0, 4}},
+    healerHots         = {{"TOP", "button", "TOP", 0, 2}},
+    dispelIcons        = {{"RIGHT", "healthBar", "RIGHT", 2, 0}},
+    dispels            = {{"BOTTOMRIGHT", "button", "BOTTOMRIGHT", -2, 4}},
+}
+local OLD_CUSTOM_OFFSETS = {
+    icon   = {"TOPRIGHT", "button", "TOPRIGHT", 0, 3},
+    text   = {"TOPRIGHT", "button", "TOPRIGHT", 0, 3},
+    bar    = {"BOTTOMRIGHT", "button", "TOPRIGHT", 0, -1},
+    rect   = {"TOPRIGHT", "button", "TOPRIGHT", 0, 2},
+    icons  = {"TOPRIGHT", "button", "TOPRIGHT", 0, 3},
+    block  = {"TOPRIGHT", "button", "TOPRIGHT", 0, 3},
+    blocks = {"TOPRIGHT", "button", "TOPRIGHT", 0, 3},
+}
+
+local function MigrateIndicatorOffsetsZero(profile)
+    if not profile or profile.indicatorOffsetsZeroed then return end
+    profile.indicatorOffsetsZeroed = true
+    local moved = 0
+
+    local function Matches(pos, old)
+        return type(pos) == "table" and old
+            and pos[1] == old[1] and pos[2] == old[2] and pos[3] == old[3]
+            and pos[4] == old[4] and pos[5] == old[5]
+    end
+
+    for _, listKey in ipairs({"indicators", "indicatorsRaid"}) do
+        for _, ind in ipairs((profile.layout and profile.layout[listKey]) or {}) do
+            local pos = ind.position
+            local hit = false
+            if ind.type == "built-in" then
+                for _, old in ipairs(OLD_INDICATOR_OFFSETS[ind.indicatorName] or {}) do
+                    if Matches(pos, old) then hit = true; break end
+                end
+            else
+                hit = Matches(pos, OLD_CUSTOM_OFFSETS[ind.type])
+            end
+            if hit then
+                pos[4], pos[5] = 0, 0
+                moved = moved + 1
+            end
+        end
+    end
+
+    if moved > 0 then
+        MigrationPrint("moved " .. moved .. " indicator(s) from an old default offset to 0,0")
+    end
+end
+
 -- Purge `useNicknames` from every unit frame except the player's.
 --
 -- It shipped as part of every frame's default table, but the options page has
@@ -878,6 +952,7 @@ local function EnsureIndicatorLists(profile)
     MigrateUnitFrameAuraDuration(profile)
     MigrateDispelGradientHeight(profile)
     MigrateTankTrackerDebuffFilter(profile)
+    MigrateIndicatorOffsetsZero(profile)
 end
 
 -- Print with addon prefix

@@ -8,9 +8,13 @@ V1.31
 Changed:
 
 - Every indicator now starts at an X/Y offset of 0,0 on its anchor, instead
-  of a few pixels off it. This covers the built-in indicators on a new or
-  reset profile, the Healer preset, and new custom indicators. Indicators
-  already on your frames keep the offsets they have.
+  of a few pixels off it. This covers the built-in indicators, the Healer
+  preset and new custom indicators.
+
+  Your existing profiles are updated once, on the first load after the
+  update: an indicator still at its old default offset moves to 0,0, which
+  shifts it by a few pixels (Leader Icon, the largest, by 10). Anything you
+  moved yourself keeps your position, and nothing else in the profile changes.
 
 
 V1.30 (2026-09-23)
