@@ -215,6 +215,26 @@ alone unless it is genuinely unreadable afterwards. Converting
 writes the new key — the booleans stay, costing nothing and leaving a way back
 if the mapping turns out wrong for somebody.
 
+**Every indicator and unit-frame element defaults to an X/Y offset of 0,0**
+(user decision, V1.31/V1.32, 2026-09-24). Keep new defaults at 0,0 on their
+anchor — the user asked for this outright after finding a dozen that sat a few
+pixels off. Two migrations moved existing profiles, and they are the
+reference for a *default move that must avoid stamping on user choices*:
+
+- `MigrateIndicatorOffsetsZero` (`profile.indicatorOffsetsZeroed`) — walks both
+  lists ITSELF and runs after the `listKey` loop, so the flag cannot cut the
+  raid list. It matches the **whole five-field position tuple** against a table
+  of old defaults (`OLD_INDICATOR_OFFSETS`, plus the Healer preset's placements
+  as alternates; customs by template `type`), so an indicator the user moved —
+  or merely re-anchored — is never touched.
+- `MigrateUnitFrameOffsetsZero` (`unitFrames.offsetsZeroed`) — the same for the
+  unit frames' texts (anchor + x), aura row `offsetY` and stack `stackX/Y`,
+  across `frames` and `boss`.
+
+Both also needed the **code-side fallbacks** changed (`Auras.lua`'s
+`cfg.stackX or 1`, the panel getters) — the "grep the key and fix every hit"
+rule above, which is easy to forget when the default only moves a pixel.
+
 ### 7. 12.1 AuraEngine Subsystem (AuraEngine.lua / AuraEngineIndicators.lua)
 
 **Why this exists**: on 12.1, `UNIT_AURA` payloads and `AuraData` structs are **fully secret while auras are secret** (i.e. during combat/encounters) — this is an official Blizzard change, not a bug. A manual `C_UnitAuras.GetAuraDataByIndex` scan (the legacy pipeline) doesn't get flaky in combat, it **permanently** stops seeing anything applied after combat started, for the rest of the encounter. `SecureAuraHeaderTemplate` itself was removed from Mainline in 12.1. The only sanctioned fix is Blizzard's managed `AuraContainer` API, which renders aura icons/cooldowns/text C-side without ever exposing the secret data to addon Lua at all.
@@ -501,7 +521,7 @@ See the [12.1 AuraEngine Subsystem](#7-121-auraengine-subsystem-auraenginelua-au
 ### UnitFrames/Preview.lua
 The 1:1 mock on the Unit Frames options page. Two rules, both load-bearing:
 
-- **It renders through the real code, never a second copy.** Text via `UnitFrames.FormatToken`, bar colour via `ResolveHealthColor`, the dispel overlay via `AEI.PreviewDispelOverlay`, the aura duration/stack text via the `ApplyMock*Text` pair, and the settings translation via `Dispels.BuildSettings` / `Auras.StyleFields`. A preview carrying its own copy of any of these starts lying the first time the real one changes — and the unit frames' dispel opacity is a live example of why (0-1 here, a percentage on the party indicator; the one hand-rolled translation got it wrong by 100×).
+- **It renders through the real code, never a second copy.** Text via `UnitFrames.FormatToken`, bar colour via `ResolveHealthColor`, the cast bar colour via `CastBar.ApplyColor` (a hand-rolled copy ignored "Class Color the Bar", so the preview followed the Bar Color picker while the real bar stayed class-coloured — read as "the cast bar colour doesn't update live", V1.30), the dispel overlay via `AEI.PreviewDispelOverlay`, the aura duration/stack text via the `ApplyMock*Text` pair, and the settings translation via `Dispels.BuildSettings` / `Auras.StyleFields`. A preview carrying its own copy of any of these starts lying the first time the real one changes — and the unit frames' dispel opacity is a live example of why (0-1 here, a percentage on the party indicator; the one hand-rolled translation got it wrong by 100×).
 - **It cannot show real aura data**, same constraint as the party Designer: an `AuraContainer` is driven C-side from a real unit and no fake `AuraData` can be injected. Aura rows, dispel icons and duration/stack text are all static mocks laid out to match the real thing.
 
 Things that only exist in the mock (`Preview.Create`) need their own host frame and level — it is a hand-built frame, NOT `UnitFrameButton.xml`, so nothing about its strata/level layering is inherited from the live template.
@@ -672,6 +692,43 @@ value never lands in Lua at all.
 `F.IsValueNonSecret` fails, and `CheckNameText` skips the group-number prefix
 the same way. The in-code comment states the principle: *losing the group number
 beats losing the name*.
+
+### Frame Opacity (General page, V1.30)
+
+Five blanket sliders — party, raid, unit frames, pet frames, tank tracker —
+stored as `opacity` (0-1) on `layout.main`, `layout.raid`, `unitFrames`,
+`petFrames` and `tankTracker`. A `FrameOpacityChanged` message re-applies alpha
+only, with no relayout. The rule that shaped it: **range fading writes the
+BUTTONS' own alpha** (`UpdateRangeAlpha`, party and pet buttons alike), so the
+blanket alpha must sit one level up or the two overwrite each other. A parent's
+alpha multiplies into its children's, so they compose.
+
+- Party/raid: on `SquizzFramesPartyFrame`, picked per active layout, applied at
+  the top of `ApplyLayout` — ahead of its combat guard, because `SetAlpha` is not
+  protected and a mid-fight party-to-raid switch should take the raid value.
+- Pets: pet buttons are **parented to `SquizzFramesPetOpacity`**, a full-screen,
+  mouse-transparent holder that is sized once before any secure child exists and
+  never moved or hidden afterwards. Not a container in the "never reparent a pet
+  button under a container" sense — nothing ever positions against it.
+- Unit frames: each frame AND its cast bar (a separate UIParent child).
+- Tank tracker: each real frame; the options preview is left opaque.
+
+### Colour picker alpha is NOT inverted on Retail
+
+`Widgets.lua`'s `CreateColorPicker` carried a `1 - x` on the picker's alpha from
+the old `OpacitySliderFrame` API, which made the 10.2.5+ picker's transparency
+slider run backwards (fixed V1.30). On Mainline, `GetColorAlpha()` and
+`info.opacity` are plain alpha — AceGUI's own ColorPicker only inverts when
+`WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE`, which is the confirmation. Cancel now
+restores from the values captured at open, not the picker's `previousValues`.
+
+### Text colour on nameText/healthText/powerText
+
+`color-class` / `color-power` checkboxes plus a `textColor` swatch (V1.30) all
+write the one `t.color`; each resyncs the others (`SyncTextColorWidgets`). The
+custom colour is remembered separately in `t.customTextColor`, so ticking Class
+and back restores it rather than resetting to white, which is what the
+checkboxes used to do.
 
 ### Font Resolution
 - Stored font names may be LSM keys (`"Friz QT__"`) or paths (`Fonts\FRIZQT__.TTF`).
