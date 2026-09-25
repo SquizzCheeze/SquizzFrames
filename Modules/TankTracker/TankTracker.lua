@@ -343,6 +343,38 @@ local function AnchorModule()
     return A
 end
 
+-- Row growth: which way icons run along a line, and which way new lines stack.
+-- Both matter once Rows is above 1. A row anchored ABOVE the frame reads
+-- naturally with its first line at the bottom, against the frame, and lines
+-- stacking up away from it -- but the container was only ever pinned
+-- top-left and flowed right-then-down, so the first icon always landed in the
+-- line furthest from the frame (user request 2026-09-26).
+TankTracker.GROWTH_ITEMS = {
+    {value = "RIGHT_DOWN", text = "Right, new rows below"},
+    {value = "RIGHT_UP",   text = "Right, new rows above"},
+    {value = "LEFT_DOWN",  text = "Left, new rows below"},
+    {value = "LEFT_UP",    text = "Left, new rows above"},
+}
+
+-- growth token -> horizontal direction, line direction, and the wrapper corner
+-- the container is pinned to (the corner content grows AWAY from).
+-- RIGHT_DOWN is the default because it is exactly what every row did before
+-- this setting existed.
+function TankTracker.GrowthToken(row)
+    local g = row and row.growth
+    -- "auto" is the pre-setting default every existing profile holds.
+    if g == nil or g == "auto" then return "RIGHT_DOWN" end
+    return g
+end
+
+function TankTracker.RowFlow(row)
+    local g = TankTracker.GrowthToken(row)
+    local h = (g:sub(1, 4) == "LEFT") and "LEFT" or "RIGHT"
+    local v = (g:sub(-2) == "UP") and "UP" or "DOWN"
+    local corner = ((v == "UP") and "BOTTOM" or "TOP") .. ((h == "LEFT") and "RIGHT" or "LEFT")
+    return h, v, corner
+end
+
 local function BuildSpec(index, kind, row, cfg)
     local size = row.size or 32
     local style = BuildStyle(index, kind, row, cfg)
@@ -405,9 +437,14 @@ local function BuildSpec(index, kind, row, cfg)
         }
     end
 
+    local growthH, growthV = TankTracker.RowFlow(row)
     return {
         layout = {
             axis = "HORIZONTAL",
+            -- Same triple UnitFrames/Auras.lua hands the engine for its rows.
+            anchorPoint = (growthH == "RIGHT") and "LEFT" or "RIGHT",
+            growthH = growthH,
+            growthV = growthV,
             -- `rowWidth`, NOT `maximumLineSize`. AE.ApplyContainerLayout reads
             -- exactly one key for the wrap width and it is rowWidth; the
             -- engine method it forwards to is what is called
@@ -604,8 +641,11 @@ local function ApplyRow(frame, kind, unit)
         AE.RequestContainer(wrapper, unit, BuildSpec(frame._sfIndex, kind, row, cfg),
             function(c)
                 wrapper._container = c
+                -- Re-read, not captured: a combat-deferred request can arrive
+                -- after the growth setting changed.
+                local _, _, corner = TankTracker.RowFlow(row)
                 c:ClearAllPoints()
-                c:SetPoint("TOPLEFT", wrapper, "TOPLEFT", 0, 0)
+                c:SetPoint(corner, wrapper, corner, 0, 0)
                 c:SetShown(wrapper:IsShown())
                 TankTracker.RegisterRefresh(wrapper, c)
             end)
@@ -633,9 +673,14 @@ local function ApplyRow(frame, kind, unit)
         end
     end
 
+    -- The flow layout too: BuildSpec's layout otherwise only reached a
+    -- container at creation, so a growth change needed a reload.
+    if AE.ApplyContainerLayout then AE.ApplyContainerLayout(container, spec.layout) end
+
     AE.RestyleSoon(styleKey)
+    local _, _, corner = TankTracker.RowFlow(row)
     container:ClearAllPoints()
-    container:SetPoint("TOPLEFT", wrapper, "TOPLEFT", 0, 0)
+    container:SetPoint(corner, wrapper, corner, 0, 0)
     container:SetShown(true)
     TankTracker.RegisterRefresh(wrapper, container)
 end

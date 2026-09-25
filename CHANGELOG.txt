@@ -24,6 +24,12 @@ New:
   Blizzard's Cooldown Manager option should use those: Blizzard's own rows are
   moved offscreen by that option, and anything attached to them goes too.
 
+- Tank Tracker: the Debuffs and Defensives rows have a Growth setting, which
+  sets the direction icons run and whether extra rows stack below or above.
+  With a row placed above the frame and Rows set to 2 or more, "Right, new rows
+  above" puts the first icon in the bottom row, next to the frame. Existing
+  rows keep their current layout (right, new rows below).
+
 
 V1.32 (2026-09-24)
 ------------------

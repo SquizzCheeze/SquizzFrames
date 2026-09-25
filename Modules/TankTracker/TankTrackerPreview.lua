@@ -120,22 +120,32 @@ local function RefreshRow(p, kind, cfg)
     local capacityLines = (kind == "def") and 2 or maxRows
     local lines = math.min(capacityLines, maxRows)
     local shown = num * lines
+    -- With every line full the growth setting would be invisible -- a full
+    -- grid looks the same whichever corner it fills from. Leave the LAST line
+    -- half-filled so you can see where the first icon goes and which way new
+    -- lines stack.
+    if lines > 1 then shown = shown - math.floor(num / 2) end
 
     -- A throwaway style built from the settings being edited right now, not
     -- AE.styles: the live style only exists once a tank has been seen, and
     -- the point is to see the value on the slider.
     local style = TT.StyleFields(cfg, row, {})
 
+    -- The container is pinned to the wrapper corner its growth runs away from
+    -- and wraps every `num` -- see ApplyRow and BuildSpec. TT.RowFlow is the
+    -- one place that corner is decided, so the mock cannot disagree with it.
+    local growthH, growthV, corner = TT.RowFlow(row)
+    local sx = (growthH == "LEFT") and -1 or 1
+    local sy = (growthV == "UP") and 1 or -1
+
     for i = 1, shown do
         local f = MockIcon(p, kind, i)
         f:SetSize(size, size)
         f:ClearAllPoints()
-        -- The container is pinned to the wrapper's TOPLEFT and flows right,
-        -- wrapping every `num` -- see ApplyRow and BuildSpec.
         local col = (i - 1) % num
         local line = math.floor((i - 1) / num)
-        f:SetPoint("TOPLEFT", wrapper, "TOPLEFT",
-            col * (size + spacing), -line * (size + spacing))
+        f:SetPoint(corner, wrapper, corner,
+            sx * col * (size + spacing), sy * line * (size + spacing))
         if F.SetBorderShown then F.SetBorderShown(f, style.border ~= nil) end
         if AEI and AEI.ApplyMockDurationText then
             AEI.ApplyMockDurationText(f.duration, f, style, nil)

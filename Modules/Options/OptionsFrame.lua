@@ -49,7 +49,7 @@ local pageHeights = {
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
     ["clickCasting"] = 460,
-    ["tankTracker"] = 1850, -- one sub-tab at a time; a row tab with both texts expanded is the tallest
+    ["tankTracker"] = 1920, -- one sub-tab at a time; a row tab with both texts expanded is the tallest
     ["nicknames"] = 780,
     ["profiles"] = 600,
 }

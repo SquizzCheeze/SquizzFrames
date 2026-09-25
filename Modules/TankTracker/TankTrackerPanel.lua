@@ -296,6 +296,18 @@ local function BuildRow(host, y, label, sub, extra)
     sRows:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
 
+    -- Read through GrowthToken so an old profile's "auto" shows as the
+    -- direction it actually renders with rather than as a blank dropdown.
+    local TTmod = SquizzFrames.TankTracker
+    if TTmod and TTmod.GROWTH_ITEMS then
+        local ddGrowth = W.CreateStyledDropdown(host, 200, 40, L["Growth"] or "Growth",
+            TTmod.GROWTH_ITEMS,
+            function() return TTmod.GrowthToken({growth = R.Read("growth", nil)}) end,
+            R.set("growth"))
+        ddGrowth:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
     local sSpace = W.CreateStyledSlider(host, 200, 0, 20, 1, L["Spacing"] or "Spacing",
         R.get("spacing", 2), R.set("spacing"))
     sSpace:SetPoint("TOPLEFT", 15, y - 20)

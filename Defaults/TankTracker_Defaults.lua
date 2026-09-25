@@ -90,8 +90,12 @@ local function DefaultRow(opts)
         anchor = opts.anchor or "topleft",
         offsetX = opts.offsetX or 0,
         offsetY = opts.offsetY or 0,
-        -- Growth follows the anchor unless overridden.
-        growth = "auto",
+        -- Which way icons run and which way extra rows stack -- a token from
+        -- TankTracker.GROWTH_ITEMS. Profiles made before the setting existed
+        -- hold "auto", which nothing ever read; TankTracker.RowFlow treats it
+        -- as RIGHT_DOWN, which is what those rows always did, so nobody's
+        -- layout moves.
+        growth = "RIGHT_DOWN",
 
         -- Both texts get the same controls: face, size, outline, colour,
         -- anchor, and two offsets. AuraEngine's ApplyFontSlot uses ONE point
