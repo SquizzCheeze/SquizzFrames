@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.33"] = {
+        "Unit frames can attach to a cooldown group - Squizzumables' groups or Blizzard's Cooldown Manager rows - with a side and X/Y offsets, under Position. They follow the group when you move it.",
+        "Cast bars can attach to the Resource Bar's power bar or points row, and every Attach To list now includes Squizzumables' cooldown groups.",
+        "Tank Tracker rows have a Growth setting, so extra rows can stack above instead of below.",
+        "Smoother in groups and raids: no more wasted aura scans on every aura change, and the periodic aura refreshes are spread out instead of all landing in one frame.",
+    },
     ["1.32"] = {
         "The unit frames now start every element at an X/Y offset of 0,0 too: the Name, Health and Level text, the buff and debuff rows, and the aura stack counts.",
         "Your profiles were updated once: anything still at its old default offset moved to 0,0, and anything you had placed yourself kept its position.",
