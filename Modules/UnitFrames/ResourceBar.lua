@@ -567,7 +567,7 @@ local function PlaceFrame(frame, pos, mode, partner, scale, defaultY)
 
     local target
     if mode == "anchor" then
-        target = pos.attachTo and _G[pos.attachTo]
+        target = CB and CB.ResolveTarget(pos.attachTo)
         if not (target and target.GetObjectType) then
             target = nil
             if CB then CB.anchorRetryWanted = true end
@@ -960,6 +960,7 @@ function ResourceBar.ApplySettings(cfg, barTexture)
         bar:Hide()
         pointsFrame:Hide()
         rainbowDriver:Hide()
+        if ResourceBar.onApplied then ResourceBar.onApplied() end
         return
     end
 
@@ -1090,6 +1091,11 @@ function ResourceBar.ApplySettings(cfg, barTexture)
     rainbowDriver:SetShown(count > 0 and cfg.pointColorMode == "rainbowAnimated")
 
     ResourceBar.Update()
+
+    -- Cast bars can ride either of our frames, and both may just have been
+    -- shown or hidden (spec swap, form change, a settings edit). Set by
+    -- UnitFrames.lua; the cast bars are plain frames, so this is combat-safe.
+    if ResourceBar.onApplied then ResourceBar.onApplied() end
 end
 
 -- Called by the options page as detach is switched ON, before the change is

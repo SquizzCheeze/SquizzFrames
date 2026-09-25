@@ -869,7 +869,7 @@ local function SecCastBar(host, y, cfg, t)
             if mode == "anchor" then
                 local ddTarget = W.CreateStyledDropdown(host, 200, 40,
                     L["Attach To"] or "Attach To",
-                    (CBmod and CBmod.MATCH_TARGETS) or {},
+                    (CBmod and CBmod.Targets("cast")) or {},
                     function() return cb.attachTo or "EssentialCooldownViewer" end,
                     function(v) CastSet(function(c) c.attachTo = v end) end)
                 ddTarget:SetPoint("TOPLEFT", 15, y - 20)
@@ -941,7 +941,7 @@ local function SecCastBar(host, y, cfg, t)
             y = y - 65
         elseif cb.widthMode == "match" then
             local CB = SquizzFrames.UnitFrameCastBar
-            local items = (CB and CB.MATCH_TARGETS) or {}
+            local items = (CB and CB.Targets("cast")) or {}
             local ddMatch = W.CreateStyledDropdown(host, 200, 40, L["Match"] or "Match",
                 items,
                 function() return cb.matchFrame or "EssentialCooldownViewer" end,
@@ -1358,12 +1358,68 @@ local function SecPosition(host, y, cfg, t)
     W.CreateTitledPane(host, L["Positioning"] or "Positioning", y)
     y = y - 35
 
-    local hint = host:CreateFontString(nil, "OVERLAY")
-    hint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    hint:SetPoint("TOPLEFT", 15, y)
-    hint:SetTextColor(0.7, 0.7, 0.7, 1)
-    hint:SetText(L["Drag each frame in Edit Mode to position it."]
-        or "Drag each frame in Edit Mode to position it.")
+    local CB = SquizzFrames.UnitFrameCastBar
+    local mode = (t.positionMode == "anchor" and CB) and "anchor" or "free"
+
+    local function Hint(text, height)
+        local fs = host:CreateFontString(nil, "OVERLAY")
+        fs:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        fs:SetPoint("TOPLEFT", 15, y)
+        fs:SetWidth(340)
+        fs:SetJustifyH("LEFT")
+        fs:SetTextColor(0.7, 0.7, 0.7, 1)
+        fs:SetText(text)
+        y = y - (height or 30)
+    end
+
+    if CB then
+        local ddMode = W.CreateStyledDropdown(host, 200, 40, L["Position"] or "Position", {
+            {value = "free",   text = L["Free (drag in Edit Mode)"] or "Free (drag in Edit Mode)"},
+            {value = "anchor", text = L["Attached to a Cooldown Group"] or "Attached to a Cooldown Group"},
+        }, function() return mode end,
+           function(v)
+               Set(function(u) u.positionMode = v end)
+               if rebuildFields then rebuildFields() end
+           end)
+        ddMode:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
+
+    if mode ~= "anchor" then
+        Hint(L["Drag each frame in Edit Mode to position it."]
+            or "Drag each frame in Edit Mode to position it.")
+        return y
+    end
+
+    local ddTarget = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
+        CB.Targets("unit"),
+        function() return t.attachTo or CB.DefaultTarget() end,
+        function(v) Set(function(u) u.attachTo = v end) end)
+    ddTarget:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    local ddSide = W.CreateStyledDropdown(host, 200, 40, L["Side"] or "Side",
+        CB.ATTACH_SIDES,
+        function() return t.attachSide or "TOP" end,
+        function(v) Set(function(u) u.attachSide = v end) end)
+    ddSide:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    local sX = W.CreateStyledSlider(host, 200, -400, 400, 1, L["Offset X"] or "Offset X",
+        function() return t.attachX or 0 end,
+        function(v) Set(function(u) u.attachX = v end) end)
+    sX:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local sY = W.CreateStyledSlider(host, 200, -400, 400, 1, L["Offset Y"] or "Offset Y",
+        function() return t.attachY or 0 end,
+        function(v) Set(function(u) u.attachY = v end) end)
+    sY:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 70
+
+    Hint(L["Follows the group when it moves, out of combat. A secure frame cannot move mid-fight, so in combat it stays put until the fight ends."]
+        or "Follows the group when it moves, out of combat. A secure frame cannot move mid-fight, so in combat it stays put until the fight ends.", 45)
+    return y
 end
 
 -- State icons. Same generated-accessor treatment as the text elements, for
@@ -1829,7 +1885,7 @@ do
         if (mode == "anchor" or mode == spec.partnerMode) and CB then
             if mode == "anchor" then
                 local ddTo = W.CreateStyledDropdown(host, 200, 40, L["Attach To"] or "Attach To",
-                    CB.MATCH_TARGETS, P.get("attachTo", "EssentialCooldownViewer"),
+                    CB.Targets("resource"), P.get("attachTo", "EssentialCooldownViewer"),
                     P.set("attachTo"))
                 ddTo:SetPoint("TOPLEFT", 15, y - 20)
                 y = y - 70
@@ -1872,7 +1928,7 @@ do
 
         if mode == "match" and ctx.CB then
             local ddMatch = W.CreateStyledDropdown(host, 200, 40, L["Match Width Of"] or "Match Width Of",
-                ctx.CB.MATCH_TARGETS, P.get("matchFrame", "EssentialCooldownViewer"),
+                ctx.CB.Targets("resource"), P.get("matchFrame", "EssentialCooldownViewer"),
                 P.set("matchFrame"))
             ddMatch:SetPoint("TOPLEFT", 15, y - 20)
             y = y - 70

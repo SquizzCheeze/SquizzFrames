@@ -2,6 +2,29 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.33
+-----
+
+New:
+
+- Unit frames can attach to a cooldown group. Under Position, pick
+  "Attached to a Cooldown Group", then the group, the side (above, below,
+  left, right or centred) and an X/Y offset. Squizzumables' cooldown groups
+  are listed first, custom groups included; Blizzard's Cooldown Manager rows
+  are there too. The frame follows the group when it moves, out of combat.
+  In combat it stays where it is, because unit frames cannot be moved
+  mid-fight. The boss frames attach as one stack.
+
+- Cast bars can attach to the Resource Bar: the power bar or the points row.
+  While the one it is attached to is hidden (switched off, or no points in
+  this spec), the cast bar goes back under its own frame.
+
+- The cast bar and resource bar "Attach To" and "Match Width Of" lists now
+  include Squizzumables' cooldown groups. Anyone using Squizzumables' Hide
+  Blizzard's Cooldown Manager option should use those: Blizzard's own rows are
+  moved offscreen by that option, and anything attached to them goes too.
+
+
 V1.32 (2026-09-24)
 ------------------
 

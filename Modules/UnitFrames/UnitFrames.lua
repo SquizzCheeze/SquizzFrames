@@ -243,11 +243,23 @@ end
 -- partner frame to be ENABLED too: mirroring onto a frame nobody can see would
 -- silently rewrite its saved position, so turning it back on later would land
 -- it somewhere the user never put it.
+-- Attached to a cooldown frame (see the attach section below) rather than
+-- placed from anchorX/anchorY. Config-only, so it answers the same whether or
+-- not the target has resolved yet.
+local function IsAttached(unit)
+    local t = GetFrameConfig(unit)
+    return t ~= nil and t.positionMode == "anchor"
+end
+
 local function MirrorPartnerFor(unit)
     if not MirrorEnabled() then return nil end
     local partner = MIRROR_PARTNER[unit]
     if not partner then return nil end
     if not FrameEnabled(unit) or not FrameEnabled(partner) then return nil end
+    -- A mirror is between two FREE positions. Either side riding a cooldown
+    -- group has no anchorX/anchorY that means anything, and mirroring would
+    -- rewrite the other one from a stale value.
+    if IsAttached(unit) or IsAttached(partner) then return nil end
     return partner
 end
 
@@ -874,7 +886,7 @@ local function CreateMover(unit)
     -- cursor to clear a threshold first, which reads as the frame refusing to
     -- move. Start on the press, exactly as the other two movers do.
     local function StartDrag(self)
-        if dragging then return end
+        if dragging or IsAttached(unit) then return end
         dragging = true
         local t = GetFrameConfig(unit)
         local uiScale = UIParent:GetEffectiveScale()
@@ -991,8 +1003,21 @@ function UnitFrames:SetEditMode(enabled)
                 -- boss1's maths to a frame that is not at boss1's position and
                 -- make the whole stack jump. They stay as previews so you can
                 -- still see where the stack lands.
+                --
+                -- An ATTACHED frame is placed by its cooldown group, so its
+                -- handle is a grey, mouse-transparent preview -- the same
+                -- look the cast bar's attached handle has. A drag would move
+                -- it for one watcher tick and snap it straight back.
                 local idx = BossIndex(unit)
-                mover:EnableMouse(idx == nil or idx == 1)
+                local attached = IsAttached(unit)
+                mover:EnableMouse((idx == nil or idx == 1) and not attached)
+                if attached then
+                    mover.border:SetColorTexture(0.45, 0.45, 0.5, 0.30)
+                    mover.label:SetText(unit .. " (attached)")
+                else
+                    mover.border:SetColorTexture(0.33, 0.77, 0.99, 0.25)
+                    mover.label:SetText(unit)
+                end
                 mover:Show()
             else
                 mover:Hide()
@@ -1057,6 +1082,157 @@ end
 -- included: they are separate UIParent children, so the frame's alpha does
 -- not reach them. Nothing else writes alpha on either frame (their own alpha
 -- work is all on child textures), so a plain SetAlpha is enough, and it is
+-----------------------------------------------------------------------
+-- Attaching a frame to a cooldown group
+-----------------------------------------------------------------------
+
+-- positionMode "anchor" puts the frame against one side of a cooldown frame
+-- (a Squizzumables group or a Blizzard viewer) instead of at anchorX/anchorY.
+--
+-- THIS IS A PLACEMENT, NOT A LIVE ANCHOR, and deliberately so. The unit frames
+-- are SECURE. SetPoint(..., cooldownFrame, ...) would make WoW treat that
+-- cooldown frame as protected too, for as long as the anchor exists, and from
+-- then on addon code may not show, hide, move or resize it in combat.
+-- Squizzumables toggles its group containers' visibility mid-fight as
+-- cooldowns come and go, so a live anchor would turn every one of those into
+-- a blocked action attributed to Squizzumables -- which is how this would
+-- present, pointing at the wrong addon entirely. (The cast bar and resource
+-- bar are plain frames and DO anchor live; this caution is only for us.)
+--
+-- So the target's edge is measured and the frame is placed against UIParent
+-- at that spot, then re-measured out of combat by the watcher below whenever
+-- the target moves or resizes. In combat the frame stays where it was --
+-- which it would have to anyway, since a secure frame cannot be moved then.
+-- Squizzumables defers its own container resizes until combat ends, so in
+-- practice the target is not moving either.
+--
+-- Only cooldown frames are accepted (CastBar.IsCooldownTarget). That is what
+-- was asked for, and it rules out anchor loops: nothing a cooldown group
+-- anchors to can be one of our unit frames.
+
+local ATTACH_WATCH_INTERVAL = 0.25
+local attachWatcher
+local attachSeen = {}      -- [unit] = rect signature the frame was last placed from
+
+local function AttachTargetFor(t)
+    if not (t and t.positionMode == "anchor") then return nil end
+    local CB = SquizzFrames.UnitFrameCastBar
+    if not (CB and CB.IsCooldownTarget) then return nil end
+    local key = t.attachTo or CB.DefaultTarget()
+    if not CB.IsCooldownTarget(key) then return nil end
+    return CB.ResolveTarget(key)
+end
+
+-- Screen-pixel position of one of `f`'s anchor points. GetRect answers in the
+-- frame's OWN scaled space, so it is multiplied out by its effective scale
+-- before being compared with anything of ours -- the coordinate-space mix
+-- this addon has already been bitten by three times.
+local function ScreenPoint(f, point)
+    local l, b, w, h = f:GetRect()
+    if not (l and b and w and h) then return nil end
+    local x = (point:find("LEFT") and l) or (point:find("RIGHT") and (l + w)) or (l + w / 2)
+    local y = (point:find("TOP") and (b + h)) or (point:find("BOTTOM") and b) or (b + h / 2)
+    local s = f:GetEffectiveScale()
+    return x * s, y * s
+end
+
+-- Rect signature of a target, rounded so float jitter is not a "move".
+local function RectSignature(f)
+    if not f then return "none" end
+    local l, b, w, h = f:GetRect()
+    if not l then return "norect" end
+    local s = f:GetEffectiveScale()
+    return string.format("%.1f:%.1f:%.1f:%.1f", l * s, b * s, w * s, h * s)
+end
+
+-- Place one frame. Returns true when it was attached, false when the caller
+-- should fall back to the free position (not attached, or the target does not
+-- exist yet -- the watcher keeps looking and places it once it does).
+-- Out of combat only; ApplyLayout and the watcher both guarantee that.
+local function PlaceAttached(unit, frame, t, scale)
+    local target = AttachTargetFor(t)
+    attachSeen[unit] = RectSignature(target)
+    if not target then return false end
+
+    local CB = SquizzFrames.UnitFrameCastBar
+    local pts = CB.AttachPoints(t.attachSide or "TOP")
+    local tx, ty = ScreenPoint(target, pts[2])
+    if not tx then return false end
+
+    -- Boss stack: every boss frame is placed off the same edge and then
+    -- stepped along exactly as the free stack is.
+    local dx, dy = BossOffset(t, BossIndex(unit))
+    local es = frame:GetEffectiveScale()
+    frame:ClearAllPoints()
+    frame:SetPoint(pts[1], UIParent, "BOTTOMLEFT",
+        tx / es + ((t.attachX or 0) + dx) / scale,
+        ty / es + ((t.attachY or 0) + dy) / scale)
+    return true
+end
+
+local function ScaleSetting()
+    local prof = GetProfile()
+    return (prof and prof.appearance and prof.appearance.general
+            and prof.appearance.general.scale) or 1.0
+end
+
+local function WatchAttached(self, elapsed)
+    self.t = (self.t or 0) + elapsed
+    if self.t < ATTACH_WATCH_INTERVAL then return end
+    self.t = 0
+    if InCombatLockdown() or applyingLayout then return end
+
+    local scale
+    for _, unit in ipairs(ALL_UNITS) do
+        local frame = frames[unit]
+        local t = GetFrameConfig(unit)
+        if frame and FrameEnabled(unit) and IsAttached(unit) then
+            if RectSignature(AttachTargetFor(t)) ~= attachSeen[unit] then
+                scale = scale or ScaleSetting()
+                if not PlaceAttached(unit, frame, t, scale) then
+                    frame:ClearAllPoints()
+                    local dx, dy = BossOffset(t, BossIndex(unit))
+                    frame:SetPoint("CENTER", UIParent, "CENTER",
+                        ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
+                end
+            end
+        end
+    end
+end
+
+-- Run the watcher only while something is attached. Called at the end of
+-- every ApplyLayout, which is the only place an attachment can start or stop.
+local function UpdateAttachWatcher()
+    local any = false
+    for _, unit in ipairs(ALL_UNITS) do
+        if frames[unit] and FrameEnabled(unit) and IsAttached(unit) then any = true break end
+    end
+    if any and not attachWatcher then
+        attachWatcher = CreateFrame("Frame")
+        attachWatcher:SetScript("OnUpdate", WatchAttached)
+    end
+    if attachWatcher then attachWatcher:SetShown(any) end
+end
+
+-- ResourceBar.onApplied. A cast bar attached to one of the resource bar's
+-- frames falls back under its own unit frame while that frame is hidden (see
+-- CastBar.ApplyPosition), so every time the resource bar may have shown or
+-- hidden one, the attached cast bars are placed again. Plain frames, so this
+-- is fine in combat -- which matters, since a form change mid-fight can empty
+-- the points row.
+local function ReplaceResourceAttachedCastBars()
+    local CB = SquizzFrames.UnitFrameCastBar
+    if not (CB and CB.ApplyPosition and CB.RESOURCE_FRAME) then return end
+    for unit, bar in pairs(castBars) do
+        local t = GetFrameConfig(unit)
+        local c = t and t.castBar
+        if c and c.enabled and c.positionMode == "anchor"
+           and CB.RESOURCE_FRAME[c.attachTo] and FrameEnabled(unit) then
+            CB.ApplyPosition(bar, frames[unit], c)
+        end
+    end
+end
+
 -- not a protected call, so it applies in combat too.
 function UnitFrames.ApplyOpacity()
     local cfg = GetConfig()
@@ -1084,6 +1260,17 @@ function ApplyLayout()
     end
     if not next(frames) then return end
     applyingLayout = true
+
+    -- The resource bar's frames must EXIST before the per-unit loop places the
+    -- cast bars, since a cast bar can attach to one; otherwise the first pass
+    -- found nothing and burnt an anchor retry. It is still applied after the
+    -- loop, below -- and its onApplied callback re-places those cast bars.
+    local RBpre = SquizzFrames.ResourceBar
+    if RBpre and not RBpre.bar then
+        RBpre.Create()
+        RBpre.CreateMover()
+    end
+    if RBpre then RBpre.onApplied = ReplaceResourceAttachedCastBars end
 
     local prof = GetProfile()
     local scale = (prof and prof.appearance and prof.appearance.general
@@ -1165,11 +1352,17 @@ function ApplyLayout()
                 frame:SetSize(w, h)
                 frame:ClearAllPoints()
 
-                -- The stack: anchorX/anchorY place boss1 and every later frame
-                -- steps off it (BossOffset). Returns 0,0 for everything else.
-                local dx, dy = BossOffset(t, BossIndex(unit))
-                frame:SetPoint("CENTER", UIParent, "CENTER",
-                    ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
+                -- Attached to a cooldown group, or free. An attachment whose
+                -- target has not appeared yet falls back to the free position
+                -- until the watcher sees it arrive.
+                if not PlaceAttached(unit, frame, t, scale) then
+                    -- The stack: anchorX/anchorY place boss1 and every later
+                    -- frame steps off it (BossOffset). 0,0 for everything else.
+                    local dx, dy = BossOffset(t, BossIndex(unit))
+                    frame:ClearAllPoints()
+                    frame:SetPoint("CENTER", UIParent, "CENTER",
+                        ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
+                end
 
                 -- The health bar is anchored TOP-LEFT/RIGHT in XML and given
                 -- its height here, so the power bar (anchored to the bottom)
@@ -1251,6 +1444,8 @@ function ApplyLayout()
     end
 
     applyingLayout = false
+
+    UpdateAttachWatcher()
 
     -- The resource bar. Applied here so a settings edit reaches it through the
     -- same UnitFramesChanged -> ApplyLayout path as everything else, but

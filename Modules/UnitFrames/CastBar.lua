@@ -66,6 +66,110 @@ CastBar.MATCH_TARGETS = {
     {value = "SquizzFramesPartyFrame",      text = "Party/Raid Frames"},
 }
 
+-- Squizzumables' cooldown groups. Its CDM PROXIES Blizzard's rather than
+-- reparenting it, so EssentialCooldownViewer is a separate frame at its own
+-- position -- and with Squizzumables' "Hide Blizzard's Cooldown Manager" on it
+-- is parked at -10000, dragging anything anchored to it offscreen. Anyone on
+-- Squizzumables' CDM wants THESE frames, not Blizzard's.
+--
+-- Stored as "sqz:<group name>" and resolved through Squizzumables' public
+-- accessor (Squizzumables_GetCDMGroupFrame) rather than its SQZ_CDMGroup_
+-- globals: its own docs name the accessor as the contract and the global name
+-- as not. The frames are created once per session and never rebuilt, so a
+-- reference stays valid across spec changes.
+local SQZ_PREFIX = "sqz:"
+local SQZ_BUILTIN_GROUPS = {"Essential", "Utility", "Buffs", "Buff Bars"}
+
+-- The resource bar's two frames. Cast-bar targets only: offering them to the
+-- resource bar's own dropdowns would let it attach to itself.
+local RESOURCE_TARGETS = {
+    {value = "SquizzFramesResourceBar",    text = "Resource Bar (Power)"},
+    {value = "SquizzFramesResourcePoints", text = "Resource Points"},
+}
+local RESOURCE_FRAME = {
+    SquizzFramesResourceBar = true,
+    SquizzFramesResourcePoints = true,
+}
+CastBar.RESOURCE_FRAME = RESOURCE_FRAME
+
+-- Blizzard's viewers, for the unit frames' list (which offers ONLY cooldown
+-- frames -- see UnitFrames.lua's attach section for why).
+local BLIZZARD_VIEWERS = {
+    EssentialCooldownViewer = true, UtilityCooldownViewer = true,
+    BuffIconCooldownViewer = true, BuffBarCooldownViewer = true,
+}
+
+local function SquizzumablesGroupNames()
+    if type(_G.Squizzumables_GetCDMGroupFrame) ~= "function" then return nil end
+    -- A name list only exists on Squizzumables builds that export one; older
+    -- ones get the four built-ins, which every profile has.
+    local lister = _G.Squizzumables_GetCDMGroupNames
+    local names = (type(lister) == "function") and lister()
+    if type(names) ~= "table" or #names == 0 then names = SQZ_BUILTIN_GROUPS end
+    return names
+end
+
+-- Resolve a stored target key to a live frame, or nil when it does not exist
+-- (yet -- Blizzard_CooldownViewer is load-on-demand, and a Squizzumables group
+-- is only built once its module has run). Every attach and match lookup goes
+-- through here so the "sqz:" form works everywhere a plain name does.
+function CastBar.ResolveTarget(key)
+    if type(key) ~= "string" or key == "" then return nil end
+    local f
+    local group = key:sub(1, #SQZ_PREFIX) == SQZ_PREFIX and key:sub(#SQZ_PREFIX + 1)
+    if group then
+        local get = _G.Squizzumables_GetCDMGroupFrame
+        f = (type(get) == "function") and get(group) or nil
+    else
+        f = _G[key]
+    end
+    if type(f) == "table" and f.GetObjectType then return f end
+    return nil
+end
+
+-- True for a cooldown-manager frame: a Squizzumables group or a Blizzard
+-- viewer. The unit frames accept nothing else.
+function CastBar.IsCooldownTarget(key)
+    if type(key) ~= "string" then return false end
+    return BLIZZARD_VIEWERS[key] == true or key:sub(1, #SQZ_PREFIX) == SQZ_PREFIX
+end
+
+-- Dropdown items for each kind of caller, built fresh on every call so a
+-- custom Squizzumables group made since the page last opened is offered.
+--   "unit"      cooldown frames only
+--   "resource"  cooldown frames + our unit frames / party block
+--   "cast"      all of that + the resource bar's two frames
+function CastBar.Targets(kind)
+    local items = {}
+    local names = SquizzumablesGroupNames()
+    if names then
+        for _, n in ipairs(names) do
+            items[#items + 1] = {value = SQZ_PREFIX .. n, text = "Squizzumables: " .. n}
+        end
+    end
+    for _, e in ipairs(CastBar.MATCH_TARGETS) do
+        if BLIZZARD_VIEWERS[e.value] then
+            items[#items + 1] = {value = e.value,
+                text = names and (e.text .. " - Blizzard") or e.text}
+        elseif kind ~= "unit" then
+            items[#items + 1] = e
+        end
+    end
+    if kind == "cast" then
+        for _, e in ipairs(RESOURCE_TARGETS) do items[#items + 1] = e end
+    end
+    return items
+end
+
+-- The default target key: Squizzumables' Essential group when that addon is
+-- running, Blizzard's Essential viewer otherwise.
+function CastBar.DefaultTarget()
+    if type(_G.Squizzumables_GetCDMGroupFrame) == "function" then
+        return SQZ_PREFIX .. "Essential"
+    end
+    return "EssentialCooldownViewer"
+end
+
 -- Frames we've already hooked for live resizing, so the hook is installed
 -- exactly once each. WoW hooks cannot be removed, and HookScript is additive,
 -- so a second install would stack a duplicate handler forever.
@@ -130,7 +234,7 @@ end
 -- live-resize hook as a side effect, so callers get CDM viewers that resize
 -- with the player's tracked cooldowns for free.
 function CastBar.MatchedWidth(matchFrame)
-    local target = matchFrame and _G[matchFrame]
+    local target = CastBar.ResolveTarget(matchFrame)
     if target and target.GetWidth then
         EnsureMatchHook(target)
         local w = target:GetWidth()
@@ -145,7 +249,7 @@ local function ResolveWidth(cfg, frameWidth)
     if mode == "custom" then
         return (cfg.width and cfg.width > 0) and cfg.width or frameWidth
     elseif mode == "match" then
-        local target = cfg.matchFrame and _G[cfg.matchFrame]
+        local target = CastBar.ResolveTarget(cfg.matchFrame)
         if target and target.GetWidth then
             EnsureMatchHook(target)
             local w = target:GetWidth()
@@ -455,16 +559,26 @@ function CastBar.ApplyPosition(bar, parent, cfg)
     end
 
     if mode == "anchor" then
-        local target = cfg.attachTo and _G[cfg.attachTo]
+        local target = CastBar.ResolveTarget(cfg.attachTo)
         local points = ATTACH_POINTS[cfg.attachSide or "BOTTOM"] or ATTACH_POINTS.BOTTOM
-        if target and target.GetObjectType then
+        if target and RESOURCE_FRAME[cfg.attachTo] then
+            -- The resource bar's frames hide when switched off or when the
+            -- row has nothing to draw (no secondary resource this spec), and
+            -- a bar riding a hidden one would sit next to an empty gap. Drop
+            -- back under our own frame instead. No retry: the frame exists,
+            -- and ResourceBar.ApplySettings calls back here (onApplied)
+            -- whenever its visibility can have changed.
+            if not target:IsShown() then target = false end
+        end
+        if target then
             bar:SetPoint(points[1], target, points[2], ox, oy)
             return
         end
-        -- Target not loaded yet (Blizzard_CooldownViewer is load-on-demand).
-        -- Fall through to frame anchoring so the bar is at least somewhere
+        -- Target not loaded yet (Blizzard_CooldownViewer is load-on-demand,
+        -- and a Squizzumables group is built when its module runs). Fall
+        -- through to frame anchoring so the bar is at least somewhere
         -- sensible, and flag a retry rather than being stuck there.
-        CastBar.anchorRetryWanted = true
+        if target == nil then CastBar.anchorRetryWanted = true end
     end
 
     -- "frame" mode, and the fallback for an unresolved anchor target.

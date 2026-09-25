@@ -105,6 +105,17 @@ local function DefaultFrame(opts)
         anchorX = opts.anchorX or 0,
         anchorY = opts.anchorY or 0,
 
+        -- "free" places the frame at anchorX/anchorY; "anchor" puts it against
+        -- one side of a cooldown group (Squizzumables or Blizzard's viewers)
+        -- -- see UnitFrames.lua's attach section. attachTo is deliberately NOT
+        -- defaulted here: the right default depends on whether Squizzumables
+        -- is running, which is not knowable at load, so every reader falls
+        -- back through CastBar.DefaultTarget(). attachX/Y are UIParent pixels.
+        positionMode = "free",
+        attachSide = "TOP",
+        attachX = 0,
+        attachY = 0,
+
         -- Power bar. height 0 hides it entirely rather than needing a second
         -- boolean -- one control, no invalid combinations.
         powerHeight = opts.powerHeight or 6,

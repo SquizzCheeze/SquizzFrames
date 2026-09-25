@@ -527,6 +527,30 @@ The 1:1 mock on the Unit Frames options page. Two rules, both load-bearing:
 Things that only exist in the mock (`Preview.Create`) need their own host frame and level — it is a hand-built frame, NOT `UnitFrameButton.xml`, so nothing about its strata/level layering is inherited from the live template.
 
 
+### Attaching frames (UnitFrames.lua, CastBar.lua, ResourceBar.lua)
+
+Every attach/match target goes through `CastBar.ResolveTarget(key)` and every
+dropdown through `CastBar.Targets(kind)` (`"unit"` / `"resource"` / `"cast"`).
+A key is a global frame name or `"sqz:<group>"`, a Squizzumables cooldown group
+resolved through its public `Squizzumables_GetCDMGroupFrame` (and listed by
+`Squizzumables_GetCDMGroupNames` where that exists). Squizzumables PROXIES the
+CDM, so for its users Blizzard's `EssentialCooldownViewer` is the wrong frame,
+and with its "Hide Blizzard's Cooldown Manager" option it sits at -10000.
+
+- **Cast bar and resource bar anchor LIVE** (`SetPoint` on the target). They
+  are plain frames, so that is safe. A cast bar may also ride the resource bar's
+  two frames; the resource bar's own list excludes them so it cannot ride
+  itself. A cast bar on a hidden resource frame falls back under its unit frame,
+  and `ResourceBar.onApplied` re-places it whenever that visibility may change.
+- ⚠ **Unit frames are PLACED, not anchored.** They are secure, and anchoring a
+  secure frame to another frame makes that frame protected in combat. Squizzumables
+  toggles its group containers' visibility mid-fight, so a live anchor would turn
+  that into blocked actions blamed on Squizzumables. `PlaceAttached` measures the
+  target's edge and places against UIParent instead, and a 0.25s out-of-combat
+  watcher (`WatchAttached`, running only while some frame is attached) re-places
+  whenever the target's rect changes. Unit frames accept cooldown targets only
+  (`CastBar.IsCooldownTarget`), which also makes an anchor loop impossible.
+
 ### Nicknames/Nicknames.lua
 Replaces the name drawn by the `nameText` indicator. Four layers, resolved highest-first: private `custom[full]` → `custom[base]` → synced `[full]` → `[base]`. **Private always beats remote** — that ordering is what makes accepting broadcast strings tolerable.
 
@@ -865,7 +889,7 @@ re-inventing something already half-built.
 
 ## Memory/Performance Notes
 
-- **No periodic OnUpdate loops** for the legacy pipeline — event-driven via AceEvent + secure header. The one deliberate exception is the Phased Icon's 1s `C_Timer` ticker (`BuiltIn_Update.lua`), which exists because `UnitPhaseReason` is blind past ~250 yards and no event fires when that changes — it self-cancels as soon as a pass finds no enabled `phasedIcon`, and `CheckPhasedIcon` re-arms it
+- **No periodic OnUpdate loops** for the legacy pipeline — event-driven via AceEvent + secure header. The one deliberate exception is the Phased Icon's 1s `C_Timer` ticker (`BuiltIn_Update.lua`), which exists because `UnitPhaseReason` is blind past ~250 yards and no event fires when that changes — it self-cancels as soon as a pass finds no enabled `phasedIcon`, and `CheckPhasedIcon` re-arms it. The second is the unit-frame attach watcher (`UnitFrames.lua`, 0.25s, hidden unless a frame is attached to a cooldown group, idle in combat); see *Attaching frames*
 - **Indicator updates** batched per-button via `ScheduleButtonUpdate`
 - **Secure header** manages child visibility via `RegisterUnitWatch` (no manual show/hide needed for roster changes)
 - **Custom aura scanner** iterates `C_UnitAuras.GetAuraDataByIndex` — efficient for party frames (max 5 units × ~40 auras)
