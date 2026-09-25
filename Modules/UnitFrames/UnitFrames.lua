@@ -1123,6 +1123,20 @@ local function AttachTargetFor(t)
     return CB.ResolveTarget(key)
 end
 
+-- The target, unless it is itself (through its anchor chain) riding `frame`.
+-- Squizzumables groups can anchor to our cast bars, and a cast bar hangs off
+-- its unit frame -- so "player frame on Utility" + "Utility under the player
+-- cast bar" is a loop. Because this is a placement and not a real anchor, WoW
+-- would not refuse it: the watcher would move the frame, which moves Utility,
+-- which the watcher sees move, and the pair would walk off the screen a step
+-- every quarter-second. Refused here instead; the frame stays free.
+local function UsableAttachTarget(t, frame)
+    local target = AttachTargetFor(t)
+    local CB = SquizzFrames.UnitFrameCastBar
+    if target and CB.DependsOn and CB.DependsOn(target, frame) then return nil end
+    return target
+end
+
 -- Screen-pixel position of one of `f`'s anchor points. GetRect answers in the
 -- frame's OWN scaled space, so it is multiplied out by its effective scale
 -- before being compared with anything of ours -- the coordinate-space mix
@@ -1150,7 +1164,7 @@ end
 -- exist yet -- the watcher keeps looking and places it once it does).
 -- Out of combat only; ApplyLayout and the watcher both guarantee that.
 local function PlaceAttached(unit, frame, t, scale)
-    local target = AttachTargetFor(t)
+    local target = UsableAttachTarget(t, frame)
     attachSeen[unit] = RectSignature(target)
     if not target then return false end
 
@@ -1187,7 +1201,7 @@ local function WatchAttached(self, elapsed)
         local frame = frames[unit]
         local t = GetFrameConfig(unit)
         if frame and FrameEnabled(unit) and IsAttached(unit) then
-            if RectSignature(AttachTargetFor(t)) ~= attachSeen[unit] then
+            if RectSignature(UsableAttachTarget(t, frame)) ~= attachSeen[unit] then
                 scale = scale or ScaleSetting()
                 if not PlaceAttached(unit, frame, t, scale) then
                     frame:ClearAllPoints()

@@ -127,6 +127,31 @@ function CastBar.ResolveTarget(key)
     return nil
 end
 
+-- Does `frame`'s live anchor chain lead back to `onto`? Squizzumables groups
+-- can now anchor to OUR frames, so "cast bar on the Utility group" plus
+-- "Utility group on the cast bar" is reachable from two addons' settings,
+-- neither of which can see the other's. WoW refuses the cycle with a hard
+-- error, so the geometry is checked before anchoring and the second one placed
+-- backs off. Squizzumables does the same (cdmModule.AnchorDependsOn).
+function CastBar.DependsOn(frame, onto)
+    local queue, seen, head = {frame}, {[frame] = true}, 1
+    while queue[head] and head <= 128 do
+        local f = queue[head]
+        head = head + 1
+        if f == onto then return true end
+        local okN, n = pcall(f.GetNumPoints, f)
+        for i = 1, (okN and n) or 0 do
+            local ok, _, rel = pcall(f.GetPoint, f, i)
+            if ok and rel == nil and f.GetParent then rel = f:GetParent() end
+            if ok and type(rel) == "table" and not seen[rel] then
+                seen[rel] = true
+                queue[#queue + 1] = rel
+            end
+        end
+    end
+    return false
+end
+
 -- True for a cooldown-manager frame: a Squizzumables group or a Blizzard
 -- viewer. The unit frames accept nothing else.
 function CastBar.IsCooldownTarget(key)
@@ -569,6 +594,11 @@ function CastBar.ApplyPosition(bar, parent, cfg)
             -- and ResourceBar.ApplySettings calls back here (onApplied)
             -- whenever its visibility can have changed.
             if not target:IsShown() then target = false end
+        end
+        -- The target already rides this bar (a Squizzumables group anchored
+        -- to it): anchoring back would be a cycle. Back off, no retry.
+        if target and (target == bar or CastBar.DependsOn(target, bar)) then
+            target = false
         end
         if target then
             bar:SetPoint(points[1], target, points[2], ox, oy)

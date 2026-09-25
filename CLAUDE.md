@@ -549,7 +549,13 @@ and with its "Hide Blizzard's Cooldown Manager" option it sits at -10000.
   target's edge and places against UIParent instead, and a 0.25s out-of-combat
   watcher (`WatchAttached`, running only while some frame is attached) re-places
   whenever the target's rect changes. Unit frames accept cooldown targets only
-  (`CastBar.IsCooldownTarget`), which also makes an anchor loop impossible.
+  (`CastBar.IsCooldownTarget`).
+- ⚠ **Squizzumables groups can anchor to OUR frames** (its `anchorTo = "frame:<name>"`), so loops
+  now span two addons' settings. Every attach checks the target's live anchor chain first
+  (`CastBar.DependsOn`) and backs off if it leads back to the frame being placed. For the unit
+  frames this is not about WoW's cycle error (a placement cannot cycle) but a drift loop: player
+  frame on Utility + Utility under the player cast bar would have the watcher chasing its own
+  movement down the screen. `UsableAttachTarget` refuses it.
 
 ### Nicknames/Nicknames.lua
 Replaces the name drawn by the `nameText` indicator. Four layers, resolved highest-first: private `custom[full]` → `custom[base]` → synced `[full]` → `[base]`. **Private always beats remote** — that ordering is what makes accepting broadcast strings tolerable.

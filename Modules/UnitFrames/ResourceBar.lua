@@ -571,6 +571,10 @@ local function PlaceFrame(frame, pos, mode, partner, scale, defaultY)
         if not (target and target.GetObjectType) then
             target = nil
             if CB then CB.anchorRetryWanted = true end
+        elseif CB.DependsOn and CB.DependsOn(target, frame) then
+            -- A Squizzumables group anchored to this very frame: attaching
+            -- back would be a cycle, so stay free instead.
+            target = nil
         end
     elseif mode == "partner" then
         target = partner

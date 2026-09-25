@@ -24,6 +24,12 @@ New:
   Blizzard's Cooldown Manager option should use those: Blizzard's own rows are
   moved offscreen by that option, and anything attached to them goes too.
 
+- Works with Squizzumables V1.90, whose cooldown groups can attach to
+  SquizzFrames' cast bars, unit frames and resource bar. If two settings would
+  attach frames to each other in a circle, the second one is ignored rather
+  than breaking the layout. That includes a unit frame attached to a group
+  that is itself attached below that frame's cast bar.
+
 - Tank Tracker: the Debuffs and Defensives rows have a Growth setting, which
   sets the direction icons run and whether extra rows stack below or above.
   With a row placed above the frame and Rows set to 2 or more, "Right, new rows
