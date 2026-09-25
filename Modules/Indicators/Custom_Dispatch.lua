@@ -901,11 +901,37 @@ end
 -- ------------------------------------------------------------------
 -- Scan: feed UNIT_AURA data into custom indicators
 -- ------------------------------------------------------------------
+-- Is there anything in this context the scan below actually feeds? Entries
+-- flagged engineDriven are drawn by AuraEngine and ignored by every step of
+-- the scan, so a context holding only those -- or nothing at all, which is
+-- the normal case on 12.1 -- would walk up to 80 aura slots, allocating an
+-- AuraData table for each, on every UNIT_AURA of every button, and then find
+-- nothing to do. In a raid that is thousands of wasted lookups a second.
+-- Walked rather than counted: a stored count would have to be kept in step
+-- with every path that edits customIndicators, and this is a handful of
+-- entries at most.
+local function HasLegacyCustoms(ctx)
+    local byType = customIndicators[ctx]
+    if not byType then return false end
+    for _, entry in pairs(byType.buff) do
+        if not entry.engineDriven then return true end
+    end
+    for _, entry in pairs(byType.debuff) do
+        if not entry.engineDriven then return true end
+    end
+    return false
+end
+
+-- The two aura passes, hoisted: `pairs({...})` in the scan built a new table
+-- on every call.
+local SCAN_FILTERS = {buff = "HELPFUL", debuff = "HARMFUL"}
+
 function CD.Scan(button)
     if not button or not button._indicatorsReady then return end
     local unit = button.unit or (button.states and button.states.displayedUnit)
     if not unit then return end
     local ctx = GetContext(button)
+    if not HasLegacyCustoms(ctx) then return end
 
     -- Reset both aura types.
     CD.ResetCustomIndicators(button, "buff")
@@ -913,7 +939,7 @@ function CD.Scan(button)
 
     -- Walk all auras and feed matching ones.
     if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-        for auraType, filter in pairs({["buff"] = "HELPFUL", ["debuff"] = "HARMFUL"}) do
+        for auraType, filter in pairs(SCAN_FILTERS) do
             local i = 1
             -- Bounded (matches BuiltIn_Update.lua's ScanAurasForCooldownGrid/
             -- CheckDebuffs/CheckMissingBuffs, the proven-working version of

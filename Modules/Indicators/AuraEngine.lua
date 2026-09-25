@@ -981,6 +981,64 @@ function AE.FlowAxis(token)
     return (token == "VERTICAL") and E.Vertical or E.Horizontal
 end
 
+-- A periodic container:UpdateAllAuras() over a set of wrappers, SPREAD over
+-- the interval instead of bunched into one frame.
+--
+-- Three modules need this -- the custom colour/bar slots, the unit frames'
+-- aura rows and the tank tracker -- because the engine can hold a stale
+-- matched instance through a reapplication and does not re-parse a token
+-- whose unit changed. Each used to keep its own ticker that, every N seconds,
+-- re-parsed EVERY registered container in the same frame: in a raid that is
+-- dozens of full re-parses at once, a small hitch on a fixed beat. Each
+-- container is still refreshed once per `interval`; the work is just dealt
+-- out a few per frame.
+--
+-- A cycle's worth of wrappers is snapshotted at the start of each cycle rather
+-- than walked live with next(): registering a new wrapper mid-walk (a roster
+-- change does exactly that) makes next()'s behaviour undefined. A wrapper
+-- pruned or re-registered since the snapshot is re-checked against the live
+-- registry before it is touched.
+--
+--   local cycle = AE.NewRefreshCycle(1.5)
+--   cycle.Register(wrapper, container)   -- idempotent; replaces the container
+--   cycle.registry                       -- [wrapper] = container, read-only use
+function AE.NewRefreshCycle(interval)
+    local registry = {}
+    local queue, qi, carry = {}, 1, 0
+    local driver = CreateFrame("Frame")
+    driver:Hide()
+    driver:SetScript("OnUpdate", function(self, dt)
+        if qi > #queue then
+            wipe(queue)
+            qi, carry = 1, 0
+            for wrapper in pairs(registry) do queue[#queue + 1] = wrapper end
+            if #queue == 0 then self:Hide() return end
+        end
+        -- #queue refreshes per `interval` seconds, at whatever frame rate.
+        carry = carry + #queue * dt / interval
+        while carry >= 1 and qi <= #queue do
+            carry = carry - 1
+            local wrapper = queue[qi]
+            qi = qi + 1
+            local container = registry[wrapper]
+            if container then
+                if not wrapper:IsShown() then
+                    registry[wrapper] = nil -- self-prune hidden/recycled wrappers
+                else
+                    pcall(container.UpdateAllAuras, container)
+                end
+            end
+        end
+    end)
+    return {
+        registry = registry,
+        Register = function(wrapper, container)
+            registry[wrapper] = container
+            driver:Show()
+        end,
+    }
+end
+
 function AE.ApplyContainerLayout(container, layout)
     if not layout then return end
     if layout.axis and container.SetFlowLayoutAxis then

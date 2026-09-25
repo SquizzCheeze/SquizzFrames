@@ -30,6 +30,15 @@ New:
   than breaking the layout. That includes a unit frame attached to a group
   that is itself attached below that frame's cast bar.
 
+- Better performance in groups and raids:
+  - Party and raid frames no longer scan every aura change for custom
+    indicator types you are not using. That scan runs for every group member
+    on every aura change, and for most setups it found nothing to do.
+  - The periodic aura refreshes (custom colour and bar indicators, unit frame
+    buffs and debuffs, Tank Tracker) are spread out a little at a time instead
+    of all running in the same frame, which removes a small regular hitch in
+    large groups.
+
 - Tank Tracker: the Debuffs and Defensives rows have a Growth setting, which
   sets the direction icons run and whether extra rows stack below or above.
   With a row placed above the frame and Rows set to 2 or more, "Right, new rows

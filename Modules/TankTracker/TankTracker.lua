@@ -688,29 +688,15 @@ end
 -- Periodic full re-parse, the same remedy UnitFrames/Auras.lua needs and for
 -- the same two reasons: the engine can hold a stale matched instance through a
 -- reapplication, and a token whose unit changed does not re-parse on its own.
-local refreshRegistry = {}
-local refreshTicker = CreateFrame("Frame")
-refreshTicker:Hide()
-local refreshElapsed = 0
-refreshTicker:SetScript("OnUpdate", function(_, dt)
-    refreshElapsed = refreshElapsed + dt
-    if refreshElapsed < 1 then return end
-    refreshElapsed = 0
-    local any = false
-    for wrapper, container in pairs(refreshRegistry) do
-        if not wrapper:IsShown() then
-            refreshRegistry[wrapper] = nil
-        else
-            any = true
-            pcall(container.UpdateAllAuras, container)
-        end
-    end
-    if not any then refreshTicker:Hide() end
-end)
+-- Spread over the second rather than all in one frame -- see
+-- AE.NewRefreshCycle. Created on first use.
+local refreshCycle
 
 function TankTracker.RegisterRefresh(wrapper, container)
-    refreshRegistry[wrapper] = container
-    refreshTicker:Show()
+    local AE = SquizzFrames.AuraEngine
+    if not (AE and AE.NewRefreshCycle) then return end
+    refreshCycle = refreshCycle or AE.NewRefreshCycle(1)
+    refreshCycle.Register(wrapper, container)
 end
 
 -----------------------------------------------------------------------

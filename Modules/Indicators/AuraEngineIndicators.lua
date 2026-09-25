@@ -2966,31 +2966,18 @@ end
 -- indicator (color, bar, ...). container:UpdateAllAuras() forces the slot
 -- to re-scan for a fresh match, recovering from AddAuraSlot locking onto a
 -- stale matched instance and never picking up a reapplication/refresh.
-local slotRefreshRegistry = {} -- [wrapper] = container
-local slotRefreshTicker = CreateFrame("Frame")
-slotRefreshTicker:Hide()
-local slotRefreshElapsed = 0
-slotRefreshTicker:SetScript("OnUpdate", function(_, dt)
-    slotRefreshElapsed = slotRefreshElapsed + dt
-    if slotRefreshElapsed < 1.5 then return end
-    slotRefreshElapsed = 0
-    local any = false
-    for wrapper, container in pairs(slotRefreshRegistry) do
-        if not wrapper:IsShown() then
-            slotRefreshRegistry[wrapper] = nil -- self-prune hidden/recycled wrappers
-        else
-            any = true
-            pcall(container.UpdateAllAuras, container)
-        end
-    end
-    if not any then slotRefreshTicker:Hide() end
-end)
+-- Spread over the 1.5s rather than all in one frame -- see AE.NewRefreshCycle.
+-- Created on first use: AuraEngine.lua has loaded by then, and a module that
+-- never registers anything never gets a driver frame.
+local slotRefreshCycle
 
 -- Register a wrapper/container pair for the periodic refresh above. Call
 -- once per RequestContainer callback right after stashing wrapper._container.
 local function RegisterSlotRefresh(wrapper, container)
-    slotRefreshRegistry[wrapper] = container
-    slotRefreshTicker:Show()
+    local AE = SquizzFrames.AuraEngine
+    if not (AE and AE.NewRefreshCycle) then return end
+    slotRefreshCycle = slotRefreshCycle or AE.NewRefreshCycle(1.5)
+    slotRefreshCycle.Register(wrapper, container)
 end
 
 function AEI.CreateCustomColorIndicator(button, t)

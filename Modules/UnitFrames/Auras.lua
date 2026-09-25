@@ -302,29 +302,21 @@ end
 -- defers to end of combat because SetUnit's combat legality on a live
 -- container is unverified -- see its comment. UpdateAllAuras carries no such
 -- doubt; the slot ticker has been running it in combat since August.
-local refreshRegistry = {}  -- [wrapper] = container
-local refreshTicker = CreateFrame("Frame")
-refreshTicker:Hide()
-local refreshElapsed = 0
-refreshTicker:SetScript("OnUpdate", function(_, dt)
-    refreshElapsed = refreshElapsed + dt
-    if refreshElapsed < 1 then return end
-    refreshElapsed = 0
-    local any = false
-    for wrapper, container in pairs(refreshRegistry) do
-        if not wrapper:IsShown() then
-            refreshRegistry[wrapper] = nil -- self-prune hidden/disabled rows
-        else
-            any = true
-            pcall(container.UpdateAllAuras, container)
-        end
-    end
-    if not any then refreshTicker:Hide() end
-end)
+-- Spread over the second rather than all in one frame -- see
+-- AE.NewRefreshCycle. Created on first use, not at load: this file loads
+-- BEFORE AuraEngine.lua (Modules/LoadModules.xml), so AE does not exist yet.
+local refreshCycle
+local NO_REGISTRY = {}
+
+local function RefreshRegistry()
+    return refreshCycle and refreshCycle.registry or NO_REGISTRY
+end
 
 local function RegisterRefresh(wrapper, container)
-    refreshRegistry[wrapper] = container
-    refreshTicker:Show()
+    local AE = SquizzFrames.AuraEngine
+    if not (AE and AE.NewRefreshCycle) then return end
+    refreshCycle = refreshCycle or AE.NewRefreshCycle(1)
+    refreshCycle.Register(wrapper, container)
 end
 
 -- Immediate re-parse for every row on `unit`. Called the moment a token is
@@ -332,7 +324,7 @@ end
 -- ticker -- a target frame showing the last target's debuffs is the kind of
 -- wrong that gets acted on.
 function Auras.ForceRefresh(unit)
-    for wrapper, container in pairs(refreshRegistry) do
+    for wrapper, container in pairs(RefreshRegistry()) do
         if wrapper._sfUnit == unit then
             pcall(container.UpdateAllAuras, container)
         end
