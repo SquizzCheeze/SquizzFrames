@@ -917,6 +917,15 @@ local function CreateMover(unit)
                 unitFrame:ClearAllPoints()
                 unitFrame:SetPoint("CENTER", UIParent, "CENTER", dragX / fs, dragY / fs)
 
+                -- Snap (Edit Mode toolbar). Before the boss stack and the
+                -- mirrored partner below, so they follow the snapped spot.
+                local sdx, sdy = SquizzFrames.SnapDelta(unitFrame)
+                if sdx ~= 0 or sdy ~= 0 then
+                    dragX, dragY = dragX + sdx, dragY + sdy
+                    unitFrame:ClearAllPoints()
+                    unitFrame:SetPoint("CENTER", UIParent, "CENTER", dragX / fs, dragY / fs)
+                end
+
                 -- Boss stack: dragging boss1 carries 2..N with it. Without
                 -- this only the dragged frame moved and the rest stayed put
                 -- until the next full layout pass, which in practice meant a
@@ -957,6 +966,7 @@ local function CreateMover(unit)
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         local t = GetFrameConfig(unit)
         if t then
             t.anchorX = dragX
@@ -983,6 +993,8 @@ local function CreateMover(unit)
     end)
     mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
+    -- Other frames can snap to this one (Edit Mode grid).
+    SquizzFrames.SnapTarget(mover)
     movers[unit] = mover
     return mover
 end
@@ -1184,6 +1196,29 @@ local function PlaceAttached(unit, frame, t, scale)
     return true
 end
 
+-- "Match height of attached frame": the frame takes the height of the
+-- cooldown group it is attached to (so a player frame to the LEFT of
+-- Essential lines up top and bottom with it). Returns the height to use in the
+-- frame's own units, or nil to keep t.height.
+--
+-- Fed into ApplyLayout's `h` rather than applied with a bare SetSize, because
+-- the frame's whole layout hangs off it -- the health bar is h minus the power
+-- bar and gap. Not offered for the boss stack: every boss frame would take the
+-- group's height and the stack would stop meaning anything.
+local function MatchedAttachHeight(unit, frame, t, scale)
+    if not (t and t.matchAttachHeight and t.positionMode == "anchor") then return nil end
+    if BossIndex(unit) then return nil end
+    local target = UsableAttachTarget(t, frame)
+    if not target then return nil end
+    local ok, _, _, _, th = pcall(target.GetRect, target)
+    if not ok or type(th) ~= "number" or (issecretvalue and issecretvalue(th)) then return nil end
+    -- Target units -> UIParent units -> this frame's units.
+    local k = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local hUI = th * k
+    if hUI < 10 then return nil end -- an empty group is ~1px; keep the set height
+    return hUI / (scale or 1)
+end
+
 local function ScaleSetting()
     local prof = GetProfile()
     return (prof and prof.appearance and prof.appearance.general
@@ -1202,6 +1237,13 @@ local function WatchAttached(self, elapsed)
         local t = GetFrameConfig(unit)
         if frame and FrameEnabled(unit) and IsAttached(unit) then
             if RectSignature(UsableAttachTarget(t, frame)) ~= attachSeen[unit] then
+                -- A matched height has to go through the full layout pass (the
+                -- health bar is sized off it), which re-places the frame too.
+                -- Only on a change, so it costs nothing while nothing moves.
+                if t.matchAttachHeight and not BossIndex(unit) then
+                    ApplyLayout()
+                    return
+                end
                 scale = scale or ScaleSetting()
                 if not PlaceAttached(unit, frame, t, scale) then
                     frame:ClearAllPoints()
@@ -1315,7 +1357,7 @@ function ApplyLayout()
                 frame:Hide()
             else
                 local w = t.width or 180
-                local h = t.height or 46
+                local h = MatchedAttachHeight(unit, frame, t, scale) or t.height or 46
                 local ph = t.powerHeight or 0
                 local gap = (ph > 0) and (t.powerGap or 1) or 0
 

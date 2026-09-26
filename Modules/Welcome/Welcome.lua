@@ -33,6 +33,11 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.34"] = {
+        "Edit Mode has an alignment grid in your class colour, with a toolbar to dim or hide it and to turn Snap on.",
+        "With Snap on, dragged frames snap to the centre lines, screen edges, the grid and your other frames - Squizzumables' included, which shares the grid.",
+        "Unit frames attached to a cooldown group can match its height (Position > Match Height of Attached Frame).",
+    },
     ["1.33"] = {
         "Unit frames can attach to a cooldown group - Squizzumables' groups or Blizzard's Cooldown Manager rows - with a side and X/Y offsets, under Position. They follow the group when you move it.",
         "Cast bars can attach to the Resource Bar's power bar or points row, and every Attach To list now includes Squizzumables' cooldown groups.",

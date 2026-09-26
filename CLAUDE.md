@@ -557,6 +557,29 @@ and with its "Hide Blizzard's Cooldown Manager" option it sits at -10000.
   frame on Utility + Utility under the player cast bar would have the watcher chasing its own
   movement down the screen. `UsableAttachTarget` refuses it.
 
+### Edit Mode grid and snapping (Libs/LibSquizzGrid-1.0, Modules/Grid/SnapGrid.lua)
+
+A LibStub library shared with Squizzumables: **a copy lives in each addon and
+LibStub runs whichever loads first at the highest MINOR.** ⚠ So any change must
+be made to BOTH copies byte-identically AND bump `MINOR` — otherwise the two
+addons silently run whichever copy loaded first, and a fix in one appears to do
+nothing. The library's header documents what it draws and snaps to.
+
+- Settings: `SquizzFramesDB.snapGrid` (account-wide, SV root). Snap OFF by
+  default; grid always the player's class colour (user decisions 2026-09-26).
+  Toggled by toolbar buttons only, no modifier key.
+- Grid + toolbar follow `EditModeChanged`; snapping only happens while some
+  addon is in its move mode (`AnyOwner`), so drags elsewhere are untouched.
+- **Every mover snaps the same way**: place the frame from the cursor, call
+  `SquizzFrames.SnapDelta(frame)` (UIParent units), add the delta to the drag
+  offset and re-place. Offsets here are all UIParent units, so this is
+  anchor-agnostic. Movers register with `SquizzFrames.SnapTarget(mover)` and
+  clear guides with `SnapClear()` in their stop handler. A new mover needs all
+  three.
+- `matchAttachHeight` (unit frames, not boss): `MatchedAttachHeight` feeds
+  ApplyLayout's `h`, because the health bar is sized off it; the attach watcher
+  runs a full ApplyLayout (not a re-place) when such a frame's target changes.
+
 ### Nicknames/Nicknames.lua
 Replaces the name drawn by the `nameText` indicator. Four layers, resolved highest-first: private `custom[full]` → `custom[base]` → synced `[full]` → `[base]`. **Private always beats remote** — that ordering is what makes accepting broadcast strings tolerable.
 

@@ -658,6 +658,7 @@ function CastBar.CreateMover(bar, unit, getConfig, onMoved)
     if bar._sfMover then return bar._sfMover end
 
     local mover = CreateFrame("Frame", "SquizzFramesCastBarMover" .. unit, UIParent, "BackdropTemplate")
+    SquizzFrames.SnapTarget(mover)
     mover:SetFrameStrata("DIALOG")
     mover:EnableMouse(true)
     mover:Hide()
@@ -704,6 +705,16 @@ function CastBar.CreateMover(bar, unit, getConfig, onMoved)
             bar:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+            -- Snap (Edit Mode toolbar), measured on the handle: the bar
+            -- itself is hidden unless something is being cast.
+            local sdx, sdy = SquizzFrames.SnapDelta(f)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragX, dragY = dragX + sdx, dragY + sdy
+                bar:ClearAllPoints()
+                bar:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+                f:ClearAllPoints()
+                f:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+            end
         end)
     end
 
@@ -711,6 +722,7 @@ function CastBar.CreateMover(bar, unit, getConfig, onMoved)
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         local cfg = getConfig()
         if cfg then
             cfg.anchorX = dragX

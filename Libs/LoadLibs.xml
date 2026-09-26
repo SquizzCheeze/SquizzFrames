@@ -25,6 +25,9 @@
     <Include file="AceComm-3.0\AceComm-3.0.xml"/>
     <Include file="AceConsole-3.0\AceConsole-3.0.xml"/>
     <Include file="AceLocale-3.0\AceLocale-3.0.xml"/>
+    <!-- Our own: the Edit Mode grid and snapping, shared with Squizzumables
+         (a copy lives in each addon; LibStub runs the newer one) -->
+    <Script file="LibSquizzGrid-1.0\LibSquizzGrid-1.0.lua"/>
     <!-- Third-party libraries -->
     <Include file="LibSharedMedia-3.0\lib.xml"/>
     <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>

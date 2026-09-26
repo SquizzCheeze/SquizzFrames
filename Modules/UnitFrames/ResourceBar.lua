@@ -1269,6 +1269,7 @@ end
 -- cfg.pointsLayout), resolved at drag time so a profile switch is honoured.
 local function MakeMover(frame, globalName, getPos, defaultY)
     local mover = CreateFrame("Frame", globalName, UIParent, "BackdropTemplate")
+    SquizzFrames.SnapTarget(mover)
     mover:SetFrameStrata("DIALOG")
     mover:EnableMouse(true)
     mover:Hide()
@@ -1315,6 +1316,15 @@ local function MakeMover(frame, globalName, getPos, defaultY)
             frame:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+            -- Snap (Edit Mode toolbar), measured on the handle.
+            local sdx, sdy = SquizzFrames.SnapDelta(f)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragX, dragY = dragX + sdx, dragY + sdy
+                frame:ClearAllPoints()
+                frame:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+                f:ClearAllPoints()
+                f:SetPoint("CENTER", UIParent, "CENTER", dragX / bs, dragY / bs)
+            end
         end)
     end
 
@@ -1322,6 +1332,7 @@ local function MakeMover(frame, globalName, getPos, defaultY)
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         local pos = getPos()
         if pos then
             pos.anchorX = dragX

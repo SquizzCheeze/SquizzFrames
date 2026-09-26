@@ -115,6 +115,9 @@ local function DefaultFrame(opts)
         attachSide = "TOP",
         attachX = 0,
         attachY = 0,
+        -- While attached, take the cooldown group's height instead of
+        -- `height` (UnitFrames.lua MatchedAttachHeight). Not for the boss stack.
+        matchAttachHeight = false,
 
         -- Power bar. height 0 hides it entirely rather than needing a second
         -- boolean -- one control, no invalid combinations.

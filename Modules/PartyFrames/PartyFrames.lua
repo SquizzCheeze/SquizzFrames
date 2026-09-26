@@ -568,6 +568,7 @@ local function CreatePartyContainer()
     partyFrame:EnableMouse(false)
 
     local mover = CreateFrame("Frame", "SquizzFramesPartyMover", partyFrame)
+    SquizzFrames.SnapTarget(mover)
     mover:SetAllPoints(partyFrame)
     mover:SetFrameStrata(partyFrame:GetFrameStrata())
     mover:SetFrameLevel(partyFrame:GetFrameLevel() + 10)
@@ -663,6 +664,15 @@ local function CreatePartyContainer()
             partyFrame:ClearAllPoints()
             partyFrame:SetPoint(anchorPoint, UIParent, anchorPoint,
                 dragOffsetX / frameScale, dragOffsetY / frameScale)
+            -- Snap (Edit Mode toolbar). The delta is in UIParent units, the
+            -- same as the offsets, whatever anchor point the layout uses.
+            local sdx, sdy = SquizzFrames.SnapDelta(partyFrame)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragOffsetX, dragOffsetY = dragOffsetX + sdx, dragOffsetY + sdy
+                partyFrame:ClearAllPoints()
+                partyFrame:SetPoint(anchorPoint, UIParent, anchorPoint,
+                    dragOffsetX / frameScale, dragOffsetY / frameScale)
+            end
         end)
     end
 
@@ -671,6 +681,7 @@ local function CreatePartyContainer()
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         -- Persist the final offset (raw pixels from screen center).
         -- Read the active layout dynamically (don't reuse the upvalue `db`
         -- from CreatePartyContainer — it can go stale after a profile reset,
@@ -3984,6 +3995,7 @@ end
 local function GetOrCreatePreviewMover()
     if previewMover then return previewMover end
     local mover = CreateFrame("Frame", "SquizzFramesPreviewMover", UIParent)
+    SquizzFrames.SnapTarget(mover)
     mover:SetFrameStrata("HIGH")
     mover:SetFrameLevel(50)
     mover:EnableMouse(true)
@@ -4053,6 +4065,13 @@ local function GetOrCreatePreviewMover()
             dragOffsetY = (cy + cursorOffY) - oy
             LayoutPreviewButtons(previewCount, previewIsRaidTab, dragOffsetX, dragOffsetY)
             PartyFrames:RefreshPreviewMoverBounds()
+            -- Snap, measured on the mover: it is the preview's bounds.
+            local sdx, sdy = SquizzFrames.SnapDelta(f)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragOffsetX, dragOffsetY = dragOffsetX + sdx, dragOffsetY + sdy
+                LayoutPreviewButtons(previewCount, previewIsRaidTab, dragOffsetX, dragOffsetY)
+                PartyFrames:RefreshPreviewMoverBounds()
+            end
         end)
     end
 
@@ -4061,6 +4080,7 @@ local function GetOrCreatePreviewMover()
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         local prof = GetProfile()
         local layout = prof and prof.layout and (previewIsRaidTab and prof.layout.raid or prof.layout.main)
         if layout then

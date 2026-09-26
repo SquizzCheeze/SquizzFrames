@@ -1417,6 +1417,19 @@ local function SecPosition(host, y, cfg, t)
     sY:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 70
 
+    -- Not on the boss tab: every frame in the stack would take the group's
+    -- height (MatchedAttachHeight ignores it there too).
+    if activeUnit ~= "boss" then
+        local cbMatch = W.CreateStyledCheckbox(host,
+            L["Match Height of Attached Frame"] or "Match Height of Attached Frame",
+            function() return t.matchAttachHeight == true end,
+            function(v) Set(function(u) u.matchAttachHeight = v end) end)
+        cbMatch:SetPoint("TOPLEFT", 15, y)
+        y = y - 26
+        Hint(L["Uses the group's height instead of the Height setting, for a frame beside it (left or right). It follows the group when that changes size, out of combat."]
+            or "Uses the group's height instead of the Height setting, for a frame beside it (left or right). It follows the group when that changes size, out of combat.", 45)
+    end
+
     Hint(L["Follows the group when it moves, out of combat. A secure frame cannot move mid-fight, so in combat it stays put until the fight ends."]
         or "Follows the group when it moves, out of combat. A secure frame cannot move mid-fight, so in combat it stays put until the fight ends.", 45)
     return y

@@ -356,6 +356,7 @@ local function CreatePetContainer(frameName, moverName, getLayout, defaultY)
     container:EnableMouse(false)
 
     local mover = CreateFrame("Frame", moverName, container)
+    SquizzFrames.SnapTarget(mover)
     mover:SetAllPoints(container)
     mover:SetFrameStrata(container:GetFrameStrata())
     mover:SetFrameLevel(container:GetFrameLevel() + 10)
@@ -410,6 +411,14 @@ local function CreatePetContainer(frameName, moverName, getLayout, defaultY)
             container:ClearAllPoints()
             container:SetPoint("CENTER", UIParent, "CENTER",
                 dragOffsetX / frameScale, dragOffsetY / frameScale)
+            -- Snap (Edit Mode toolbar); delta and offsets share UIParent units.
+            local sdx, sdy = SquizzFrames.SnapDelta(container)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragOffsetX, dragOffsetY = dragOffsetX + sdx, dragOffsetY + sdy
+                container:ClearAllPoints()
+                container:SetPoint("CENTER", UIParent, "CENTER",
+                    dragOffsetX / frameScale, dragOffsetY / frameScale)
+            end
         end)
     end
 
@@ -418,6 +427,7 @@ local function CreatePetContainer(frameName, moverName, getLayout, defaultY)
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         -- No InCombatLockdown guard here -- mirrors PartyFrames.lua's own
         -- mover precedent (its drag-stop is likewise unguarded), an
         -- accepted existing gap since dragging only happens in edit mode, a

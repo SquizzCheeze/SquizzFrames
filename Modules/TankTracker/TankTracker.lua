@@ -821,6 +821,7 @@ end
 function TankTracker.CreateMover()
     if mover then return mover end
     mover = CreateFrame("Frame", "SquizzFramesTankTrackerMover", UIParent, "BackdropTemplate")
+    SquizzFrames.SnapTarget(mover)
     mover:SetFrameStrata("DIALOG")
     mover:EnableMouse(true)
     mover:Hide()
@@ -861,8 +862,21 @@ function TankTracker.CreateMover()
             local w2, h2 = GetScreenWidth(), GetScreenHeight()
             dragX = (cx + offX) - w2 / 2
             dragY = (cy + offY) - h2 / 2
+            -- Divided by the mover's scale, as SetEditMode places it: dragX is
+            -- in UIParent units, a SetPoint offset in the mover's own. It used
+            -- to be passed undivided, so at any tracker scale but 1.0 the
+            -- handle ran ahead of or behind the cursor mid-drag (the saved
+            -- value was right; only the live position was off).
+            local ms = fr:GetScale() or 1
             fr:ClearAllPoints()
-            fr:SetPoint("CENTER", UIParent, "CENTER", dragX, dragY)
+            fr:SetPoint("CENTER", UIParent, "CENTER", dragX / ms, dragY / ms)
+            -- Snap (Edit Mode toolbar).
+            local sdx, sdy = SquizzFrames.SnapDelta(fr)
+            if sdx ~= 0 or sdy ~= 0 then
+                dragX, dragY = dragX + sdx, dragY + sdy
+                fr:ClearAllPoints()
+                fr:SetPoint("CENTER", UIParent, "CENTER", dragX / ms, dragY / ms)
+            end
         end)
     end
 
@@ -870,6 +884,7 @@ function TankTracker.CreateMover()
         if not dragging then return end
         dragging = false
         self:SetScript("OnUpdate", nil)
+        SquizzFrames.SnapClear()
         local cfg = GetConfig()
         if cfg then
             cfg.anchorX = dragX
