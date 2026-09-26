@@ -35,7 +35,7 @@ SquizzFrames.Welcome = Welcome
 local RELEASE_NOTES = {
     ["1.34"] = {
         "Edit Mode has an alignment grid in your class colour, with a toolbar to dim or hide it and to turn Snap on.",
-        "With Snap on, dragged frames snap to the centre lines, screen edges, the grid and your other frames - Squizzumables' included, which shares the grid.",
+        "With Snap on, a dragged frame's centre snaps to the screen's centre lines and its edges to the screen edges and the nearest other frame - Squizzumables' included.",
         "Unit frames attached to a cooldown group can match its height (Position > Match Height of Attached Frame).",
     },
     ["1.33"] = {

@@ -11,10 +11,13 @@ New:
   lines drawn brighter. A small toolbar at the top of the screen switches the
   grid between Dimmed, Bright and Off, and turns Snap on or off.
 
-- With Snap on, a frame you drag snaps to the screen's centre lines, the
-  screen edges, the grid lines, and the edges and centres of your other
-  frames - including Squizzumables' frames and cooldown groups, which share
-  the same grid. Snap is off by default; with it off, dragging works exactly
+- With Snap on, a frame you drag snaps its centre to the screen's centre
+  lines, and its edges to the screen edges and to the nearest other frame -
+  lined up flush with it or placed right beside it. That includes
+  Squizzumables' frames and cooldown groups, which share the same grid. The
+  grid lines themselves are a visual guide and do not snap. A snap holds
+  until you pull a little further away, so frames do not flick between
+  nearby points. Snap is off by default; with it off, dragging works exactly
   as before.
 
 - Unit frames attached to a cooldown group can match its height: tick "Match
