@@ -25,7 +25,7 @@ SquizzFrames/
 ├── Core.lua                 # Addon bootstrap, Ace3 lifecycle, DB, module registry
 ├── Utils.lua                # Shared helpers (colors, numbers, spells, click-cast spells, SquizzFrames.IS_121 build-gate flag)
 ├── SquizzFrames.toc         # Load order: Libs → Core → Utils → Defaults → Media → HideBlizzard → Options → Modules → Compat
-├── Libs/                    # Embedded libraries (Ace3, LibSharedMedia, LibCustomGlow, LibDeflate, LibSerialize, LibRangeCheck)
+├── Libs/                    # Embedded libraries (Ace3, LibSharedMedia, LibCustomGlow, LibDeflate, LibSerialize, LibRangeCheck) + our own LibSquizzGrid-1.0 (Edit Mode grid/snapping, a copy shared with Squizzumables)
 ├── Media/                   # Fonts, textures, icons, flipbooks
 ├── Defaults/                # Layout, Appearance, Indicator, ClickCasting defaults (DB-side data)
 ├── Locales/                 # enUS.lua (AceLocale-3.0)
@@ -49,6 +49,8 @@ SquizzFrames/
     │   ├── IndicatorWidgets.lua   # Custom indicator frame factories (legacy scan-based) + shared setting widgets
     │   ├── Custom_Dispatch.lua    # Legacy aura scanner + per-type dispatch (still used for trackByName customs, text/icon customs, and all customs pre-12.1)
     │   └── IndicatorsPanel.lua    # Options UI for indicators
+    ├── Grid/
+    │   └── SnapGrid.lua     # Connects SquizzFrames to LibSquizzGrid: storage, EditModeChanged hook, SnapTarget/SnapDelta/SnapClear helpers every mover calls. Loaded FIRST in LoadModules.xml
     ├── Welcome/            # First-run greeting + per-version release notes; RELEASE_NOTES table is a manual per-release step (see Releasing)
     ├── TankTracker/         # Per-tank frame: incoming debuffs above, defensives below; own AuraEngine rows, plain (non-secure) frames. Debuff filter defaults to the duration-bounded `encounter` preset, NOT the boss/role flags — see section 7 on why flag presets render empty rows in untagged encounters
     │   ├── TankTracker.lua      # Engine: tank discovery (secret-safe, fail-closed on identity), stacking, aura rows, mover
@@ -95,7 +97,7 @@ SquizzFrames/
 8. **Modules/Options/Options.lua** — AceConfig table (fallback)
 9. **Modules/Options/Widgets.lua** — Custom widgets
 10. **Modules/Options/OptionsFrame.lua** — Custom options panel
-11. **Modules/LoadModules.xml** — Loads PartyFrames, Indicators (`Indicators.lua` → `IndicatorDefaults.lua` → `AuraEngine.lua` → `AuraEngineIndicators.lua` → `BuiltIn_Update.lua` → `Custom_Dispatch.lua` → `IndicatorWidgets.lua` → `IndicatorsPanel.lua`), ClickCasting modules, Nicknames (after Indicators — it refreshes names through `nameText`'s `_sfNameUpdater`)
+11. **Modules/LoadModules.xml** — Loads Grid/SnapGrid.lua (first), PartyFrames, Indicators (`Indicators.lua` → `IndicatorDefaults.lua` → `AuraEngine.lua` → `AuraEngineIndicators.lua` → `BuiltIn_Update.lua` → `Custom_Dispatch.lua` → `IndicatorWidgets.lua` → `IndicatorsPanel.lua`), ClickCasting modules, Nicknames (after Indicators — it refreshes names through `nameText`'s `_sfNameUpdater`)
 12. **Compat/BlizziCompat.lua** — Optional third-party integration, patches itself in on `PLAYER_LOGIN` if `BliZzi_Interrupts` is present
 
 ---
@@ -234,6 +236,15 @@ reference for a *default move that must avoid stamping on user choices*:
 Both also needed the **code-side fallbacks** changed (`Auras.lua`'s
 `cfg.stackX or 1`, the panel getters) — the "grep the key and fix every hit"
 rule above, which is easy to forget when the default only moves a pixel.
+
+⚠ **An offset can also hide in the CODE, with no stored default at all**, and
+the grep above cannot find it. The cast bar's "On This Frame" mode placed the
+bar at `oy - 2` / `oy + 2`, so Offset Y 0 was really 2px off; it survived both
+0,0 migrations and was only noticed in V1.34 (user report 2026-09-26). Removed
+from `CastBar.ApplyPosition` and `Preview.lua`, with `MigrateCastBarGap`
+(`unitFrames.castBarGapRemoved`) folding the 2px into any non-zero offset so
+those bars stay put. When checking "is 0 really 0", read the SetPoint call,
+not just the defaults table.
 
 ### 7. 12.1 AuraEngine Subsystem (AuraEngine.lua / AuraEngineIndicators.lua)
 
@@ -904,6 +915,7 @@ re-inventing something already half-built.
 | LibDeflate | Compression (for serialization) |
 | LibSerialize | Table serialization |
 | LibRangeCheck-3.0 | Unit range checking (out-of-range alpha) |
+| LibSquizzGrid-1.0 | **Our own**, shared with Squizzumables: Edit Mode grid + snapping. Change both copies identically and bump `MINOR` (see *Edit Mode grid and snapping*) |
 
 ---
 
