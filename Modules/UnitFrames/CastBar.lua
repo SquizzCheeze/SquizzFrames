@@ -613,10 +613,13 @@ function CastBar.ApplyPosition(bar, parent, cfg)
 
     -- "frame" mode, and the fallback for an unresolved anchor target.
     if not parent then return end
+    -- Flush at offset 0. There used to be a 2px gap built in here (oy +/- 2),
+    -- so 0 was never actually 0; Core.lua's MigrateCastBarGap folded it into
+    -- anyone's own offset so their bar did not move. Preview.lua matches.
     if (cfg.anchor or "BOTTOM") == "TOP" then
-        bar:SetPoint("BOTTOM", parent, "TOP", ox, oy + 2)
+        bar:SetPoint("BOTTOM", parent, "TOP", ox, oy)
     else
-        bar:SetPoint("TOP", parent, "BOTTOM", ox, oy - 2)
+        bar:SetPoint("TOP", parent, "BOTTOM", ox, oy)
     end
 end
 

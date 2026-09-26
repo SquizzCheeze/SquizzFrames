@@ -1225,6 +1225,18 @@ local function ScaleSetting()
             and prof.appearance.general.scale) or 1.0
 end
 
+-- The height a frame is actually using under "Match Height of Attached
+-- Frame", or nil when it is not matching (or the group is not there). For the
+-- options page: the preview draws at this height and the Height slider says
+-- it is being overridden, instead of both quietly showing the slider's value
+-- while the real frame is a different size (user report 2026-09-26).
+function UnitFrames.MatchedHeight(unit)
+    local frame = frames[unit]
+    local t = GetFrameConfig(unit)
+    if not (frame and t) then return nil end
+    return MatchedAttachHeight(unit, frame, t, ScaleSetting())
+end
+
 local function WatchAttached(self, elapsed)
     self.t = (self.t or 0) + elapsed
     if self.t < ATTACH_WATCH_INTERVAL then return end

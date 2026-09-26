@@ -580,6 +580,49 @@ local function MigrateUnitFrameOffsetsZero(profile)
     end
 end
 
+-- The cast bar's "On This Frame" mode had a 2px gap BUILT INTO THE CODE
+-- (CastBar.ApplyPosition: oy - 2 below the frame, oy + 2 above it), so an
+-- Offset Y of 0 still left a gap -- the same few-pixels-off default the 0,0
+-- migrations above removed everywhere else, missed because it lived in code
+-- rather than in a stored default (user report 2026-09-26, noticed once the
+-- target frame's height matched the CDM). The gap is gone from the code, so:
+--
+--   * a bar still at the default offsetY 0 simply becomes flush -- the move
+--     the user asked for, as with the other 0,0 migrations;
+--   * a bar with its OWN offsetY keeps its on-screen spot: the removed 2px is
+--     folded into the value (-2 below the frame, +2 above it).
+--
+-- Only "frame" mode had the gap; attached and free bars are untouched.
+-- One-shot flag, per CLAUDE.md: offsetY 2 away from someone's value is still
+-- perfectly choosable, so detecting the value again would stamp on it.
+local function MigrateCastBarGap(profile)
+    local uf = profile and profile.unitFrames
+    if not uf or uf.castBarGapRemoved then return end
+    uf.castBarGapRemoved = true
+    local adjusted = 0
+
+    local function Fix(t)
+        local cb = type(t) == "table" and t.castBar
+        if type(cb) ~= "table" then return end
+        if (cb.positionMode or "frame") ~= "frame" then return end
+        local oy = cb.offsetY or 0
+        if oy == 0 then return end
+        if (cb.anchor or "BOTTOM") == "TOP" then
+            cb.offsetY = oy + 2
+        else
+            cb.offsetY = oy - 2
+        end
+        adjusted = adjusted + 1
+    end
+
+    for _, t in pairs(uf.frames or {}) do Fix(t) end
+    Fix(uf.boss)
+
+    if adjusted > 0 then
+        MigrationPrint("kept " .. adjusted .. " cast bar(s) in place after removing the built-in 2px gap")
+    end
+end
+
 -- Purge `useNicknames` from every unit frame except the player's.
 --
 -- It shipped as part of every frame's default table, but the options page has
@@ -1006,6 +1049,7 @@ local function EnsureIndicatorLists(profile)
     MigrateTankTrackerDebuffFilter(profile)
     MigrateIndicatorOffsetsZero(profile)
     MigrateUnitFrameOffsetsZero(profile)
+    MigrateCastBarGap(profile)
 end
 
 -- Print with addon prefix

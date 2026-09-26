@@ -25,7 +25,18 @@ New:
   left or right of the group, so the two line up top and bottom. It follows
   the group when that changes size.
 
+Changed:
+
+- A cast bar set to "On This Frame" now sits flush against its unit frame at
+  an Offset Y of 0. There was a 2 pixel gap built in, so 0 was never really
+  0. Bars you had given your own offset keep their exact position (the 2
+  pixels are folded into your offset); bars left at 0 close the gap.
+
 Fixed:
+
+- With "Match Height of Attached Frame" on, the options preview now shows the
+  matched height, and the Height slider says it is being overridden (and by
+  how much), instead of both showing a height the frame is not using.
 
 - Dragging the Tank Tracker in Edit Mode at a scale other than 100%: the
   handle ran ahead of or behind the cursor while dragging. Where it ended up

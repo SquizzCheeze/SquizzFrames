@@ -167,7 +167,7 @@ local function RefreshPreview()
     local cfg = GetConfig()
     local t = GetUnitConfig()
     if t and cfg and cfg.enabled then
-        P.Refresh(previewMock, t)
+        P.Refresh(previewMock, t, activeUnit)
         previewMock:Show()
     else
         previewMock:Hide()
@@ -456,6 +456,31 @@ local function SecSizing(host, y, cfg, t)
         function(v) Set(function(c) c.height = v end) end)
     sliderH:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
+
+    -- Under "Match Height of Attached Frame" the frame is not this tall, and
+    -- the slider used to give no sign of it (user report 2026-09-26). Said
+    -- here rather than by greying the slider out: the value still matters --
+    -- it is what the frame goes back to when matching is turned off.
+    if t.matchAttachHeight and t.positionMode == "anchor" and activeUnit ~= "boss" then
+        local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
+        local mh = UF and UF.MatchedHeight and UF.MatchedHeight(activeUnit)
+        local note = host:CreateFontString(nil, "OVERLAY")
+        note:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        note:SetPoint("TOPLEFT", 15, y)
+        note:SetWidth(340)
+        note:SetJustifyH("LEFT")
+        note:SetTextColor(1, 0.75, 0.3, 1)
+        if mh then
+            note:SetText(string.format(
+                L["Matching the attached group's height (%d). This slider applies when matching is off."]
+                or "Matching the attached group's height (%d). This slider applies when matching is off.",
+                math.floor(mh + 0.5)))
+        else
+            note:SetText(L["Set to match the attached group's height, but the group was not found - using this height for now."]
+                or "Set to match the attached group's height, but the group was not found - using this height for now.")
+        end
+        y = y - 32
+    end
 
     -- 0 hides the power bar. One control instead of a checkbox plus a slider
     -- that would then have to disable itself.

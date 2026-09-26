@@ -343,13 +343,19 @@ end
 
 -- Re-dress the mock for a settings table. Called on every rebuild of the
 -- options page, so it tracks edits as they are made.
-function Preview.Refresh(p, t)
+-- `forUnit` is the unit tab being edited. Only its height is read from it:
+-- under "Match Height of Attached Frame" the real frame is not t.height tall,
+-- and a preview at the slider's value would be a different shape from the
+-- frame on screen. (`unit` below stays "player" -- it is where the sample
+-- name and numbers come from.)
+function Preview.Refresh(p, t, forUnit)
     if not p or not t then return end
     local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
     local unit = "player"
 
     local w = t.width or 180
-    local h = t.height or 46
+    local matchedH = forUnit and UF and UF.MatchedHeight and UF.MatchedHeight(forUnit)
+    local h = matchedH or t.height or 46
     local ph = t.powerHeight or 0
     local gap = (ph > 0) and (t.powerGap or 1) or 0
     p:SetSize(w, h)
@@ -518,9 +524,10 @@ function Preview.Refresh(p, t)
         -- Attached and anchor modes both preview against the frame: the real
         -- anchor target is elsewhere on screen and cannot be represented here.
         if (cb.positionMode or "frame") == "frame" and (cb.anchor or "BOTTOM") == "TOP" then
-            p.castBar:SetPoint("BOTTOM", p, "TOP", cb.offsetX or 0, (cb.offsetY or 0) + 2)
+            -- Flush at 0, as CastBar.ApplyPosition now is (the old 2px gap).
+            p.castBar:SetPoint("BOTTOM", p, "TOP", cb.offsetX or 0, cb.offsetY or 0)
         else
-            p.castBar:SetPoint("TOP", p, "BOTTOM", cb.offsetX or 0, (cb.offsetY or 0) - 2)
+            p.castBar:SetPoint("TOP", p, "BOTTOM", cb.offsetX or 0, cb.offsetY or 0)
         end
         p.castBar:SetStatusBarTexture(tex)
         -- Through CastBar.ApplyColor, not a copy: the copy that stood here
