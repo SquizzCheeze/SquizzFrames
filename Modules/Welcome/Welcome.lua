@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.35"] = {
+        "Every indicator now places itself with a single Anchor Point dropdown. To sit a row outside the frame, anchor it to that edge and use the offset. Indicators you had already placed stay exactly where they were.",
+        "The built-in spell checklists show one row per spell, so a spell tracked under more than one ID (like Earth Shield) ticks and unticks in one go.",
+    },
     ["1.34"] = {
         "Edit Mode has an alignment grid in your class colour, with a toolbar to dim or hide it and to turn Snap on.",
         "With Snap on, a dragged frame's centre snaps to the screen's centre lines and its edges to the screen edges and the nearest other frame - Squizzumables' included.",
