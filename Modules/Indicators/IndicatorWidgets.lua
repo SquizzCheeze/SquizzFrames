@@ -654,18 +654,21 @@ end
 -- same, so "TOPRIGHT" reads as "sit on the top-right corner" rather than
 -- needing two dropdowns to say it.
 --
--- Cell's model (which the plain CreateSetting_Position above still offers, and
--- which every other indicator still uses) lets those two differ, so a frame can
--- hang its TOP off another's BOTTOM. That is genuinely useful for icons and
--- bars; for a line of text it is two controls to express one idea, and the unit
--- frames have never needed it (see UnitFrames.lua's ApplyFrameFont:
--- `fs:SetPoint(anchor, anchorTo, anchor, x, y)`).
+-- Cell's model (the plain CreateSetting_Position above) lets those two differ,
+-- so a frame can hang its TOP off another's BOTTOM. The text indicators moved
+-- to this widget first (2026-09-17); EVERY indicator followed in V1.35 (user
+-- decision 2026-09-27): placing a row outside the frame is an offset from the
+-- matching edge instead, e.g. HoTs above the frame = TOP / TOP, Y = icon height.
+-- The one cost is that such an offset has to follow the icon size by hand.
+-- No settings list references "position" any more; the widget stays for the
+-- dormant-scaffolding reasons in CLAUDE.md.
 --
 -- STORAGE IS UNCHANGED -- still {point, relativeTo, relativePoint, x, y}, with
 -- relativePoint written equal to point. That is what keeps ApplyPosition, the
--- Designer's drag handler and every existing profile working untouched: a
--- saved mismatched pair keeps rendering exactly as it does today until the
--- dropdown is next touched.
+-- Designer's drag handler and every existing profile working untouched.
+-- Core.lua's MigrateIndicatorAnchorsSingle converts mismatched pairs it can
+-- convert exactly; any it cannot keep rendering, and keep their pair, until a
+-- new anchor point is picked here.
 --
 -- Relative To is KEPT. It is a different question from anchoring (which frame,
 -- not which corner), the shipped defaults split between "button" and
@@ -688,10 +691,16 @@ local function CreateSetting_PositionSingle(parent)
         widget.title:SetTextColor(a.r, a.g, a.b, 1)
         widget.title:SetText("Indicator Position")
 
-        -- Field 3 is the anchor again, never a separate selection.
+        -- Field 3 is the anchor again, never a separate selection -- EXCEPT
+        -- for a row saved with a mismatched pair (pre-V1.35 two-dropdown
+        -- placement that MigrateIndicatorAnchorsSingle could not convert
+        -- exactly, e.g. a legacy grid whose frame grows with its icons).
+        -- That row keeps its stored relative point through offset and
+        -- Relative To edits, so nudging it can never make it jump; only
+        -- picking a new Anchor Point collapses the pair.
         local function GetResult()
             local point = widget.anchor:GetSelected()
-            return {point, widget.relativeTo:GetSelected(), point,
+            return {point, widget.relativeTo:GetSelected(), widget._relPoint or point,
                     widget.x:GetValue(), widget.y:GetValue()}
         end
 
@@ -699,7 +708,10 @@ local function CreateSetting_PositionSingle(parent)
         widget.anchor:SetPoint("TOPLEFT", 10, -32)
         local items = {}
         for _, point in ipairs(anchorPoints) do
-            table.insert(items, { text = point, value = point, onClick = function() widget.func(GetResult()) end })
+            table.insert(items, { text = point, value = point, onClick = function()
+                widget._relPoint = point
+                widget.func(GetResult())
+            end })
         end
         widget.anchor:SetItems(items)
         widget.anchorText = CreateLabel(widget, "Anchor Point", "BOTTOMLEFT", 10, 1)
@@ -725,8 +737,9 @@ local function CreateSetting_PositionSingle(parent)
         function widget:SetFunc(func) widget.func = func end
         function widget:SetDBValue(positionTable)
             -- Field 1 only: a profile saved with a mismatched pair shows its
-            -- ANCHOR here, and keeps the stored relative point until the user
-            -- changes something (at which point GetResult collapses the two).
+            -- ANCHOR here, and keeps the stored relative point until a new
+            -- anchor is picked (see GetResult).
+            widget._relPoint = positionTable[3] or positionTable[1]
             widget.anchor:SetSelectedValue(positionTable[1])
             widget.relativeTo:SetSelectedValue(positionTable[2])
             widget.x:SetValue(positionTable[4])
@@ -2683,7 +2696,28 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                     if type(id) == "number" then ids[#ids + 1] = id end
                 end
                 table.sort(ids)
-                if #ids > 0 then
+
+                -- One row per spell NAME, not per ID. Several spells are
+                -- curated under more than one ID (Earth Shield is 974 on
+                -- others and 383648 on yourself via Elemental Orbit), and one
+                -- row each meant unticking "Earth Shield" left the other copy
+                -- showing (user report 2026-09-27). A row now hides or shows
+                -- every ID behind its name together. Storage is unchanged --
+                -- still a flat list of hidden IDs.
+                local entries, byName = {}, {}
+                for _, id in ipairs(ids) do
+                    local spellName = F.GetSpellInfo(id)
+                    local entry = spellName and byName[spellName]
+                    if entry then
+                        entry.ids[#entry.ids + 1] = id
+                    else
+                        entry = { name = spellName, ids = { id } }
+                        entries[#entries + 1] = entry
+                        if spellName then byName[spellName] = entry end
+                    end
+                end
+
+                if #entries > 0 then
                     idx = idx + 1
                     local header = CreateFrame("Frame", nil, scrollChild)
                     header:SetHeight(18)
@@ -2699,7 +2733,9 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                     headerText:SetTextColor(0.6, 0.6, 0.6, 1)
                     rows[idx] = header
 
-                    for _, id in ipairs(ids) do
+                    for _, entry in ipairs(entries) do
+                        local entryIds = entry.ids
+                        local id = entryIds[1]
                         idx = idx + 1
                         local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
                         row:SetHeight(20)
@@ -2711,16 +2747,28 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                         -- from scanning; there is deliberately no delete
                         -- affordance -- the curated entry always stays here
                         -- to be re-shown later.
+                        -- Ticked only while every ID behind the name is shown,
+                        -- so a profile that hid just one copy under the old
+                        -- per-ID rows reads as unticked, and one click sets
+                        -- them all the same way.
+                        local anyHidden = false
+                        for _, eid in ipairs(entryIds) do
+                            if hiddenSet[eid] then anyHidden = true end
+                        end
                         local cb = SF_CreateCheckButton(row, "")
                         cb:SetPoint("LEFT", 4, 0)
-                        cb:SetChecked(not hiddenSet[id])
+                        cb:SetChecked(not anyHidden)
                         cb.onClick = function(checked)
+                            local entrySet = {}
+                            for _, eid in ipairs(entryIds) do entrySet[eid] = true end
                             local currentHidden = widget._hidden or {}
                             local newHidden = {}
                             for _, existing in ipairs(currentHidden) do
-                                if existing ~= id then newHidden[#newHidden + 1] = existing end
+                                if not entrySet[existing] then newHidden[#newHidden + 1] = existing end
                             end
-                            if not checked then newHidden[#newHidden + 1] = id end
+                            if not checked then
+                                for _, eid in ipairs(entryIds) do newHidden[#newHidden + 1] = eid end
+                            end
                             widget._hidden = newHidden
                             if widget.hiddenFunc then widget.hiddenFunc(newHidden) end
                         end
@@ -2736,8 +2784,8 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                         nameStr:SetPoint("LEFT", iconTex, "RIGHT", 4, 0)
                         nameStr:SetPoint("RIGHT", -4, 0)
                         nameStr:SetJustifyH("LEFT")
-                        local spellName = F.GetSpellInfo(id)
-                        nameStr:SetText(spellName and (spellName .. " (" .. id .. ")") or tostring(id))
+                        local idText = table.concat(entryIds, ", ")
+                        nameStr:SetText(entry.name and (entry.name .. " (" .. idText .. ")") or idText)
 
                         rows[idx] = row
                     end

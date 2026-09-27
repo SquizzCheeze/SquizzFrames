@@ -617,7 +617,10 @@ Cell's. `nameText`/`healthText`/`powerText` differ from every other indicator:
   the unit frames use (`SquizzFrames.UNITFRAME_TEXT_FORMATS` in
   `UnitFrames_Defaults.lua`). Keep the two lists in step — `powerMax` was added
   to the unit frames so a party readout set to current/max had somewhere to map.
-- **One anchor point** (`position-single` token). Storage is still the five-field
+- **One anchor point** (`position-single` token) — since V1.35 this is EVERY
+  indicator's position control, not just the texts; `MigrateIndicatorAnchorsSingle`
+  converted mismatched pairs exactly where the frame is `t.size`, and the widget
+  preserves any it could not until a new anchor is picked. Storage is still the five-field
   `{point, relativeTo, relativePoint, x, y}` with `relativePoint` written equal
   to `point`, so `ApplyPosition`, the Designer's drag handler and every other
   indicator are untouched, and a profile holding a mismatched pair keeps

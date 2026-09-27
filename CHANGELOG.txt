@@ -2,6 +2,26 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.35
+-----
+
+Changed:
+
+- Every indicator now places itself with a single Anchor Point, the way Name,
+  Health and Power Text already did, instead of separate Anchor Point and
+  Relative Point dropdowns. To put a row outside the frame, anchor it to that
+  edge and use the offset - for example HoTs above the frame: TOP, with Y
+  Offset equal to the icon size. Indicators you had placed with two different
+  points are converted automatically and stay exactly where they were.
+
+- The built-in spell checklists (Healer HoTs, externals, defensives and the
+  rest) show one row per spell name. A spell tracked under more than one ID,
+  such as Earth Shield, is ticked or unticked in one go instead of needing
+  every copy found and unticked separately.
+
+- A new custom Bar indicator starts inside the frame's top-right corner.
+
+
 V1.34 (2026-09-27)
 ------------------
 

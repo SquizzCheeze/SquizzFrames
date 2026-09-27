@@ -528,6 +528,79 @@ local function MigrateIndicatorOffsetsZero(profile)
     end
 end
 
+-- Every indicator's position moved to the single Anchor Point dropdown in
+-- V1.35 (user decision 2026-09-27; see CreateSetting_PositionSingle). A row
+-- saved with a mismatched pair ({"BOTTOM", "button", "TOP", ...}: HoTs hung
+-- above the frame) is rewritten to anchor on the FRAME's corner with the
+-- difference folded into the offset, so it renders on exactly the same pixel:
+-- the indicator's own rp corner sits (rp - p) * its size away from its p
+-- corner. Keeping rp rather than p is what keeps the row glued to the frame
+-- edge it was placed against when the frame is resized.
+--
+-- Exact only where the positioned frame IS t.size, so the indicator lists
+-- below are an allow-list. Every AuraEngine row's wrapper and the legacy
+-- cooldown grid are one icon in size with the icons flowing out of it; the
+-- legacy custom grids (icons/bars/blocks) resize with the icons shown, text
+-- is font-sized, and the shield bar takes its width from elsewhere. Those keep
+-- their pair -- the widget preserves it until a new anchor is picked.
+--
+-- Must run AFTER MigrateIndicatorOffsetsZero, which matches the old custom
+-- bar default by its mismatched pair. One-shot flag, set before the walk,
+-- which covers both lists itself (the listKey-loop trap in CLAUDE.md).
+local SINGLE_ANCHOR_BUILTINS = {
+    statusIcon = true, phasedIcon = true, roleIcon = true, leaderIcon = true,
+    playerRaidIcon = true, pingMarker = true, aggroBlink = true,
+    externalCooldowns = true, defensiveCooldowns = true, debuffs = true,
+    ccIndicator = true, dispelIcons = true, missingBuffs = true, healerHots = true,
+}
+local SINGLE_ANCHOR_CUSTOMS = {
+    icon = true, bar = true, rect = true, block = true, texture = true,
+}
+
+local function AnchorFraction(point)
+    if type(point) ~= "string" then return nil end
+    local VALID = {
+        TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+        RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
+    }
+    if not VALID[point] then return nil end
+    local fx = point:find("LEFT") and 0 or (point:find("RIGHT") and 1 or 0.5)
+    local fy = point:find("TOP") and 1 or (point:find("BOTTOM") and 0 or 0.5)
+    return fx, fy
+end
+
+local function MigrateIndicatorAnchorsSingle(profile)
+    if not profile or profile.indicatorAnchorsSingled then return end
+    profile.indicatorAnchorsSingled = true
+    local moved = 0
+
+    for _, listKey in ipairs({"indicators", "indicatorsRaid"}) do
+        for _, ind in ipairs((profile.layout and profile.layout[listKey]) or {}) do
+            local pos = ind.position
+            local eligible = (ind.type == "built-in" and SINGLE_ANCHOR_BUILTINS[ind.indicatorName])
+                or (ind.type ~= "built-in" and SINGLE_ANCHOR_CUSTOMS[ind.type])
+            if eligible and type(pos) == "table" and pos[1] ~= pos[3] then
+                local sz = ind.size
+                if type(sz) == "table" and type(sz[1]) == "table" then sz = sz[1] end
+                local w = type(sz) == "table" and tonumber(sz[1])
+                local h = type(sz) == "table" and tonumber(sz[2])
+                local px, py = AnchorFraction(pos[1])
+                local rx, ry = AnchorFraction(pos[3])
+                if w and h and px and rx then
+                    pos[1] = pos[3]
+                    pos[4] = math.floor((tonumber(pos[4]) or 0) + (rx - px) * w + 0.5)
+                    pos[5] = math.floor((tonumber(pos[5]) or 0) + (ry - py) * h + 0.5)
+                    moved = moved + 1
+                end
+            end
+        end
+    end
+
+    if moved > 0 then
+        MigrationPrint("converted " .. moved .. " indicator position(s) to a single anchor point")
+    end
+end
+
 -- The unit frames' half of MigrateIndicatorOffsetsZero (2026-09-24): the
 -- name/health/level texts sat 2px in from their anchor, the buff/debuff rows
 -- 2px off the frame, and aura stack counts 1px off their corner. Same rules:
@@ -1048,6 +1121,7 @@ local function EnsureIndicatorLists(profile)
     MigrateDispelGradientHeight(profile)
     MigrateTankTrackerDebuffFilter(profile)
     MigrateIndicatorOffsetsZero(profile)
+    MigrateIndicatorAnchorsSingle(profile)
     MigrateUnitFrameOffsetsZero(profile)
     MigrateCastBarGap(profile)
 end

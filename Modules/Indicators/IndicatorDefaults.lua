@@ -119,25 +119,25 @@ IndicatorDefaults.AURA_TYPES = {
 IndicatorDefaults.BUILT_IN_SETTINGS = {
     nameText    = {"enabled", "color-class", "textColor", "maxLength", "checkbutton:showGroupNumber", "checkbutton2:hideRealmName", "vehicleNamePosition", "position-single", "frameLevel", "font-noOffset"},
     statusText  = {"enabled", "checkbutton:showTimer", "checkbutton2:showBackground", "statusPosition", "frameLevel", "font-noOffset"},
-    statusIcon  = {"enabled", "size-square", "position", "frameLevel"},
+    statusIcon  = {"enabled", "size-square", "position-single", "frameLevel"},
     -- Same shape as statusIcon (it IS a status icon, just one that gets its
     -- own slot so it can show alongside AFK/dead rather than losing to them
     -- -- see Layout_Defaults.lua), plus the LFG-eye toggle.
-    phasedIcon  = {"enabled", "checkbutton:showLFGEye", "size-square", "position", "frameLevel"},
-    roleIcon    = {"enabled", "checkbutton:hideDamager", "size-square", "roleTexture", "position", "frameLevel"},
-    leaderIcon  = {"enabled", "checkbutton:hideInCombat", "size-square", "position", "frameLevel"},
-    playerRaidIcon = {"enabled", "size-square", "alpha", "position", "frameLevel"},
+    phasedIcon  = {"enabled", "checkbutton:showLFGEye", "size-square", "position-single", "frameLevel"},
+    roleIcon    = {"enabled", "checkbutton:hideDamager", "size-square", "roleTexture", "position-single", "frameLevel"},
+    leaderIcon  = {"enabled", "checkbutton:hideInCombat", "size-square", "position-single", "frameLevel"},
+    playerRaidIcon = {"enabled", "size-square", "alpha", "position-single", "frameLevel"},
     -- Same shape as playerRaidIcon: art we only place and scale, never
     -- recolour. Size is square because both ping atlases are authored square
     -- at 30px and are scaled in proportion, not stretched.
-    pingMarker  = {"enabled", "size-square", "alpha", "position", "frameLevel"},
+    pingMarker  = {"enabled", "size-square", "alpha", "position-single", "frameLevel"},
     -- A movable/resizable pulsing block, so it takes the full position+size
     -- treatment (see BuiltIn_Update.lua's aggroBlink creation). aggroBorder
     -- stays a full-button border and has no geometry of its own.
     -- Free width/height rather than "size-square": it's a solid colour block,
     -- not icon art, so a non-square one (a bar down an edge, say) is a
     -- legitimate look rather than a distortion.
-    aggroBlink  = {"enabled", "color-alpha", "blinkOptions", "size", "position", "frameLevel"},
+    aggroBlink  = {"enabled", "color-alpha", "blinkOptions", "size", "position-single", "frameLevel"},
     aggroBorder = {"enabled", "color-alpha", "blinkOptions", "thickness", "frameLevel"},
     -- Same full-button border shape, driven by UnitIsUnit(unit, "target").
     -- color-alpha matches EllesmereUIRaidFrames' targetBorderColor/Alpha.
@@ -147,9 +147,9 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     hoverHighlight = {"enabled", "thickness", "color-alpha", "frameLevel"},
     -- Static decorative border, no on/off condition beyond enabled itself.
     frameBorder = {"enabled", "thickness", "color-alpha", "frameLevel"},
-    shieldBar   = {"enabled", "checkbutton:onlyShowOvershields", "color-alpha", "height", "position", "frameLevel"},
-    externalCooldowns = {"enabled", "builtInExternals", "customExternals", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    defensiveCooldowns = {"enabled", "builtInDefensives", "customDefensives", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    shieldBar   = {"enabled", "checkbutton:onlyShowOvershields", "color-alpha", "height", "position-single", "frameLevel"},
+    externalCooldowns = {"enabled", "builtInExternals", "customExternals", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    defensiveCooldowns = {"enabled", "builtInDefensives", "customDefensives", "durationVisibility", "checkbutton:showAnimation", "checkbutton2:showIconBorder", "checkbutton3:showStack", "glowOptions", "size", "num:5", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- AuraEngine-backed (AEI.CreateDebuffsIndicator) -- bigDebuffCC (no
     -- native "is this CC" sort criterion), showAnimation/glowOptions (never
     -- implemented for AuraEngine indicators, including the already-migrated
@@ -161,8 +161,8 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- doesn't exist on the AuraEngine wrapper, so the checkbox is a silent
     -- no-op once 12.1 takes over -- same tradeoff as everything else in this
     -- comment, just not dropped outright since it's still useful pre-12.1).
-    debuffs     = {"enabled", "debuffFilter", "checkbutton:dispellableByMe", "checkbutton2:showStack", "checkbutton3:hideCCDebuffs", "debuffBlacklist", "durationVisibility", "checkbutton6:showIconBorder", "size-square", "num:10", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    ccIndicator = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "durationVisibility", "size-square", "num:3", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    debuffs     = {"enabled", "debuffFilter", "checkbutton:dispellableByMe", "checkbutton2:showStack", "checkbutton3:hideCCDebuffs", "debuffBlacklist", "durationVisibility", "checkbutton6:showIconBorder", "size-square", "num:10", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    ccIndicator = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "durationVisibility", "size-square", "num:3", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- Built on AuraEngine (12.1 AuraContainer), mirroring EllesmereUI's
     -- architecture -- see AEI.CreateDispelsIndicator in
     -- AuraEngineIndicators.lua. The health-bar overlay always covers the
@@ -177,8 +177,8 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- Dispel-type symbols, one per type, deduplicated and laid out by the
     -- engine (AEI.CreateDispelIconsIndicator). Swipe and border are off by
     -- default -- see BuildDispelIconsStyle for why.
-    dispelIcons = {"enabled", "dispelShowAll", "dispelTypes", "checkbutton:useSpellIcons", "checkbutton2:showSwipe", "checkbutton3:showIconBorder", "size-square", "growthOrientation", "position", "frameLevel"},
-    missingBuffs = {"enabled", "builtInMissingBuffs", "customMissingBuffs", "checkbutton:showIconBorder", "size-square", "num:10", "orientation", "position", "frameLevel"},
+    dispelIcons = {"enabled", "dispelShowAll", "dispelTypes", "checkbutton:useSpellIcons", "checkbutton2:showSwipe", "checkbutton3:showIconBorder", "size-square", "growthOrientation", "position-single", "frameLevel"},
+    missingBuffs = {"enabled", "builtInMissingBuffs", "customMissingBuffs", "checkbutton:showIconBorder", "size-square", "num:10", "orientation", "position-single", "frameLevel"},
     -- The three readouts mirror the UNIT FRAMES' text options (user request
     -- 2026-09-17): one Format token instead of the old showPercentage /
     -- showCurrent / showMax trio, and a character cap instead of the
@@ -200,7 +200,7 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- the stack and duration text, each under its own section header, which
     -- is a superset of what durationOffset did (X/Y only). Keeping both would
     -- mean two controls writing style.durationX/Y and fighting each other.
-    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- Health-bar overlays (like dispels) -- always cover the health bar, no
     -- position/size of their own. See BU.CreateShieldOverlayIndicator /
     -- CreateHealAbsorbIndicator in BuiltIn_Update.lua.
@@ -211,18 +211,18 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
 --- Settings token arrays per custom indicator type. Copied 1:1 from Cell's
 --- custom type branches.
 IndicatorDefaults.CUSTOM_SETTINGS = {
-    icon    = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "checkbutton4:showAnimation", "glowOptions", "size-square", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    icons   = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "checkbutton4:showAnimation", "glowOptions", "size-square", "num:10", "numPerLine:10", "spacing", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    text    = {"enabled", "auras", "duration", "stack", "colors", "position", "frameLevel", "font-noOffset"},
-    bar     = {"enabled", "auras", "maxValue", "colors", "checkbutton3:showStack", "durationVisibility", "barOrientation", "glowOptions", "size", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    bars    = {"enabled", "auras", "maxValue", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    rect    = {"enabled", "auras", "colors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    icon    = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "checkbutton4:showAnimation", "glowOptions", "size-square", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    icons   = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "checkbutton4:showAnimation", "glowOptions", "size-square", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    text    = {"enabled", "auras", "duration", "stack", "colors", "position-single", "frameLevel", "font-noOffset"},
+    bar     = {"enabled", "auras", "maxValue", "colors", "checkbutton3:showStack", "durationVisibility", "barOrientation", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    bars    = {"enabled", "auras", "maxValue", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    rect    = {"enabled", "auras", "colors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     color   = {"enabled", "auras", "customColors", "expiringColor", "anchor", "frameLevel:50"},
-    texture = {"enabled", "checkbutton3:fadeOut", "auras", "texture", "size", "position", "frameLevel"},
+    texture = {"enabled", "checkbutton3:fadeOut", "auras", "texture", "size", "position-single", "frameLevel"},
     glow    = {"enabled", "checkbutton3:fadeOut", "auras", "glowOptions", "frameLevel"},
     overlay = {"enabled", "auras", "overlayColors", "checkbutton3:smooth", "barOrientation", "frameLevel:50"},
-    block   = {"enabled", "auras", "blockColors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    blocks  = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    block   = {"enabled", "auras", "blockColors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    blocks  = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     border  = {"enabled", "checkbutton3:fadeOut", "auras", "thickness", "frameLevel:50"},
 }
 

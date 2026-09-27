@@ -601,7 +601,7 @@ function SquizzFrames.GetDefaultCustomIndicatorTable(name, indicatorName, type, 
         t = {
             name = name, indicatorName = indicatorName, type = type,
             enabled = true, auraType = auraType, auras = {},
-            position = {"BOTTOMRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = 5,
+            position = {"TOPRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = 5,
             size = {18, 4},
             colors = {{0, 1, 0, 1}, {false, 0.5, {1, 1, 0, 1}}, {false, 3, {1, 0, 0, 1}}, {0, 0, 0, 1}, {0.07, 0.07, 0.07, 0.9}},
             orientation = "horizontal",
