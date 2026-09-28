@@ -509,19 +509,37 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
         local spellName = spellId and F.GetSpellInfo(spellId) or action
         if spellName then
             local isRes = spellId and RESURRECTION_SPELLS[spellId]
+            -- [nodead] on every non-res spell (user request 2026-09-28). The
+            -- game's own Self Cast option, when set to Auto, redirects a
+            -- helpful spell onto YOU whenever the chosen target is not a
+            -- valid one -- and a dead player is the classic invalid target,
+            -- so clicking a dead tank with Lay on Hands used to spend it on
+            -- yourself. With [nodead] the macro simply does nothing on a dead
+            -- unit; the cast never reaches the client to be redirected.
+            --
+            -- It cannot cover range: there is no macro condition for it, and
+            -- Blizzard's secure spell action is a bare CastSpellByID(spell,
+            -- unit). A target that is out of range (or too far away to be
+            -- visible) can still self-cast while Self Cast is on Auto; that
+            -- one is the game setting's, Options > Gameplay > Combat.
             if globalChild then
                 if isRes then
                     SetMacrotext("/stopmacro [nodead]\n/cast [@mouseover,dead,help] " .. spellName)
                 else
-                    SetMacrotext("/cast [@mouseover,exists] " .. spellName)
+                    SetMacrotext("/cast [@mouseover,exists,nodead] " .. spellName)
                 end
             else
-                -- Unit button has real unit token: use native spell type,
-                -- UNLESS Smart Resurrection is enabled AND this is the
-                -- unmodified Left-click binding AND the bound spell isn't
-                -- itself already a res (nothing to smart-fallback to then).
-                -- "Left click is always the smart key" per design -- other
-                -- bindings are untouched.
+                -- Unit button: a /cast [@mouseover,nodead] macro rather than
+                -- the native "spell" type, for the [nodead] above -- the
+                -- native type has no conditions at all. @mouseover is the
+                -- clicked button's own unit, and stays right when the secure
+                -- header re-sorts units across buttons (a unit baked into the
+                -- macrotext would not). Res spells keep the native type:
+                -- they are MEANT for a dead unit.
+                --
+                -- Smart Resurrection (the unmodified Left-click binding only,
+                -- when enabled and the bound spell isn't itself a res) appends
+                -- its [dead] fallback segments to the same macro.
                 local smartSegments
                 if attrKey == "type1" and not isRes then
                     local prof = GetProfile()
@@ -531,15 +549,14 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
                     end
                 end
 
-                if smartSegments and #smartSegments > 0 then
-                    target:SetAttribute(attrKey, "macro")
-                    local macrotextKey = attrKey:gsub("type", "macrotext", 1)
-                    target:SetAttribute(macrotextKey,
-                        "/cast [@mouseover,nodead] " .. spellName .. ";" .. table.concat(smartSegments, ";"))
-                else
+                if isRes then
                     target:SetAttribute(attrKey, "spell")
                     local spellKey = attrKey:gsub("type", "spell", 1)
                     target:SetAttribute(spellKey, spellName)
+                elseif smartSegments and #smartSegments > 0 then
+                    SetMacrotext("/cast [@mouseover,nodead] " .. spellName .. ";" .. table.concat(smartSegments, ";"))
+                else
+                    SetMacrotext("/cast [@mouseover,nodead] " .. spellName)
                 end
             end
         end

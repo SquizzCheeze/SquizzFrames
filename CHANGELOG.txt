@@ -2,6 +2,20 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.36
+-----
+
+Changed:
+
+- Click-casting a spell on a dead player now does nothing, instead of the
+  game casting it on you. With the game's Self Cast option on Auto, a heal
+  aimed at someone who had just died went to you instead - costing a long
+  cooldown like Lay on Hands. Resurrection spells still work on the dead as
+  before. A target that is out of range can still get the spell cast on you
+  while Self Cast is on Auto; setting Options > Gameplay > Combat > Self Cast
+  to Off or Key Press stops that too.
+
+
 V1.35 (2026-09-27)
 ------------------
 
