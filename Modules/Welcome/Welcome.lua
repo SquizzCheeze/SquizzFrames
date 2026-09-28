@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.36"] = {
+        "Click-casting a spell on a dead player now does nothing, instead of the game casting it on you - no more Lay on Hands wasted on yourself. Resurrection spells still work on the dead.",
+        "Out of range can still land on you while the game's Self Cast option is on Auto; set Options > Gameplay > Combat > Self Cast to Off or Key Press to stop that too.",
+    },
     ["1.35"] = {
         "Every indicator now places itself with a single Anchor Point dropdown. To sit a row outside the frame, anchor it to that edge and use the offset. Indicators you had already placed stay exactly where they were.",
         "The built-in spell checklists show one row per spell, so a spell tracked under more than one ID (like Earth Shield) ticks and unticks in one go.",
