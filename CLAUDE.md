@@ -315,7 +315,7 @@ not just the defaults table.
 ### Testing In-Game
 There is **no automated test suite**. Development is done by:
 1. Editing `.lua` files in the AddOns folder
-2. `/reload` in-game (or log out/in for TOC/XML changes)
+2. `/reload` in-game -- enough for everything on retail, TOC/XML changes, new files and new SavedVariables included (user-confirmed repeatedly; never tell them to restart or relog)
 3. Using `/sf` to open options panel
 4. Checking chat for debug prints (prefixed `|cff33cc99[SquizzFrames]|r`)
 
@@ -478,7 +478,7 @@ sh .tools/check-xml.sh
 | `/sfauratest` | 12.1-only: spawns a throwaway AuraEngine test group above the player button (see AuraEngine section above) |
 | `/sfspell [id ...]` | Aura flags **from a spell ID alone** — solo, no group, no aura needed (`TankTracker.lua`). Prints name, `IsPriorityAura`, `GetSpellAuraSecrecy` (+NeverSecret), `AuraIsBigDefensive`. Defaults to the Lost Explorers debuffs + the three Stagger IDs. The printed NAME is the check that an ID is the applied aura and not the cast |
 | `/sfauras [unit] [help]` | The per-aura flags `/sfspell` cannot reach — `isRaid`, `isBossAura`, the three role flags, dispel type (`TankTracker.lua`). **Out of combat only**: `AuraData` is fully secret in combat and every field reads back secret, which the header states explicitly |
-| `/reload` | Reload UI (required after TOC/XML changes) |
+| `/reload` | Reload UI -- picks up every change, TOC/XML and new files included |
 
 ### Debug Prints
 Search for `print("|cff33cc99[SquizzFrames]|r` — these are scattered through Core, PartyFrames, Indicators for migration/state debugging. They're intentional and helpful during development.
