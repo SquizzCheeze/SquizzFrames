@@ -357,10 +357,26 @@ function SquizzFrames:HideBlizzardUnitFrames()
     -- it may not exist on this pass; the hook below re-runs this on creation.
     local arenaOn = hide and uf and uf.arena and uf.arena.enabled == true
     local arenaFrame = _G["CompactArenaFrame"]
+    local AP = SquizzFrames.UnitFrameArenaPrep
+    -- Borrowing Blizzard's trinket/CC/DR icons (ArenaPrep.lua) needs its frame
+    -- ALIVE: faded and click-through, not hidden. Only when borrowing is off
+    -- is it hidden outright, as before.
+    local borrow = arenaOn and AP and AP.WantsBorrow()
     if arenaFrame then
-        if arenaOn then
+        if borrow then
+            if arenaFrame._sfOriginalParent ~= nil and not InCombatLockdown() then
+                arenaFrame:SetParent(arenaFrame._sfOriginalParent)
+                arenaFrame._sfOriginalParent = nil
+                if arenaFrame.UpdateVisibility then arenaFrame:UpdateVisibility() end
+            end
+            AP.Adopt(arenaFrame)
+        elseif arenaOn then
+            if AP then AP.Release(arenaFrame) end
             HideFrame(arenaFrame)
-        elseif arenaFrame._sfOriginalParent ~= nil and not InCombatLockdown() then
+        elseif AP and not InCombatLockdown() then
+            AP.Release(arenaFrame)
+        end
+        if not arenaOn and arenaFrame._sfOriginalParent ~= nil and not InCombatLockdown() then
             -- Restore only what WE hid, and never with a bare Show(): this
             -- frame is meant to be visible in an arena only, so hand the
             -- decision back to its own UpdateVisibility.

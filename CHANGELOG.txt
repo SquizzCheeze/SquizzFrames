@@ -22,6 +22,11 @@ New:
   each frame shows that opponent's spec icon, spec and class on a class-
   coloured bar, with their role. Off by default. With Hide Blizzard Frames
   on, Blizzard's arena frames are hidden while ours are enabled.
+- Arena frames also show each enemy's trinket cooldown, the crowd control on
+  them and their diminishing returns. These are Blizzard's own arena icons,
+  moved beside each of our frames - no addon can read those timers, but the
+  game can still draw them. Choose the side and size on the Arena tab, or
+  turn them off there. Needs Hide Blizzard Frames on.
 
 Fixed:
 

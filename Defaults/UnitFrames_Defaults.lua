@@ -731,6 +731,12 @@ profile.unitFrames = {
                                castBar = true}
         t.spacing = 26
         t.growthDirection = "DOWN"   -- DOWN | UP | RIGHT | LEFT
+        -- Blizzard's own trinket, CC and diminishing-returns icons, borrowed
+        -- and placed beside each frame (ArenaPrep.lua): no addon can read
+        -- those values, but Blizzard can still draw them for us.
+        t.borrowBlizzard = true
+        t.borrowSide = "RIGHT"       -- RIGHT | LEFT of the frame
+        t.borrowScale = 1
         return t
     end)(),
 }

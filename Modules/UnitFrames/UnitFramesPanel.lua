@@ -395,6 +395,44 @@ local function SecFrame(host, y, cfg, t)
             or "All %s frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them.",
             stackTab.noun))
         y = y - 45
+
+        -- Arena only: Blizzard's trinket / CC / DR icons borrowed beside each
+        -- frame (ArenaPrep.lua). Needs Hide Blizzard Frames on, since that is
+        -- what hands Blizzard's arena frame over to us.
+        if activeUnit == "arena" then
+            local cbBorrow = W.CreateStyledCheckbox(host,
+                L["Show Blizzard's trinket, CC and DR icons"] or "Show Blizzard's trinket, CC and DR icons",
+                function() return t.borrowBlizzard ~= false end,
+                function(v) Set(function(c) c.borrowBlizzard = v end) end)
+            cbBorrow:SetPoint("TOPLEFT", 15, y)
+            y = y - 35
+
+            local ddSide = W.CreateStyledDropdown(host, 200, 40,
+                L["Icons Side"] or "Icons Side", {
+                {value = "RIGHT", text = L["Right of the frame"] or "Right of the frame"},
+                {value = "LEFT",  text = L["Left of the frame"] or "Left of the frame"},
+            }, function() return t.borrowSide or "RIGHT" end,
+               function(v) Set(function(c) c.borrowSide = v end) end)
+            ddSide:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 70
+
+            local sScale = W.CreateStyledSlider(host, 200, 0.5, 2, 0.05,
+                L["Icons Scale"] or "Icons Scale",
+                function() return t.borrowScale or 1 end,
+                function(v) Set(function(c) c.borrowScale = v end) end)
+            sScale:SetPoint("TOPLEFT", 15, y - 20)
+            y = y - 65
+
+            local borrowHint = host:CreateFontString(nil, "OVERLAY")
+            borrowHint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            borrowHint:SetPoint("TOPLEFT", 15, y)
+            borrowHint:SetWidth(340)
+            borrowHint:SetJustifyH("LEFT")
+            borrowHint:SetTextColor(0.7, 0.7, 0.7, 1)
+            borrowHint:SetText(L["These are Blizzard's own arena icons, moved beside each frame: an enemy's trinket cooldown, the CC on them, and their diminishing returns. Needs Hide Blizzard Frames on (General)."]
+                or "These are Blizzard's own arena icons, moved beside each frame: an enemy's trinket cooldown, the CC on them, and their diminishing returns. Needs Hide Blizzard Frames on (General).")
+            y = y - 45
+        end
     end
 
     -- Border. Nested table, so its accessors read t.border rather than t.

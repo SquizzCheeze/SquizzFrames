@@ -175,6 +175,111 @@ for _, e in ipairs({
 end
 events:SetScript("OnEvent", function() ArenaPrep.Refresh() end)
 
+-- ============================================================================
+-- Blizzard's trinket, CC and diminishing-returns icons, borrowed
+--
+-- An addon cannot READ enemy trinket cooldowns or CC diminishing returns
+-- (GetArenaCrowdControlInfo is secret when loss-of-control info is
+-- restricted; UNIT_SPELL_DIMINISH_CATEGORY_STATE_UPDATED is SecretPayloads).
+-- Blizzard's arena frame draws them from trusted code, so instead of reading
+-- we BORROW its widgets -- the same move as Squizzumables' borrowed buff
+-- icons -- and only decide where they sit: each opponent's CcRemoverFrame
+-- (trinket / CC break), DebuffFrame (the CC on them) and
+-- SpellDiminishStatusTray go beside our matching arena frame.
+--
+-- Blizzard's frame is therefore FADED (alpha 0, mouse off) rather than hidden
+-- (HideBlizzard.lua calls Adopt instead of hiding it): hidden, it would take
+-- the pieces with it. Blizzard marked the trinket, debuff and cast bar
+-- ignoreParentAlpha, i.e. built to survive exactly this; the DR tray gets the
+-- flag from us, and its cast bar loses it (ours is drawn instead). Nothing is
+-- reparented -- the pieces stay Blizzard's children, which keeps it taint-free
+-- and keeps Blizzard driving them. Its UpdateLayout re-anchors the trinket and
+-- debuff every pass, so our placement is re-applied after it.
+-- ============================================================================
+local BORROWED = { "CcRemoverFrame", "DebuffFrame", "SpellDiminishStatusTray" } -- the DR tray varies in width: last
+local adopted = false
+
+function ArenaPrep.WantsBorrow()
+    local cfg = ArenaConfig()
+    return cfg ~= nil and cfg.borrowBlizzard ~= false
+end
+
+local function PlacePieces()
+    local caf = _G["CompactArenaFrame"]
+    local cfg = ArenaConfig()
+    if not (adopted and caf and caf.memberUnitFrames and cfg) then return end
+    local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
+    local right = cfg.borrowSide ~= "LEFT"
+    local scale = cfg.borrowScale or 1
+    if caf:GetAlpha() ~= 0 then caf:SetAlpha(0) end
+    for i, member in ipairs(caf.memberUnitFrames) do
+        local ours = UF and UF.FindButtonByUnit and UF.FindButtonByUnit("arena" .. i)
+        local prev = ours
+        for _, key in ipairs(BORROWED) do
+            local piece = member[key]
+            if piece and prev then
+                pcall(function()
+                    piece:SetIgnoreParentAlpha(true)
+                    piece:SetScale(scale)
+                    piece:ClearAllPoints()
+                    if right then
+                        piece:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+                    else
+                        piece:SetPoint("RIGHT", prev, "LEFT", -4, 0)
+                    end
+                end)
+                prev = piece
+            end
+        end
+        if member.CastingBarFrame then member.CastingBarFrame:SetIgnoreParentAlpha(false) end
+    end
+end
+
+-- Take over Blizzard's arena frame: faded, click-through, pieces placed.
+-- Out of combat only (its member buttons are secure); HideBlizzard defers.
+function ArenaPrep.Adopt(caf)
+    if not caf or InCombatLockdown() then return end
+    adopted = true
+    caf:SetAlpha(0)
+    for _, member in ipairs(caf.memberUnitFrames or {}) do pcall(member.EnableMouse, member, false) end
+    if not caf._sfBorrowHooked then
+        caf._sfBorrowHooked = true
+        -- Blizzard re-anchors the trinket and debuff on every layout pass.
+        if caf.UpdateLayout then hooksecurefunc(caf, "UpdateLayout", PlacePieces) end
+        if caf.RefreshMembers then
+            hooksecurefunc(caf, "RefreshMembers", function()
+                if not adopted or InCombatLockdown() then return end
+                for _, member in ipairs(caf.memberUnitFrames or {}) do pcall(member.EnableMouse, member, false) end
+                PlacePieces()
+            end)
+        end
+    end
+    PlacePieces()
+end
+
+-- Give it back: opaque, clickable, and Blizzard's own layout restored.
+function ArenaPrep.Release(caf)
+    if not adopted or not caf or InCombatLockdown() then return end
+    adopted = false
+    caf:SetAlpha(1)
+    for _, member in ipairs(caf.memberUnitFrames or {}) do
+        pcall(member.EnableMouse, member, true)
+        local tray = member.SpellDiminishStatusTray
+        if tray then
+            tray:SetIgnoreParentAlpha(false)
+            tray:SetScale(1)
+            tray:ClearAllPoints()
+            if member.CastingBarFrame then tray:SetPoint("BOTTOMRIGHT", member.CastingBarFrame, "TOPRIGHT", 0, 2) end
+        end
+        for _, key in ipairs({ "CcRemoverFrame", "DebuffFrame" }) do
+            if member[key] then member[key]:SetScale(1) end
+        end
+        if member.CastingBarFrame then member.CastingBarFrame:SetIgnoreParentAlpha(true) end
+    end
+    -- Puts the trinket and debuff back where Blizzard keeps them.
+    if caf.UpdateLayout then caf:UpdateLayout() end
+end
+
 -- Follow the frames. Position and size need nothing (SetAllPoints tracks the
 -- real frame live); the Arena tab's switch, scale and height do. The panel
 -- announces changes with UnitFramesChanged, which UnitFrames.lua answers
@@ -182,66 +287,13 @@ events:SetScript("OnEvent", function() ArenaPrep.Refresh() end)
 -- for callers that use it, and the message is answered one frame later so
 -- that layout has already run. Own message owner (F.NewMessageOwner), never
 -- the addon root, for the (owner, message) reason above.
--- ---------------------------------------------------------------------------
--- TEMPORARY (2026-09-29): /sfarenaprobe -- can an addon read enemy trinket
--- cooldowns and CC diminishing returns? Blizzard's arena frames show both,
--- but its code is trusted: GetArenaCrowdControlInfo is secret "when loss of
--- control info is restricted" and the DR event is SecretPayloads. Counts each
--- event with a readable vs secret payload, and reads the trinket info now.
--- ---------------------------------------------------------------------------
-do
-    local counts = {}
-    local probe = CreateFrame("Frame")
-    local function S(v) return (issecretvalue and issecretvalue(v)) and "SECRET" or tostring(v) end
-    local function Count(event, ...)
-        local c = counts[event] or { readable = 0, secret = 0 }
-        counts[event] = c
-        local anySecret = false
-        for i = 1, select("#", ...) do
-            local v = select(i, ...)
-            if issecretvalue and issecretvalue(v) then anySecret = true end
-        end
-        if anySecret then c.secret = c.secret + 1 else c.readable = c.readable + 1 end
-        if c.readable + c.secret <= 3 then
-            local parts = {}
-            for i = 1, math.min(select("#", ...), 3) do parts[i] = S(select(i, ...)) end
-            print("|cff33cc99[SquizzFrames]|r arenaprobe " .. event .. ": " .. table.concat(parts, ", "))
-        end
-    end
-    probe:SetScript("OnEvent", function(_, event, ...) Count(event, ...) end)
-    local on = false
-    SLASH_SFARENAPROBE1 = "/sfarenaprobe"
-    SlashCmdList.SFARENAPROBE = function()
-        local P = "|cff33cc99[SquizzFrames]|r arenaprobe "
-        on = not on
-        for _, e in ipairs({ "ARENA_CROWD_CONTROL_SPELL_UPDATE", "ARENA_COOLDOWNS_UPDATE",
-                             "UNIT_SPELL_DIMINISH_CATEGORY_STATE_UPDATED" }) do
-            if on then pcall(probe.RegisterEvent, probe, e) else probe:UnregisterEvent(e) end
-        end
-        if on then
-            print(P .. "ON. Trinket info now, per opponent:")
-            for i = 1, 5 do
-                local unit = "arena" .. i
-                if UnitExists(unit) then
-                    if C_PvP and C_PvP.RequestCrowdControlSpell then pcall(C_PvP.RequestCrowdControlSpell, unit) end
-                    local ok, spellID, start, duration = pcall(C_PvP.GetArenaCrowdControlInfo, unit)
-                    print(string.format("%s%s: ok=%s spell=%s start=%s duration=%s", P, unit, tostring(ok),
-                        S(spellID), S(start), S(duration)))
-                end
-            end
-            print(P .. "counting events; /sfarenaprobe again for totals.")
-        else
-            print(P .. "OFF. Totals:")
-            for e, c in pairs(counts) do
-                print(string.format("%s  %s: %d readable / %d SECRET", P, e, c.readable, c.secret))
-            end
-            if not next(counts) then print(P .. "  no events seen.") end
-            wipe(counts)
-        end
-    end
+local function RefreshSoon()
+    C_Timer.After(0, function()
+        ArenaPrep.Refresh()
+        -- Side/scale changes, and our frames moving, re-place the borrowed pieces.
+        if not InCombatLockdown() then PlacePieces() end
+    end)
 end
-
-local function RefreshSoon() C_Timer.After(0, ArenaPrep.Refresh) end
 SquizzFrames.F.NewMessageOwner():RegisterMessage("UnitFramesChanged", RefreshSoon)
 local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
 if UF and UF.ApplyLayout then
