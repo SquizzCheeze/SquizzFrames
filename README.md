@@ -22,6 +22,8 @@ system (AuraContainer), so they keep working in combat, when aura data is hidden
 - Pet frames, attached to their owner or as a free group
 
 **Indicators**
+- HoTs can light up in gold during their refresh (pandemic) window, so you know when a recast
+  won't waste time, in combat too
 - Built-in indicators for HoTs, external and defensive cooldowns, debuffs (with a filter), crowd
   control, dispels (health-bar overlay and type icons), shields, heal absorbs, missing raid buffs,
   role, leader, raid marker, target and hover highlights, and more
@@ -30,7 +32,10 @@ system (AuraContainer), so they keep working in combat, when aura data is hidden
 - One-click Healer preset
 
 **Unit frames**
-- Player, target, target of target, focus, focus target and boss frames
+- Player, target, target of target, focus, focus target, boss and arena frames
+- Arena frames show each opponent's spec, class and role before the gates open, and each
+  enemy's trinket, crowd control and diminishing returns during the match (Blizzard's own icons,
+  moved beside your frames)
 - Cast bars, 2D/3D portraits, buff and debuff rows, absorb overlays, dispel overlays and icons,
   hover/target/aggro highlights, combat and leader icons, borders, and configurable text
 - Attach unit frames and cast bars to Squizzumables' cooldown groups or Blizzard's Cooldown
@@ -48,6 +53,7 @@ system (AuraContainer), so they keep working in combat, when aura data is hidden
 - Bind spells, items, macros, target/focus and menus to any mouse button, key or mouse wheel,
   with any modifier
 - Optionally extends the same bindings to Blizzard's player, target, focus and boss frames
+- A heal aimed at a player who just died does nothing, instead of the game casting it on you
 
 **Nicknames**
 - Show a short nickname in place of a long character name: a private list only you see, plus an
