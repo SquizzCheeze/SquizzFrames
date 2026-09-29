@@ -950,6 +950,8 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         indicator:SetDurationMode(value)
     elseif setting == "showStack" and indicator.SetShowStack then
         indicator:SetShowStack(value)
+    elseif setting == "showPandemic" and indicator.SetShowPandemic then
+        indicator:SetShowPandemic(value == true)
     elseif setting == "durationOffset" and indicator.SetDurationOffset then
         indicator:SetDurationOffset(value)
     elseif setting == "dispelShowAll" and indicator.SetDispelShowAll then

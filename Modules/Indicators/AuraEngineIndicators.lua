@@ -737,6 +737,9 @@ local function BuildSpec(button, t)
         -- F.CreateBorder(host, r,g,b,a,size) shape -- see AuraEngine.lua's
         -- ApplyStyleToRegions borderHost block (`local b = style.border`).
         border = (t.showIconBorder ~= false) and { 0, 0, 0, 1, size = 1 } or nil,
+        -- Buttons get the refresh-window highlight regions at creation
+        -- (AE.MakeInitializer); showPandemic below switches them live.
+        pandemic = true,
     }
     -- Font settings (typeface, size, outline, anchor, X/Y offset, colour
     -- for BOTH the stack and duration text) are re-applied on every
@@ -744,6 +747,7 @@ local function BuildSpec(button, t)
     -- created once and then reused for the lifetime of the style, so
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[STYLE_KEY], t.font)
+    AE.styles[STYLE_KEY].showPandemic = (t.showPandemic == true) -- opt-in: an unset profile field must read as unticked
 
     return {
         layout = FlowLayout(t.orientation),
@@ -958,6 +962,14 @@ function AEI.CreateHealerHotsIndicator(button, t)
         style.showStack = (show ~= false)
         AE.RestyleSoon(STYLE_KEY)
         if RefreshFallbackStacks then RefreshFallbackStacks(show) end
+    end
+    -- The refresh-window (pandemic) highlight's on/off. Only the host frame
+    -- is toggled (see AE.MakeInitializer), so no rebuild is needed.
+    function wrapper:SetShowPandemic(show)
+        local style = AE.styles[STYLE_KEY]
+        if not style then return end
+        style.showPandemic = (show == true)
+        AE.RestyleSoon(STYLE_KEY)
     end
     -- X/Y offset for the duration text, relative to its default anchor
     -- (TOP of the text, BOTTOM of the icon). Shared style, so this moves the

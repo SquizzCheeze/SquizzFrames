@@ -2,6 +2,20 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.37
+-----
+
+New:
+
+- Healer HoTs can highlight a HoT while it is worth refreshing: a gold edge
+  appears around the icon during the refresh (pandemic) window, when
+  recasting keeps the remaining time instead of wasting it. Turn it on with
+  Highlight When Refreshable in the Healer HoTs indicator's settings; it is
+  off by default. The window is the game's own, so it works in combat, and
+  auras the game gives no refresh window never light up. On patch 12.1.5
+  the edge also pulses.
+
+
 V1.36 (2026-09-28)
 ------------------
 

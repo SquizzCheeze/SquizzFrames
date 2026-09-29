@@ -1895,6 +1895,7 @@ local function MakeCheckButton(key, defaultLabel)
                         showSwipe = "Show Cooldown Swipe",
                         useSpellIcons = "Use Spell Icons",
                         showLFGEye = "LFG Eye for Other Group",
+                        showPandemic = "Highlight When Refreshable",
                     }
                     local labelText = labels[setting] or setting
                     if widget.cb.labelText then

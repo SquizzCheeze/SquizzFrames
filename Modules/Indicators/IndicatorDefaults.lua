@@ -200,7 +200,7 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- the stack and duration text, each under its own section header, which
     -- is a superset of what durationOffset did (X/Y only). Keeping both would
     -- mean two controls writing style.durationX/Y and fighting each other.
-    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
+    healerHots  = {"enabled", "checkbutton:showIconBorder", "checkbutton2:showStack", "checkbutton3:showPandemic", "size-square", "num:10", "orientation", "castBy", "durationVisibilitySimple", "builtInHots", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     -- Health-bar overlays (like dispels) -- always cover the health bar, no
     -- position/size of their own. See BU.CreateShieldOverlayIndicator /
     -- CreateHealAbsorbIndicator in BuiltIn_Update.lua.

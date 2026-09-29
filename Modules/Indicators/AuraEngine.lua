@@ -551,6 +551,12 @@ local function ApplyStyleToRegionsUnsafe(button, style)
         d.duration:SetShown(style.showDuration ~= false)
     end
 
+    -- The pandemic setting's live switch: the host is ours (the engine
+    -- drives only its edge textures), so this is legal on a restyle.
+    if d.pandemicHost then
+        d.pandemicHost:SetShown(style.showPandemic == true)
+    end
+
     if d.borderHost then
         local b = style.border
         if b and F.CreateBorder then
@@ -753,9 +759,40 @@ function AE.MakeInitializer(styleKey, extra)
         d.borderHost:SetAllPoints(button)
         d.borderHost:SetFrameLevel(d.cooldown:GetFrameLevel() + 1)
 
+        -- style.pandemic: a gold edge that the GAME shows only while the aura
+        -- is in its refresh window (AddPandemicRegion, live on 12.1; the window
+        -- is Blizzard's -- GetRefreshExtendedDuration minus base duration --
+        -- so auras without one, e.g. fixed procs, simply never light up).
+        -- The four edges sit on a host frame of our own: the engine drives the
+        -- TEXTURES' Shown, never the host's, so the host is the setting's live
+        -- on/off switch (showPandemic) with no rebuild. Created here because
+        -- registration is only legal in this window (PTR5).
+        local levelBelowText = d.borderHost:GetFrameLevel()
+        if style.pandemic then
+            d.pandemicHost = CreateFrame("Frame", nil, button)
+            d.pandemicHost:SetAllPoints(button)
+            d.pandemicHost:SetFrameLevel(levelBelowText + 1)
+            levelBelowText = levelBelowText + 1
+            local c = style.pandemicColor or { 1, 0.82, 0.2, 1 }
+            local size = 2
+            local e = {}
+            for i = 1, 4 do
+                e[i] = d.pandemicHost:CreateTexture(nil, "OVERLAY")
+                e[i]:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+                -- Hidden until the engine says otherwise; an edge whose
+                -- registration fails below stays hidden, never stuck on.
+                e[i]:Hide()
+            end
+            e[1]:SetPoint("TOPLEFT"); e[1]:SetPoint("TOPRIGHT"); e[1]:SetHeight(size)
+            e[2]:SetPoint("BOTTOMLEFT"); e[2]:SetPoint("BOTTOMRIGHT"); e[2]:SetHeight(size)
+            e[3]:SetPoint("TOPLEFT"); e[3]:SetPoint("BOTTOMLEFT"); e[3]:SetWidth(size)
+            e[4]:SetPoint("TOPRIGHT"); e[4]:SetPoint("BOTTOMRIGHT"); e[4]:SetWidth(size)
+            d.pandemicEdges = e
+        end
+
         d.textCarrier = CreateFrame("Frame", nil, button)
         d.textCarrier:SetAllPoints(button)
-        d.textCarrier:SetFrameLevel(d.borderHost:GetFrameLevel() + 1)
+        d.textCarrier:SetFrameLevel(levelBelowText + 1)
         d.stack = d.textCarrier:CreateFontString(nil, "OVERLAY")
         d.duration = d.textCarrier:CreateFontString(nil, "OVERLAY")
 
@@ -787,6 +824,30 @@ function AE.MakeInitializer(styleKey, extra)
 
         if style.cancelButtons then
             button:SetCancelAuraButtons(style.cancelButtons)
+        end
+
+        -- Pandemic registration, each call pcall'd: an error in here would
+        -- abort the engine's whole button batch (see SetDurationTextSafe).
+        if d.pandemicEdges and button.AddPandemicRegion then
+            for _, edge in ipairs(d.pandemicEdges) do
+                pcall(button.AddPandemicRegion, button, edge)
+            end
+            -- 12.1.5 only: a looping pulse while in the window. Played and
+            -- stopped by the engine (Enter/Leave), never queried by us --
+            -- QueryAnimationProgress is a forbidden aspect on it.
+            if button.AddPandemicActiveAnimation then
+                local ag = d.pandemicHost:CreateAnimationGroup()
+                ag:SetLooping("BOUNCE")
+                for _, edge in ipairs(d.pandemicEdges) do
+                    local a = ag:CreateAnimation("Alpha")
+                    a:SetTarget(edge)
+                    a:SetFromAlpha(1)
+                    a:SetToAlpha(0.3)
+                    a:SetDuration(0.45)
+                    a:SetOrder(1)
+                end
+                pcall(button.AddPandemicActiveAnimation, button, ag)
+            end
         end
 
         GetStyleSet(styleKey)[button] = true
