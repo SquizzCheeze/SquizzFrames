@@ -311,6 +311,20 @@ local function ResolveHealthColor(unit, t)
     -- cannot be indexed with secret keys". F.IsValueNonSecret is the only
     -- correct guard, and F.GetClassColor already applies it -- it exists so
     -- this table index is gated in exactly ONE place. Use it, don't re-roll it.
+    -- Arena opponents: their class is hidden in arenas (it fell through to
+    -- the default green, user report 2026-09-29), but their SPEC is not --
+    -- the same GetArenaOpponentSpec the pre-match view reads -- and a spec
+    -- names its class.
+    local arenaIndex = t and t.healthClassColor and tonumber(unit:match("^arena(%d+)$"))
+    if arenaIndex and GetArenaOpponentSpec then
+        local specID = GetArenaOpponentSpec(arenaIndex)
+        if specID and F.IsValueNonSecret(specID) and specID > 0 then
+            local _, _, _, _, _, classFile = GetSpecializationInfoByID(specID)
+            local c = classFile and F.IsValueNonSecret(classFile) and RAID_CLASS_COLORS[classFile]
+            if c then return c.r, c.g, c.b end
+        end
+    end
+
     if t and t.healthClassColor and UnitIsPlayer(unit) then
         if F.IsValueNonSecret(F.GetClassFile(unit)) then
             local c = F.GetClassColor(unit)
