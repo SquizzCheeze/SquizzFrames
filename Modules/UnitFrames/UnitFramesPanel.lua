@@ -44,6 +44,21 @@ local SIDEBAR_WIDTH = 96
 -- its side, with room to breathe.
 local PREVIEW_WIDTH = 250
 
+-- A hint's width: the fields column it sits in (15 in from the left, as
+-- every hint is placed, and 20 clear of the preview pane). A fixed 340 ran
+-- the text under the preview and cut it off. The host has its real width by
+-- the time fields are built (BuildFields anchors it first). Callers step y
+-- down by at least the wrapped height (HintStep), since narrower means more
+-- lines.
+local function HintWidth(host)
+    local w = host and host:GetWidth() or 0
+    return (w > 80) and (w - 35) or 250
+end
+
+local function HintStep(fs, minStep)
+    return math.max(minStep, math.ceil(fs:GetStringHeight() or 0) + 10)
+end
+
 -- "boss" and "arena" are pseudo-units here: each edits the ONE table its
 -- whole stack shares (profile.unitFrames.boss / .arena), so the same field
 -- builder serves them.
@@ -313,18 +328,18 @@ local function SecGeneral(host, y, cfg, t)
     local mirrorNote = host:CreateFontString(nil, "OVERLAY")
     mirrorNote:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     mirrorNote:SetPoint("TOPLEFT", 15, y)
-    mirrorNote:SetWidth(340)
+    mirrorNote:SetWidth(HintWidth(host))
     mirrorNote:SetJustifyH("LEFT")
     mirrorNote:SetTextColor(0.7, 0.7, 0.7, 1)
     mirrorNote:SetText(L["Drag either the player or target frame in Edit Mode and the other follows to the opposite side of the screen."]
         or "Drag either the player or target frame in Edit Mode and the other follows to the opposite side of the screen.")
-    y = y - 40
+    y = y - HintStep(mirrorNote, 40)
 
     if not cfg.enabled then
         local note = host:CreateFontString(nil, "OVERLAY")
         note:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         note:SetPoint("TOPLEFT", 15, y)
-        note:SetWidth(340)
+        note:SetWidth(HintWidth(host))
         note:SetJustifyH("LEFT")
         note:SetTextColor(0.7, 0.7, 0.7, 1)
         note:SetText(L["Turn Unit Frames on to configure the individual frames."]
@@ -388,13 +403,13 @@ local function SecFrame(host, y, cfg, t)
         local bHint = host:CreateFontString(nil, "OVERLAY")
         bHint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
         bHint:SetPoint("TOPLEFT", 15, y)
-        bHint:SetWidth(340)
+        bHint:SetWidth(HintWidth(host))
         bHint:SetJustifyH("LEFT")
         bHint:SetTextColor(0.7, 0.7, 0.7, 1)
         bHint:SetText(string.format(L["All %s frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them."]
             or "All %s frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them.",
             stackTab.noun))
-        y = y - 45
+        y = y - HintStep(bHint, 45)
 
         -- Arena only: Blizzard's trinket / CC / DR icons borrowed beside each
         -- frame (ArenaPrep.lua). Needs Hide Blizzard Frames on, since that is
@@ -426,12 +441,12 @@ local function SecFrame(host, y, cfg, t)
             local borrowHint = host:CreateFontString(nil, "OVERLAY")
             borrowHint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
             borrowHint:SetPoint("TOPLEFT", 15, y)
-            borrowHint:SetWidth(340)
+            borrowHint:SetWidth(HintWidth(host))
             borrowHint:SetJustifyH("LEFT")
             borrowHint:SetTextColor(0.7, 0.7, 0.7, 1)
             borrowHint:SetText(L["These are Blizzard's own arena icons, moved beside each frame: an enemy's trinket cooldown, the CC on them, and their diminishing returns. Needs Hide Blizzard Frames on (General)."]
                 or "These are Blizzard's own arena icons, moved beside each frame: an enemy's trinket cooldown, the CC on them, and their diminishing returns. Needs Hide Blizzard Frames on (General).")
-            y = y - 45
+            y = y - HintStep(borrowHint, 45)
         end
     end
 
@@ -516,7 +531,7 @@ local function SecSizing(host, y, cfg, t)
         local note = host:CreateFontString(nil, "OVERLAY")
         note:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
         note:SetPoint("TOPLEFT", 15, y)
-        note:SetWidth(340)
+        note:SetWidth(HintWidth(host))
         note:SetJustifyH("LEFT")
         note:SetTextColor(1, 0.75, 0.3, 1)
         if mh then
@@ -528,7 +543,7 @@ local function SecSizing(host, y, cfg, t)
             note:SetText(L["Set to match the attached group's height, but the group was not found - using this height for now."]
                 or "Set to match the attached group's height, but the group was not found - using this height for now.")
         end
-        y = y - 32
+        y = y - HintStep(note, 32)
     end
 
     -- 0 hides the power bar. One control instead of a checkbox plus a slider
@@ -660,12 +675,12 @@ local function SecColors(host, y, cfg, t)
     local sharedNote = host:CreateFontString(nil, "OVERLAY")
     sharedNote:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     sharedNote:SetPoint("TOPLEFT", 15, y)
-    sharedNote:SetWidth(340)
+    sharedNote:SetWidth(HintWidth(host))
     sharedNote:SetJustifyH("LEFT")
     sharedNote:SetTextColor(0.7, 0.7, 0.7, 1)
     sharedNote:SetText(L["Bar texture and power bar colour are shared with the party frames - set them under Layout > Appearance."]
         or "Bar texture and power bar colour are shared with the party frames - set them under Layout > Appearance.")
-    y = y - 45
+    y = y - HintStep(sharedNote, 45)
 
 end
 
@@ -933,12 +948,12 @@ local function SecCastBar(host, y, cfg, t)
             local dHint = host:CreateFontString(nil, "OVERLAY")
             dHint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
             dHint:SetPoint("TOPLEFT", 15, y)
-            dHint:SetWidth(340)
+            dHint:SetWidth(HintWidth(host))
             dHint:SetJustifyH("LEFT")
             dHint:SetTextColor(0.7, 0.7, 0.7, 1)
             dHint:SetText(L["Drag the orange cast bar handle in Edit Mode to position it."]
                 or "Drag the orange cast bar handle in Edit Mode to position it.")
-            y = y - 35
+            y = y - HintStep(dHint, 35)
         else
             if mode == "anchor" then
                 local ddTarget = W.CreateStyledDropdown(host, 200, 40,
@@ -960,12 +975,12 @@ local function SecCastBar(host, y, cfg, t)
                 local aHint = host:CreateFontString(nil, "OVERLAY")
                 aHint:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
                 aHint:SetPoint("TOPLEFT", 15, y)
-                aHint:SetWidth(340)
+                aHint:SetWidth(HintWidth(host))
                 aHint:SetJustifyH("LEFT")
                 aHint:SetTextColor(0.7, 0.7, 0.7, 1)
                 aHint:SetText(L["The cast bar follows this frame wherever it moves."]
                     or "The cast bar follows this frame wherever it moves.")
-                y = y - 32
+                y = y - HintStep(aHint, 32)
             else
                 local ddSide = W.CreateStyledDropdown(host, 200, 40, L["Side"] or "Side", {
                     {value = "BOTTOM", text = L["Below Frame"] or "Below Frame"},
@@ -1439,11 +1454,11 @@ local function SecPosition(host, y, cfg, t)
         local fs = host:CreateFontString(nil, "OVERLAY")
         fs:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
         fs:SetPoint("TOPLEFT", 15, y)
-        fs:SetWidth(340)
+        fs:SetWidth(HintWidth(host))
         fs:SetJustifyH("LEFT")
         fs:SetTextColor(0.7, 0.7, 0.7, 1)
         fs:SetText(text)
-        y = y - (height or 30)
+        y = y - HintStep(fs, height or 30)
     end
 
     if CB then
