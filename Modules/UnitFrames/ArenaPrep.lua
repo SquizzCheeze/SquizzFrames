@@ -182,6 +182,65 @@ events:SetScript("OnEvent", function() ArenaPrep.Refresh() end)
 -- for callers that use it, and the message is answered one frame later so
 -- that layout has already run. Own message owner (F.NewMessageOwner), never
 -- the addon root, for the (owner, message) reason above.
+-- ---------------------------------------------------------------------------
+-- TEMPORARY (2026-09-29): /sfarenaprobe -- can an addon read enemy trinket
+-- cooldowns and CC diminishing returns? Blizzard's arena frames show both,
+-- but its code is trusted: GetArenaCrowdControlInfo is secret "when loss of
+-- control info is restricted" and the DR event is SecretPayloads. Counts each
+-- event with a readable vs secret payload, and reads the trinket info now.
+-- ---------------------------------------------------------------------------
+do
+    local counts = {}
+    local probe = CreateFrame("Frame")
+    local function S(v) return (issecretvalue and issecretvalue(v)) and "SECRET" or tostring(v) end
+    local function Count(event, ...)
+        local c = counts[event] or { readable = 0, secret = 0 }
+        counts[event] = c
+        local anySecret = false
+        for i = 1, select("#", ...) do
+            local v = select(i, ...)
+            if issecretvalue and issecretvalue(v) then anySecret = true end
+        end
+        if anySecret then c.secret = c.secret + 1 else c.readable = c.readable + 1 end
+        if c.readable + c.secret <= 3 then
+            local parts = {}
+            for i = 1, math.min(select("#", ...), 3) do parts[i] = S(select(i, ...)) end
+            print("|cff33cc99[SquizzFrames]|r arenaprobe " .. event .. ": " .. table.concat(parts, ", "))
+        end
+    end
+    probe:SetScript("OnEvent", function(_, event, ...) Count(event, ...) end)
+    local on = false
+    SLASH_SFARENAPROBE1 = "/sfarenaprobe"
+    SlashCmdList.SFARENAPROBE = function()
+        local P = "|cff33cc99[SquizzFrames]|r arenaprobe "
+        on = not on
+        for _, e in ipairs({ "ARENA_CROWD_CONTROL_SPELL_UPDATE", "ARENA_COOLDOWNS_UPDATE",
+                             "UNIT_SPELL_DIMINISH_CATEGORY_STATE_UPDATED" }) do
+            if on then pcall(probe.RegisterEvent, probe, e) else probe:UnregisterEvent(e) end
+        end
+        if on then
+            print(P .. "ON. Trinket info now, per opponent:")
+            for i = 1, 5 do
+                local unit = "arena" .. i
+                if UnitExists(unit) then
+                    if C_PvP and C_PvP.RequestCrowdControlSpell then pcall(C_PvP.RequestCrowdControlSpell, unit) end
+                    local ok, spellID, start, duration = pcall(C_PvP.GetArenaCrowdControlInfo, unit)
+                    print(string.format("%s%s: ok=%s spell=%s start=%s duration=%s", P, unit, tostring(ok),
+                        S(spellID), S(start), S(duration)))
+                end
+            end
+            print(P .. "counting events; /sfarenaprobe again for totals.")
+        else
+            print(P .. "OFF. Totals:")
+            for e, c in pairs(counts) do
+                print(string.format("%s  %s: %d readable / %d SECRET", P, e, c.readable, c.secret))
+            end
+            if not next(counts) then print(P .. "  no events seen.") end
+            wipe(counts)
+        end
+    end
+end
+
 local function RefreshSoon() C_Timer.After(0, ArenaPrep.Refresh) end
 SquizzFrames.F.NewMessageOwner():RegisterMessage("UnitFramesChanged", RefreshSoon)
 local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
