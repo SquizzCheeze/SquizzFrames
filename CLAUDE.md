@@ -334,8 +334,11 @@ undefined globals and undefined fields, not just parse errors:
     check "C:/World of Warcraft/_retail_/Interface/AddOns/SquizzFrames"
 ```
 
-Take the highest installed version. 94 files / ~78k lines in ~3s. **Baseline as of 2026-09-19:
-160 warnings, every one pre-existing in `UnitFrames.lua` and `Utils.lua`.** That baseline is the
+Take the highest installed version. 94 files / ~78k lines in ~3s. **Baseline as of 2026-09-29
+(v1.37): 207 warnings**, all pre-existing (it was 160 on 2026-09-19). The count only means something
+against a baseline: compare before and after your change (`git stash` / check / `git stash pop` gives
+it). A new file that writes into the global `SquizzFrames` instead of declaring
+`local SquizzFrames = _G["SquizzFrames"]` jumps it by hundreds (ArenaPrep.lua did: 207 -> 608). That baseline is the
 point — a new warning in a file you actually touched is signal, and `grep`ing the output down to
 your changed files turns a wall of noise into a yes/no answer.
 
@@ -534,6 +537,8 @@ The 1:1 mock on the Unit Frames options page. Two rules, both load-bearing:
 
 - **It renders through the real code, never a second copy.** Text via `UnitFrames.FormatToken`, bar colour via `ResolveHealthColor`, the cast bar colour via `CastBar.ApplyColor` (a hand-rolled copy ignored "Class Color the Bar", so the preview followed the Bar Color picker while the real bar stayed class-coloured — read as "the cast bar colour doesn't update live", V1.30), the dispel overlay via `AEI.PreviewDispelOverlay`, the aura duration/stack text via the `ApplyMock*Text` pair, and the settings translation via `Dispels.BuildSettings` / `Auras.StyleFields`. A preview carrying its own copy of any of these starts lying the first time the real one changes — and the unit frames' dispel opacity is a live example of why (0-1 here, a percentage on the party indicator; the one hand-rolled translation got it wrong by 100×).
 - **It cannot show real aura data**, same constraint as the party Designer: an `AuraContainer` is driven C-side from a real unit and no fake `AuraData` can be injected. Aura rows, dispel icons and duration/stack text are all static mocks laid out to match the real thing.
+
+⚠ **An enemy's class is hidden on arena tokens during the match**, so Class Color health on `arena1-5` fell through to green while the pre-match view (which works from the spec) was right (fixed V1.37, user-confirmed). `ResolveHealthColor` takes the class from `GetArenaOpponentSpec(i)` → `GetSpecializationInfoByID` (6th return, classFile) before the `UnitIsPlayer`/`UnitClass` branch. Any other per-class decision on an arena token needs the same route.
 
 Things that only exist in the mock (`Preview.Create`) need their own host frame and level — it is a hand-built frame, NOT `UnitFrameButton.xml`, so nothing about its strata/level layering is inherited from the live template.
 
