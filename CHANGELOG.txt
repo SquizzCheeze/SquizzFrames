@@ -23,6 +23,13 @@ New:
   coloured bar, with their role. Off by default. With Hide Blizzard Frames
   on, Blizzard's arena frames are hidden while ours are enabled.
 
+Fixed:
+
+- Memory use no longer creeps up over a long raid night when you use custom
+  indicators such as Icon, Text or Glow. Every time the raid re-sorted, each
+  of them was rebuilt as a new frame and the old one could never be freed;
+  the old ones are now reused.
+
 
 V1.36 (2026-09-28)
 ------------------

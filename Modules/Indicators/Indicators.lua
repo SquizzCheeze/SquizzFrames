@@ -232,6 +232,44 @@ end
 -- Core: create / update indicators on a single button
 -- -----------------------------------------------------------------
 
+-- Legacy custom indicator frames are POOLED per button rather than thrown
+-- away. RemoveAllCustomIndicators used to SetParent(nil) every one on each
+-- full rebuild and a fresh frame was made -- and WoW never frees a frame, so
+-- a raid's re-sorts grew memory without bound (see CLAUDE.md, "Known,
+-- unfixed", fixed V1.37). Now the old frame is parked here and handed back
+-- to the next request for the same indicator.
+--
+-- Keyed by the indicator's OWN settings table first, then type and slot
+-- count: the colour overlay closes over its table (t.anchor), and grids
+-- bake their slot count in at creation, so only a frame built for this very
+-- table with this very shape is safe to hand back. A roster re-sort rebuilds
+-- from the same tables, which is the case this exists for. Weak keys, so a
+-- table dropped by a profile switch does not pin its parked frames' keys.
+--
+-- A reused frame may still hold the PREVIOUS unit's aura (the header moves
+-- units between buttons on a re-sort). HandleIndicators runs the custom scan
+-- as its last step, which resets and repaints every one of them.
+local function PoolShape(t)
+    return tostring(t.type) .. ":" .. tostring(t.num or "")
+end
+
+local function AcquireCustomFrame(button, t)
+    local pool = button._sfCustomPool
+    local byShape = pool and pool[t]
+    local shape = PoolShape(t)
+    local frame = byShape and byShape[shape]
+    if frame then
+        byShape[shape] = nil
+        frame:SetParent(button)
+    else
+        frame = I.CreateCustomIndicatorFrame(button, t)
+    end
+    if frame then
+        frame._sfPoolT, frame._sfPoolShape = t, shape
+    end
+    return frame
+end
+
 -- Create (or fetch) an indicator frame for the given indicator table, then
 -- apply that table's current settings to it. Recreated on HandleIndicators if
 -- the indicator's type/shape changed; otherwise the existing frame is reused.
@@ -312,7 +350,7 @@ function I.CreateIndicator(button, t)
             local AEI = SquizzFrames.AuraEngineIndicators
             indicator = AEI and AEI.CreateCustomColorIndicator and AEI.CreateCustomColorIndicator(button, t)
             if not indicator then
-                indicator = I.CreateCustomIndicatorFrame(button, t)
+                indicator = AcquireCustomFrame(button, t)
             end
         end
     elseif t.type == "bar" and not t.trackByName and SquizzFrames.IS_121 then
@@ -321,13 +359,13 @@ function I.CreateIndicator(button, t)
             local AEI = SquizzFrames.AuraEngineIndicators
             indicator = AEI and AEI.CreateCustomBarIndicator and AEI.CreateCustomBarIndicator(button, t)
             if not indicator then
-                indicator = I.CreateCustomIndicatorFrame(button, t)
+                indicator = AcquireCustomFrame(button, t)
             end
         end
     else
         if not indicator or indicator._sfType ~= "custom" then
             if indicator then indicator:Hide() end
-            indicator = I.CreateCustomIndicatorFrame(button, t)
+            indicator = AcquireCustomFrame(button, t)
         end
     end
 
@@ -368,7 +406,26 @@ function I.RemoveAllCustomIndicators(button)
         if ind and ind._sfBuiltIn == false and type(name) == "string" and name:match("^indicator%d+$")
             and not ind._sfAuraEngineBacked then
             ind:Hide()
-            if ind.SetParent then ind:SetParent(nil) end
+            -- Park it for AcquireCustomFrame instead of orphaning it. Only a
+            -- frame that came through the pool carries a key; anything else
+            -- (or a second frame for an already-parked key) is orphaned as
+            -- before, so this can never hand out a frame built for another
+            -- table or shape.
+            local t, shape = ind._sfPoolT, ind._sfPoolShape
+            local pool = button._sfCustomPool
+            if t and shape then
+                if not pool then
+                    pool = setmetatable({}, { __mode = "k" })
+                    button._sfCustomPool = pool
+                end
+                pool[t] = pool[t] or {}
+            end
+            if t and shape and not pool[t][shape] then
+                if ind.ClearAllPoints then ind:ClearAllPoints() end
+                pool[t][shape] = ind
+            elseif ind.SetParent then
+                ind:SetParent(nil)
+            end
             button.indicators[name] = nil
         end
     end
@@ -754,6 +811,14 @@ function I.HandleIndicators(button)
     -- existing auras/threat/shields show without waiting for the next event.
     if BuiltIn then
         BuiltIn.CheckAll(button)
+    end
+    -- And the custom scan: a pooled frame (AcquireCustomFrame) can still hold
+    -- the previous unit's aura, and the scan resets then repaints every
+    -- legacy custom (CD.ResetCustomIndicators). Free when there are none --
+    -- Scan returns at once without a legacy custom (HasLegacyCustoms).
+    local CustomDispatch = SquizzFrames.modules and SquizzFrames.modules["Custom_Dispatch"]
+    if CustomDispatch and CustomDispatch.Scan then
+        CustomDispatch.Scan(button)
     end
 end
 
