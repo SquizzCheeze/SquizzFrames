@@ -18,9 +18,10 @@ New:
 - Arena frames: an Arena tab in Unit Frames, for arena1 to arena5. They work
   like the boss frames - one set of settings for the whole stack, drag the
   first frame in Edit Mode to move them all - with health, power, names, a
-  cast bar, buffs and debuffs. Off by default. With Hide Blizzard Frames on,
-  Blizzard's arena frames are hidden while ours are enabled, including its
-  before-the-gates spec preview, which these frames do not show yet.
+  cast bar, buffs and debuffs, and a pre-match view: before the gates open,
+  each frame shows that opponent's spec icon, spec and class on a class-
+  coloured bar, with their role. Off by default. With Hide Blizzard Frames
+  on, Blizzard's arena frames are hidden while ours are enabled.
 
 
 V1.36 (2026-09-28)

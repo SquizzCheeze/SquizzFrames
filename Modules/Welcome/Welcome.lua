@@ -34,7 +34,7 @@ SquizzFrames.Welcome = Welcome
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
     ["1.37"] = {
-        "Arena frames: a new Arena tab under Unit Frames, set up like the boss frames (one stack, drag the first to move them all), with cast bars and auras. Off by default.",
+        "Arena frames: a new Arena tab under Unit Frames, set up like the boss frames (one stack, drag the first to move them all), with cast bars, auras and a pre-match view of each opponent's spec before the gates open. Off by default.",
         "Healer HoTs can outline a HoT in gold while it is in its refresh (pandemic) window, so you know when a recast won't waste time. Turn on Highlight When Refreshable in the Healer HoTs settings, and pick its colour with Highlight Color. On 12.1.5 it pulses too.",
     },
     ["1.36"] = {

@@ -42,6 +42,9 @@
          runtime so the preview cannot drift from what the real frames draw. -->
     <Script file="UnitFrames/Preview.lua"/>
     <Script file="UnitFrames/UnitFrames.lua"/>
+    <!-- After UnitFrames.lua: finds the arena frames through its
+         FindButtonByUnit and hooks its public ApplyLayout. -->
+    <Script file="UnitFrames/ArenaPrep.lua"/>
     <!-- Shell over the module + Options/Widgets.lua (already loaded by the
          .toc at this point), same arrangement as NicknamesPanel. -->
     <Script file="UnitFrames/UnitFramesPanel.lua"/>
