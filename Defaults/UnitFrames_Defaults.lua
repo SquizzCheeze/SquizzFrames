@@ -717,4 +717,20 @@ profile.unitFrames = {
         t.growthDirection = "DOWN"   -- DOWN | UP | RIGHT | LEFT
         return t
     end)(),
+
+    -- ARENA FRAMES (arena1..5), the same kind of stack as boss and built the
+    -- same way: one shared table, anchor = the first frame. Same spot as the
+    -- boss stack by default -- the two never exist at the same time. Health
+    -- as a percentage, the usual PvP reading, and the cast bar on: enemy
+    -- casts are most of what an arena frame is for.
+    arena = (function()
+        local t = DefaultFrame{enabled = false,
+                               anchorX = 380, anchorY = 120,
+                               width = 170, height = 34, powerHeight = 4,
+                               healthFormat = "healthPercent",
+                               castBar = true}
+        t.spacing = 26
+        t.growthDirection = "DOWN"   -- DOWN | UP | RIGHT | LEFT
+        return t
+    end)(),
 }

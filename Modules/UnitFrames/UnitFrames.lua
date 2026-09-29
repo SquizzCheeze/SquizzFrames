@@ -67,21 +67,43 @@ local BOSS_COUNT = _G.MAX_BOSS_FRAMES or 5
 local BOSS_UNITS = {}
 for i = 1, BOSS_COUNT do BOSS_UNITS[i] = "boss" .. i end
 
--- Everything this module spawns. Boss frames differ from the five singles in
--- exactly two ways -- they SHARE one settings table, and they stack -- so they
--- ride the same creation, update, click-cast and edit-mode paths and only
--- diverge where those two facts matter.
+-- Arena frames: the same kind of stack. Five, like Blizzard's own arena
+-- frames (5v5 skirmish); rated brackets simply never fill the last ones.
+local ARENA_COUNT = _G.MAX_ARENA_ENEMIES or 5
+local ARENA_UNITS = {}
+for i = 1, ARENA_COUNT do ARENA_UNITS[i] = "arena" .. i end
+
+-- The stacks, by settings key (profile.unitFrames[key] is the one table
+-- every frame in that stack shares).
+local STACK_UNITS = {boss = BOSS_UNITS, arena = ARENA_UNITS}
+
+-- Everything this module spawns. Stack frames (boss, arena) differ from the
+-- five singles in exactly two ways -- a stack SHARES one settings table, and
+-- it stacks -- so they ride the same creation, update, click-cast and
+-- edit-mode paths and only diverge where those two facts matter.
 local ALL_UNITS = {}
 for _, u in ipairs(UNITS) do ALL_UNITS[#ALL_UNITS + 1] = u end
 for _, u in ipairs(BOSS_UNITS) do ALL_UNITS[#ALL_UNITS + 1] = u end
+for _, u in ipairs(ARENA_UNITS) do ALL_UNITS[#ALL_UNITS + 1] = u end
 
 local function IsBossUnit(unit)
     return unit and unit:match("^boss%d+$") ~= nil
 end
 
--- 1-based position of a boss frame in the stack, or nil.
-local function BossIndex(unit)
-    local n = unit and unit:match("^boss(%d+)$")
+local function IsArenaUnit(unit)
+    return unit and unit:match("^arena%d+$") ~= nil
+end
+
+-- The stack a unit belongs to ("boss"/"arena"), and its 1-based position in
+-- it; both nil for a single frame.
+local function StackKey(unit)
+    if IsBossUnit(unit) then return "boss" end
+    if IsArenaUnit(unit) then return "arena" end
+    return nil
+end
+
+local function StackIndex(unit)
+    local n = unit and (unit:match("^boss(%d+)$") or unit:match("^arena(%d+)$"))
     return n and tonumber(n) or nil
 end
 
@@ -142,7 +164,7 @@ end
 -- Shared by ApplyLayout and the edit-mode drag. It used to live inline in
 -- ApplyLayout only, which is why dragging boss1 moved boss1 alone and the
 -- rest of the stack did not catch up until the next layout pass (a reload).
-local function BossOffset(t, idx)
+local function StackOffset(t, idx)
     if not t or not idx or idx <= 1 then return 0, 0 end
     local w = t.width or 170
     local h = t.height or 34
@@ -192,12 +214,13 @@ local function GetConfig()
     return prof and prof.unitFrames
 end
 
--- Boss frames all read ONE shared table (cfg.boss), which is what makes the
--- stack look uniform without five sets of controls to keep in sync.
+-- A stack's frames all read ONE shared table (cfg.boss / cfg.arena), which
+-- is what makes it look uniform without five sets of controls to keep in sync.
 local function GetFrameConfig(unit)
     local cfg = GetConfig()
     if not cfg then return nil end
-    if IsBossUnit(unit) then return cfg.boss end
+    local stack = StackKey(unit)
+    if stack then return cfg[stack] end
     return cfg.frames and cfg.frames[unit]
 end
 
@@ -926,17 +949,17 @@ local function CreateMover(unit)
                     unitFrame:SetPoint("CENTER", UIParent, "CENTER", dragX / fs, dragY / fs)
                 end
 
-                -- Boss stack: dragging boss1 carries 2..N with it. Without
-                -- this only the dragged frame moved and the rest stayed put
-                -- until the next full layout pass, which in practice meant a
-                -- reload -- they were never actually mispositioned, they just
-                -- had not been told yet.
-                if BossIndex(unit) then
+                -- A stack (boss, arena): dragging its first frame carries
+                -- 2..N with it. Without this only the dragged frame moved and
+                -- the rest stayed put until the next full layout pass, which
+                -- in practice meant a reload -- they were never actually
+                -- mispositioned, they just had not been told yet.
+                if StackIndex(unit) then
                     local bt = GetFrameConfig(unit)
-                    for _, bu in ipairs(BOSS_UNITS) do
+                    for _, bu in ipairs(STACK_UNITS[StackKey(unit)]) do
                         local bf = frames[bu]
                         if bf and bu ~= unit then
-                            local bdx, bdy = BossOffset(bt, BossIndex(bu))
+                            local bdx, bdy = StackOffset(bt, StackIndex(bu))
                             local bs = bf:GetScale() or 1
                             bf:ClearAllPoints()
                             bf:SetPoint("CENTER", UIParent, "CENTER",
@@ -1020,7 +1043,7 @@ function UnitFrames:SetEditMode(enabled)
                 -- handle is a grey, mouse-transparent preview -- the same
                 -- look the cast bar's attached handle has. A drag would move
                 -- it for one watcher tick and snap it straight back.
-                local idx = BossIndex(unit)
+                local idx = StackIndex(unit)
                 local attached = IsAttached(unit)
                 mover:EnableMouse((idx == nil or idx == 1) and not attached)
                 if attached then
@@ -1187,7 +1210,7 @@ local function PlaceAttached(unit, frame, t, scale)
 
     -- Boss stack: every boss frame is placed off the same edge and then
     -- stepped along exactly as the free stack is.
-    local dx, dy = BossOffset(t, BossIndex(unit))
+    local dx, dy = StackOffset(t, StackIndex(unit))
     local es = frame:GetEffectiveScale()
     frame:ClearAllPoints()
     frame:SetPoint(pts[1], UIParent, "BOTTOMLEFT",
@@ -1207,7 +1230,7 @@ end
 -- group's height and the stack would stop meaning anything.
 local function MatchedAttachHeight(unit, frame, t, scale)
     if not (t and t.matchAttachHeight and t.positionMode == "anchor") then return nil end
-    if BossIndex(unit) then return nil end
+    if StackIndex(unit) then return nil end
     local target = UsableAttachTarget(t, frame)
     if not target then return nil end
     local ok, _, _, _, th = pcall(target.GetRect, target)
@@ -1252,14 +1275,14 @@ local function WatchAttached(self, elapsed)
                 -- A matched height has to go through the full layout pass (the
                 -- health bar is sized off it), which re-places the frame too.
                 -- Only on a change, so it costs nothing while nothing moves.
-                if t.matchAttachHeight and not BossIndex(unit) then
+                if t.matchAttachHeight and not StackIndex(unit) then
                     ApplyLayout()
                     return
                 end
                 scale = scale or ScaleSetting()
                 if not PlaceAttached(unit, frame, t, scale) then
                     frame:ClearAllPoints()
-                    local dx, dy = BossOffset(t, BossIndex(unit))
+                    local dx, dy = StackOffset(t, StackIndex(unit))
                     frame:SetPoint("CENTER", UIParent, "CENTER",
                         ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
                 end
@@ -1425,8 +1448,8 @@ function ApplyLayout()
                 -- until the watcher sees it arrive.
                 if not PlaceAttached(unit, frame, t, scale) then
                     -- The stack: anchorX/anchorY place boss1 and every later
-                    -- frame steps off it (BossOffset). 0,0 for everything else.
-                    local dx, dy = BossOffset(t, BossIndex(unit))
+                    -- frame steps off it (StackOffset). 0,0 for everything else.
+                    local dx, dy = StackOffset(t, StackIndex(unit))
                     frame:ClearAllPoints()
                     frame:SetPoint("CENTER", UIParent, "CENTER",
                         ((t.anchorX or 0) + dx) / scale, ((t.anchorY or 0) + dy) / scale)
@@ -1869,10 +1892,24 @@ function UnitFrames:OnEnable()
         end
         self:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", RefreshBossFrames)
         self:RegisterEvent("UNIT_TARGETABLE_CHANGED", function(_, unit)
-            if IsBossUnit(unit) then
+            if IsBossUnit(unit) or IsArenaUnit(unit) then
                 local f = frames[unit]
                 if f then UpdateFrame(f) end
                 RederiveAuras(unit)
+            end
+        end)
+
+        -- Arena frames. The same stable-token/changing-unit shape as boss:
+        -- ARENA_OPPONENT_UPDATE fires as an opponent is first seen, goes out
+        -- of sight (stealth) and comes back, and between rounds of a Solo
+        -- Shuffle, where arenaN becomes somebody else.
+        self:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit)
+            if IsArenaUnit(unit) then
+                local f = frames[unit]
+                if f and FrameEnabled(unit) then
+                    UpdateFrame(f)
+                    RederiveAuras(unit)
+                end
             end
         end)
 

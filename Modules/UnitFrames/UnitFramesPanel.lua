@@ -44,8 +44,9 @@ local SIDEBAR_WIDTH = 96
 -- its side, with room to breathe.
 local PREVIEW_WIDTH = 250
 
--- "boss" is a pseudo-unit here: it edits profile.unitFrames.boss, the ONE
--- table shared by every boss frame, so the same field builder serves it.
+-- "boss" and "arena" are pseudo-units here: each edits the ONE table its
+-- whole stack shares (profile.unitFrames.boss / .arena), so the same field
+-- builder serves them.
 local UNIT_TABS = {
     {key = "player",       label = L["Player"] or "Player"},
     {key = "target",       label = L["Target"] or "Target"},
@@ -53,6 +54,13 @@ local UNIT_TABS = {
     {key = "focus",        label = L["Focus"] or "Focus"},
     {key = "focustarget",  label = L["Focus Tgt"] or "Focus Tgt"},
     {key = "boss",         label = L["Boss"] or "Boss"},
+    {key = "arena",        label = L["Arena"] or "Arena"},
+}
+
+-- The stack tabs, with the words their stack controls use.
+local STACK_TABS = {
+    boss  = {title = L["Boss Stack"] or "Boss Stack", noun = "boss"},
+    arena = {title = L["Arena Stack"] or "Arena Stack", noun = "arena"},
 }
 
 -- The four text readouts, and the label each gets as a section heading.
@@ -124,9 +132,9 @@ end
 local function GetUnitConfig()
     local cfg = GetConfig()
     if not cfg then return nil end
-    -- Boss lives beside `frames`, not inside it -- one shared table for the
-    -- whole stack. See UnitFrames_Defaults.lua.
-    if activeUnit == "boss" then return cfg.boss end
+    -- Boss and arena live beside `frames`, not inside it -- one shared table
+    -- per stack. See UnitFrames_Defaults.lua.
+    if STACK_TABS[activeUnit] then return cfg[activeUnit] end
     return cfg.frames and cfg.frames[activeUnit]
 end
 
@@ -351,10 +359,12 @@ local function SecFrame(host, y, cfg, t)
         y = y - 35
     end
 
-    -- Boss frames are a stack sharing one settings table, so the two controls
-    -- that describe the STACK rather than a single frame only appear here.
-    if activeUnit == "boss" then
-        W.CreateTitledPane(host, L["Boss Stack"] or "Boss Stack", y)
+    -- Boss and arena frames are stacks sharing one settings table, so the two
+    -- controls that describe the STACK rather than a single frame only
+    -- appear there.
+    local stackTab = STACK_TABS[activeUnit]
+    if stackTab then
+        W.CreateTitledPane(host, stackTab.title, y)
         y = y - 35
 
         local ddGrow = W.CreateStyledDropdown(host, 200, 40,
@@ -381,8 +391,9 @@ local function SecFrame(host, y, cfg, t)
         bHint:SetWidth(340)
         bHint:SetJustifyH("LEFT")
         bHint:SetTextColor(0.7, 0.7, 0.7, 1)
-        bHint:SetText(L["All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them."]
-            or "All boss frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them.")
+        bHint:SetText(string.format(L["All %s frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them."]
+            or "All %s frames share these settings. Drag the FIRST one in Edit Mode to move the whole stack - the others show where they will land. Spacing is a minimum: when buff or debuff rows sit above or below, the gap opens up on its own to fit them.",
+            stackTab.noun))
         y = y - 45
     end
 
@@ -461,7 +472,7 @@ local function SecSizing(host, y, cfg, t)
     -- the slider used to give no sign of it (user report 2026-09-26). Said
     -- here rather than by greying the slider out: the value still matters --
     -- it is what the frame goes back to when matching is turned off.
-    if t.matchAttachHeight and t.positionMode == "anchor" and activeUnit ~= "boss" then
+    if t.matchAttachHeight and t.positionMode == "anchor" and not STACK_TABS[activeUnit] then
         local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
         local mh = UF and UF.MatchedHeight and UF.MatchedHeight(activeUnit)
         local note = host:CreateFontString(nil, "OVERLAY")
@@ -1444,7 +1455,7 @@ local function SecPosition(host, y, cfg, t)
 
     -- Not on the boss tab: every frame in the stack would take the group's
     -- height (MatchedAttachHeight ignores it there too).
-    if activeUnit ~= "boss" then
+    if not STACK_TABS[activeUnit] then
         local cbMatch = W.CreateStyledCheckbox(host,
             L["Match Height of Attached Frame"] or "Match Height of Attached Frame",
             function() return t.matchAttachHeight == true end,
@@ -3081,11 +3092,12 @@ function Panel.Build(frame)
         header, sidebar = frame, frame
     end
 
-    -- Row 1: which unit. 72px + 3px gap fits six across without wrapping.
+    -- Row 1: which unit. 66px + 3px gap fits seven across (boss AND arena)
+    -- inside the narrowest options window (header ~534px at 700 wide).
     local x = 15
     for _, tab in ipairs(UNIT_TABS) do
         local btn = CreateFrame("Button", nil, header, "BackdropTemplate")
-        btn:SetSize(72, 22)
+        btn:SetSize(66, 22)
         btn:SetPoint("TOPLEFT", header, "TOPLEFT", x, -6)
         W.StylizeFrame(btn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
@@ -3100,7 +3112,7 @@ function Panel.Build(frame)
             ScrollToTop()
         end)
         unitButtons[tab.key] = btn
-        x = x + 75
+        x = x + 69
     end
 
     -- Left sidebar: which section of the selected unit's settings. Stacked

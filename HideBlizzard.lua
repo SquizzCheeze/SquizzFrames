@@ -349,6 +349,33 @@ function SquizzFrames:HideBlizzardUnitFrames()
             end
         end
     end
+
+    -- Arena frames: same shape (one shared uf.arena table). Blizzard's are a
+    -- single CompactArenaFrame, which also carries its pre-match spec frames
+    -- (PreMatchFramesContainer) -- hiding it hides those too. It is created
+    -- LAZILY (CompactArenaFrame_Generate, from the raid frame container), so
+    -- it may not exist on this pass; the hook below re-runs this on creation.
+    local arenaOn = hide and uf and uf.arena and uf.arena.enabled == true
+    local arenaFrame = _G["CompactArenaFrame"]
+    if arenaFrame then
+        if arenaOn then
+            HideFrame(arenaFrame)
+        elseif arenaFrame._sfOriginalParent ~= nil and not InCombatLockdown() then
+            -- Restore only what WE hid, and never with a bare Show(): this
+            -- frame is meant to be visible in an arena only, so hand the
+            -- decision back to its own UpdateVisibility.
+            arenaFrame:SetParent(arenaFrame._sfOriginalParent)
+            arenaFrame._sfOriginalParent = nil
+            if arenaFrame.UpdateVisibility then arenaFrame:UpdateVisibility() end
+        end
+    end
+end
+
+-- Catch CompactArenaFrame being created after the hide pass above ran.
+if type(CompactArenaFrame_Generate) == "function" then
+    hooksecurefunc("CompactArenaFrame_Generate", function()
+        SquizzFrames:HideBlizzardUnitFrames()
+    end)
 end
 
 -- Blizzard's pet frame, gated on the master switch AND on the PetFrames

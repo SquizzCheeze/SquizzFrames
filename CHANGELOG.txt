@@ -15,6 +15,12 @@ New:
   auras the game gives no refresh window never light up. On patch 12.1.5
   the edge also pulses. Pick its colour with Highlight Color (gold by
   default).
+- Arena frames: an Arena tab in Unit Frames, for arena1 to arena5. They work
+  like the boss frames - one set of settings for the whole stack, drag the
+  first frame in Edit Mode to move them all - with health, power, names, a
+  cast bar, buffs and debuffs. Off by default. With Hide Blizzard Frames on,
+  Blizzard's arena frames are hidden while ours are enabled, including its
+  before-the-gates spec preview, which these frames do not show yet.
 
 
 V1.36 (2026-09-28)
