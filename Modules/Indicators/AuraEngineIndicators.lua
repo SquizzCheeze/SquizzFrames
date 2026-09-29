@@ -722,6 +722,16 @@ local function ApplyDurationMode(styleKey, mode)
     AE.RestyleSoon(styleKey)
 end
 
+-- t.pandemicColor ({"custom_color", r, g, b, a}, from the Highlight Color
+-- widget) as the plain {r, g, b, a} AE.MakeInitializer/ApplyStyleToRegions
+-- read; unset means the default gold.
+local function PandemicColor(colorTable)
+    if type(colorTable) == "table" and colorTable[1] == "custom_color" and #colorTable >= 5 then
+        return { colorTable[2], colorTable[3], colorTable[4], colorTable[5] }
+    end
+    return { 1, 0.82, 0.2, 1 }
+end
+
 local function BuildSpec(button, t)
     local AE = SquizzFrames.AuraEngine
     local w, h = ExtractSize(t)
@@ -748,6 +758,7 @@ local function BuildSpec(button, t)
     -- anything set inside it can never respond to a settings change.
     AE.ApplyFontSettings(AE.styles[STYLE_KEY], t.font)
     AE.styles[STYLE_KEY].showPandemic = (t.showPandemic == true) -- opt-in: an unset profile field must read as unticked
+    AE.styles[STYLE_KEY].pandemicColor = PandemicColor(t.pandemicColor)
 
     return {
         layout = FlowLayout(t.orientation),
@@ -969,6 +980,12 @@ function AEI.CreateHealerHotsIndicator(button, t)
         local style = AE.styles[STYLE_KEY]
         if not style then return end
         style.showPandemic = (show == true)
+        AE.RestyleSoon(STYLE_KEY)
+    end
+    function wrapper:SetPandemicColor(colorTable)
+        local style = AE.styles[STYLE_KEY]
+        if not style then return end
+        style.pandemicColor = PandemicColor(colorTable)
         AE.RestyleSoon(STYLE_KEY)
     end
     -- X/Y offset for the duration text, relative to its default anchor

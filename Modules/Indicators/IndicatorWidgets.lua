@@ -1668,6 +1668,37 @@ local function CreateSetting_GlowColor(parent)
     widget:Show(); return widget
 end
 
+-- Healer HoTs' refresh-window outline colour (t.pandemicColor). Its own key,
+-- so it never shares the generic "color" widget's cached swatch.
+local PANDEMIC_DEFAULT = { 1, 0.82, 0.2, 1 }
+local function CreateSetting_PandemicColor(parent)
+    local widget
+    if not settingWidgets["pandemicColor"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_PandemicColor", parent, 300, 38)
+        settingWidgets["pandemicColor"] = widget
+        local _r, _g, _b, _a = unpack(PANDEMIC_DEFAULT)
+        widget.color = W.CreateColorPicker(widget, "Highlight Color",
+            function() return _r, _g, _b, _a end,
+            function(r, g, b, a)
+                _r, _g, _b, _a = r, g, b, a
+                -- See CreateSetting_ColorAlpha: the alpha slider fires this
+                -- during its own construction, before SetFunc has run.
+                if widget.func then widget.func({"custom_color", r, g, b, a}) end
+            end)
+        widget.color:SetPoint("TOPLEFT", 5, -8)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(colorTable)
+            if colorTable and colorTable[1] == "custom_color" and #colorTable >= 5 then
+                _r, _g, _b, _a = colorTable[2], colorTable[3], colorTable[4], colorTable[5]
+            else
+                _r, _g, _b, _a = unpack(PANDEMIC_DEFAULT)
+            end
+            widget.color.UpdateSwatch()
+        end
+    else widget = settingWidgets["pandemicColor"] end
+    widget:Show(); return widget
+end
+
 local function CreateSetting_ClassColor(parent)
     local widget
     if not settingWidgets["color-class"] then
@@ -3342,6 +3373,7 @@ local builders = {
     ["color"] = CreateSetting_Color,
     ["color-alpha"] = CreateSetting_ColorAlpha,
     ["glowColor"] = CreateSetting_GlowColor,
+    ["pandemicColor"] = CreateSetting_PandemicColor,
     ["colors"] = CreateSetting_Colors,
     ["blockColors"] = CreateSetting_BlockColors,
     ["overlayColors"] = CreateSetting_OverlayColors,

@@ -228,6 +228,7 @@ local TOKEN_HEIGHTS = {
     ["color"] = 38,
     ["color-alpha"] = 38,
     ["glowColor"] = 38,
+    ["pandemicColor"] = 38,
     ["expiringColor"] = 96,
     ["color-class"] = 38,
     ["color-power"] = 38,
@@ -1126,6 +1127,10 @@ ShowSettings = function(name)
         elseif n == "glowColor" then
             w:SetDBValue(t.glowColor or {"custom_color", 1, 1, 1, 1})
             w:SetFunc(function(c) t.glowColor = c; FireUpdate(t.indicatorName, "glowColor", c) end)
+
+        elseif n == "pandemicColor" then
+            w:SetDBValue(t.pandemicColor) -- nil = the widget's own gold default
+            w:SetFunc(function(c) t.pandemicColor = c; FireUpdate(t.indicatorName, "pandemicColor", c) end)
 
         -- Text colour: Class / Power checkboxes plus the Custom Color swatch
         -- all write the one t.color, so each resyncs its siblings. Unticking

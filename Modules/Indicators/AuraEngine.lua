@@ -555,6 +555,21 @@ local function ApplyStyleToRegionsUnsafe(button, style)
     -- drives only its edge textures), so this is legal on a restyle.
     if d.pandemicHost then
         d.pandemicHost:SetShown(style.showPandemic == true)
+        -- Colour in its OWN pcall: on 12.1.5 the pulse animation marks these
+        -- edges' vertex colour as a secret aspect, and if that ever refuses a
+        -- recolour it must not fail the whole restyle (which would retry
+        -- forever and drop every other setting with it). Worst case the
+        -- colour lands on the next rebuild instead of live.
+        local c = style.pandemicColor or { 1, 0.82, 0.2, 1 }
+        local key = c[1] .. "," .. c[2] .. "," .. c[3] .. "," .. (c[4] or 1)
+        if d.pandemicColorKey ~= key then
+            local ok = pcall(function()
+                for _, edge in ipairs(d.pandemicEdges) do
+                    edge:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+                end
+            end)
+            if ok then d.pandemicColorKey = key end
+        end
     end
 
     if d.borderHost then
@@ -773,12 +788,13 @@ function AE.MakeInitializer(styleKey, extra)
             d.pandemicHost:SetAllPoints(button)
             d.pandemicHost:SetFrameLevel(levelBelowText + 1)
             levelBelowText = levelBelowText + 1
-            local c = style.pandemicColor or { 1, 0.82, 0.2, 1 }
             local size = 2
             local e = {}
             for i = 1, 4 do
+                -- White, tinted by vertex colour, so ApplyStyleToRegions can
+                -- recolour live (style.pandemicColor) without a rebuild.
                 e[i] = d.pandemicHost:CreateTexture(nil, "OVERLAY")
-                e[i]:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+                e[i]:SetColorTexture(1, 1, 1, 1)
                 -- Hidden until the engine says otherwise; an edge whose
                 -- registration fails below stays hidden, never stuck on.
                 e[i]:Hide()
