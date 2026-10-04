@@ -36,6 +36,7 @@ local RELEASE_NOTES = {
     ["1.38"] = {
         "The status text's timer works: AFK, Dead, Ghost and Offline now count up (\"Dead 1:05\").",
         "Don't Fade Dead Players (Layout page): dead or ghost group members stay at full opacity however far away they are.",
+        "Someone joining out of range no longer shows another member's name, or a blank one, until they come into range.",
     },
     ["1.37"] = {
         "Arena frames: a new Arena tab under Unit Frames, set up like the boss frames (one stack, drag the first to move them all), with cast bars, auras and a pre-match view of each opponent's spec before the gates open. Off by default.",
