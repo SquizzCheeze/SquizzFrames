@@ -765,6 +765,17 @@ value never lands in Lua at all.
 the same way. The in-code comment states the principle: *losing the group number
 beats losing the name*.
 
+### Status text timer and dead-player range fade (V1.38)
+
+- **`statusText`'s `showTimer` was dormant scaffolding** (see *New Indicator SETTING*): checkbox, default
+  `true`, saved -- and read by nothing, so AFK/Dead never counted (user report 2026-10-04). Now
+  `PartyFrames.lua`'s `TimedStatusText` times each status from when it is FIRST SEEN (the game reports no
+  start time; a /reload restarts it), keyed by GUID in `statusSince` -- never by unit token or button,
+  which the secure header reshuffles on every re-sort. A 1s `statusTicker` re-runs `UpdateStatus` only for
+  buttons flagged `_sfStatusTimed` and cancels itself when none are.
+- **Don't Fade Dead Players** (`appearance.general.keepDeadUndimmed`, Layout page, default off):
+  `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
+
 ### Frame Opacity (General page, V1.30)
 
 Five blanket sliders — party, raid, unit frames, pet frames, tank tracker —

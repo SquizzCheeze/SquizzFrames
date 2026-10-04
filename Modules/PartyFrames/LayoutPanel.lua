@@ -489,6 +489,23 @@ local function SetOutOfRange(val)
     end
 end
 
+-- Dead players never fade for range (user request 2026-10-04). One table,
+-- not two locals: this file builds against the same upvalue ceilings that
+-- pushed it out of OptionsFrame (see CLAUDE.md).
+local DeadFade = {
+    Get = function()
+        local p = GetProfile()
+        return p and p.appearance and p.appearance.general and p.appearance.general.keepDeadUndimmed or false
+    end,
+    Set = function(val)
+        local p = GetProfile()
+        if p and p.appearance and p.appearance.general then
+            p.appearance.general.keepDeadUndimmed = val and true or false
+            SquizzFrames:Fire("LayoutChanged")
+        end
+    end,
+}
+
 local function GetBarTexture()
     local p = GetProfile()
     return p and p.appearance and p.appearance.general and p.appearance.general.texture or "Blizzard"
@@ -1089,6 +1106,11 @@ local function BuildLayoutFields(frame)
     local slider6 = W.CreateStyledSlider(fieldsHost, 200, 0, 1, 0.05, L["Out of Range Alpha"] or "Out of Range Alpha", GetOutOfRange, SetOutOfRange)
     slider6:SetPoint("TOPLEFT", 15, yOffset - 20)
     yOffset = yOffset - 65
+
+    local cbDead = W.CreateStyledCheckbox(fieldsHost, L["Don't Fade Dead Players"] or "Don't Fade Dead Players",
+        DeadFade.Get, DeadFade.Set)
+    cbDead:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 30
 
     local textureDropdown = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Bar Texture"] or "Bar Texture",
         GetBarTextureItems(), GetBarTexture, SetBarTexture, "statusbar")

@@ -2,6 +2,23 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.38
+-----
+
+New:
+
+- Don't Fade Dead Players, under the out-of-range opacity on the Layout
+  page: a dead or ghost party or raid member stays at full opacity however
+  far away they are. Off by default.
+
+Fixed:
+
+- Status Text's Show Timer did nothing: AFK, Dead, Ghost and Offline now
+  count up beside the status ("Dead 1:05"). The game doesn't say when a
+  status began, so the timer starts when SquizzFrames first sees it, and a
+  /reload restarts it from 0:00.
+
+
 V1.37 (2026-09-29)
 ------------------
 

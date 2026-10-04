@@ -1525,6 +1525,46 @@ function IsUnitDrinking(unit)
     return false
 end
 
+-- Status timer: Status Text's "Show Timer" (on by default) had a checkbox and
+-- a saved setting but nothing read it, so AFK/Dead never counted (user report
+-- 2026-10-04). The game says nothing about WHEN a status began, so each one is
+-- timed from the moment we first see it -- a /reload restarts the count.
+--
+-- Keyed by GUID, not unit token or button: the secure header reassigns tokens
+-- and buttons on every re-sort, and a timer must follow the PERSON. The token
+-- is the fallback if a GUID ever reads secret.
+local statusSince = {}          -- key -> { kind = "DEAD"|"GHOST"|"OFFLINE"|"AFK", t = GetTime() }
+local statusTicker              -- 1s, only while some button shows a timed status
+local EnsureStatusTicker        -- forward: defined after UpdateStatus
+
+-- Never secret: the GUID is returned only once F.IsValueNonSecret has passed
+-- it, and the unit token is our own plain string.
+---@return string
+local function StatusKey(unit)
+    local guid = UnitGUID(unit)
+    if guid and F.IsValueNonSecret(guid) then return guid end
+    return unit
+end
+
+-- `label` alone, or "label m:ss" since the status began, per the setting.
+local function TimedStatusText(button, unit, kind, label)
+    local key = StatusKey(unit)
+    local rec = statusSince[key]
+    if not rec or rec.kind ~= kind then
+        rec = { kind = kind, t = GetTime() }
+        statusSince[key] = rec
+    end
+    local t = button.statusText.configs or button.statusText._sfTable
+    if t and t.showTimer == false then
+        button._sfStatusTimed = nil
+        return label
+    end
+    button._sfStatusTimed = true
+    EnsureStatusTicker()
+    local secs = math.floor(GetTime() - rec.t)
+    return string.format("%s %d:%02d", label, math.floor(secs / 60), secs % 60)
+end
+
 local function UpdateStatus(button)
     if not button or not button.unit then return end
     local unit = button.unit
@@ -1545,14 +1585,20 @@ local function UpdateStatus(button)
     local isAFK = not issecretvalue(UnitIsAFK(unit)) and UnitIsAFK(unit)
 
     if isAFK then
-        button.statusText:SetText(L["AFK"])
+        button.statusText:SetText(TimedStatusText(button, unit, "AFK", L["AFK"]))
         button.statusText:Show()
     elseif not UnitIsConnected(unit) or UnitIsDead(unit) or UnitIsGhost(unit) then
         local isGhost = UnitIsGhost(unit)
         local isDead = UnitIsDead(unit)
-        button.statusText:SetText(isGhost and L["Ghost"] or (isDead and L["Dead"] or L["Offline"]))
+        local kind = isGhost and "GHOST" or (isDead and "DEAD" or "OFFLINE")
+        local label = isGhost and L["Ghost"] or (isDead and L["Dead"] or L["Offline"])
+        button.statusText:SetText(TimedStatusText(button, unit, kind, label))
         button.statusText:Show()
     else
+        -- No timed status any more: forget when it began, so the next one
+        -- starts from 0:00 rather than from the last.
+        statusSince[StatusKey(unit)] = nil
+        button._sfStatusTimed = nil
         local summonText = GetSummonStatusText(unit)
         if summonText then
             button.statusText:SetText(summonText)
@@ -1574,6 +1620,25 @@ local function UpdateStatus(button)
         local t = button.statusText.configs or button.statusText._sfTable
         bg:SetShown(t and t.showBackground and button.statusText:IsShown())
     end
+end
+
+-- Recount the visible timers once a second; stops itself when none are left.
+local function TickStatusTimers()
+    local any = false
+    ForEachHeaderButton(function(button)
+        if button._sfStatusTimed then
+            any = true
+            UpdateStatus(button)
+        end
+    end)
+    if not any and statusTicker then
+        statusTicker:Cancel()
+        statusTicker = nil
+    end
+end
+
+EnsureStatusTicker = function()
+    if not statusTicker then statusTicker = C_Timer.NewTicker(1, TickStatusTimers) end
 end
 
 local function UpdateButtonAll(button)
@@ -3459,14 +3524,19 @@ function UpdateRangeAlpha()
     -- and their pet to check when solo anyway.
     local grouped = IsInGroup()
     local prof = GetProfile()
-    local outOfRangeAlpha = (prof and prof.appearance and prof.appearance.general and prof.appearance.general.outOfRangeAlpha) or 0.3
+    local general = prof and prof.appearance and prof.appearance.general
+    local outOfRangeAlpha = (general and general.outOfRangeAlpha) or 0.3
+    -- "Don't Fade Dead Players" (user request 2026-10-04): a corpse keeps full
+    -- opacity at any distance. UnitIsDeadOrGhost is a plain boolean here (the
+    -- combat branch below already tests it the same way).
+    local keepDead = general and general.keepDeadUndimmed
     ForEachRangeButton(function(unit, button)
         if UnitExists(unit) then
             -- Never dim the player's own frame -- you're never "out of range"
             -- of yourself. IsPlayerUnit catches both the literal "player"
             -- unit and any vehicle-mapped alias that still refers to the
             -- player, without tripping over a secret comparison result.
-            if IsPlayerUnit(unit) then
+            if IsPlayerUnit(unit) or (keepDead and UnitIsDeadOrGhost(unit)) then
                 button:SetAlpha(1)
             elseif inCombat then
                 -- See RebuildRangeChecker's comment for the three cases.

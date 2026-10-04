@@ -41,6 +41,7 @@ profile.appearance = {
         strata = "MEDIUM",
         texture = "Blizzard",
         outOfRangeAlpha = 0.3,
+        keepDeadUndimmed = false,   -- dead/ghost players never fade for range (opt-in)
         barAnimation = "Smooth",
         useGameFont = false,
         optionsFontSizeOffset = 0,
