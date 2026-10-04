@@ -10,6 +10,10 @@ New:
 - Don't Fade Dead Players, under the out-of-range opacity on the Layout
   page: a dead or ghost party or raid member stays at full opacity however
   far away they are. Off by default.
+- Status text (AFK, Dead, Offline and the rest) now stays fully visible on
+  a frame faded for being out of range. It still follows the overall
+  Frame Opacity, and hides with the frames while a big Blizzard window is
+  open.
 
 Fixed:
 

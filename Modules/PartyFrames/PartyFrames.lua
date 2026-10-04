@@ -1622,6 +1622,30 @@ local function UpdateStatus(button)
     end
 end
 
+-- Status Text at full opacity however far its button has faded for range
+-- (user request 2026-10-04): AFK/Dead/Offline is exactly what you need to read
+-- on a faded frame. It IGNORES its parents' alpha and takes the CONTAINER's
+-- instead, so it still follows the blanket Frame Opacity and the fade while a
+-- Blizzard panel is open -- ignoring all alpha would leave the text floating
+-- over frames that had faded out. Called from the range poll, the range reset,
+-- ApplyOpacity and the panel fade: every place either alpha changes.
+local function SyncStatusTextAlpha(button)
+    local fs = button and button.statusText
+    if not (fs and fs.SetIgnoreParentAlpha) then return end
+    local a = partyFrame and partyFrame:GetEffectiveAlpha() or 1
+    fs:SetIgnoreParentAlpha(true)
+    fs:SetAlpha(a)
+    local bg = fs._sfBG
+    if bg and bg.SetIgnoreParentAlpha then
+        bg:SetIgnoreParentAlpha(true)
+        bg:SetAlpha(a)
+    end
+end
+
+local function SyncAllStatusTextAlpha()
+    for _, button in pairs(unitButtons) do SyncStatusTextAlpha(button) end
+end
+
 -- Recount the visible timers once a second; stops itself when none are left.
 local function TickStatusTimers()
     local any = false
@@ -2040,6 +2064,7 @@ function PartyFrames.ApplyOpacity()
     if not partyFrame then return end
     local layout = GetActiveLayout()
     partyFrame:SetAlpha((layout and layout.opacity) or 1)
+    SyncAllStatusTextAlpha()
 end
 
 function ApplyLayout()
@@ -3392,6 +3417,7 @@ function ResetRangeAlpha()
         if UnitExists(unit) then
             button:SetAlpha(1)
         end
+        SyncStatusTextAlpha(button)
     end)
 end
 
@@ -3552,6 +3578,7 @@ function UpdateRangeAlpha()
     -- combat branch below already tests it the same way).
     local keepDead = general and general.keepDeadUndimmed
     ForEachRangeButton(function(unit, button)
+        SyncStatusTextAlpha(button)
         if UnitExists(unit) then
             -- Never dim the player's own frame -- you're never "out of range"
             -- of yourself. IsPlayerUnit catches both the literal "player"
@@ -3679,7 +3706,12 @@ function ApplyBlizzardPanelVisibility()
     if not anyOpen and next(openBlizzardPanels) then
         anyOpen = true
     end
-    if anyOpen then partyFrame:SetAlpha(0) else PartyFrames.ApplyOpacity() end
+    if anyOpen then
+        partyFrame:SetAlpha(0)
+        SyncAllStatusTextAlpha()   -- status text ignores parent alpha; hide it with the frames
+    else
+        PartyFrames.ApplyOpacity()
+    end
 end
 
 -- Party <-> raid transition. Bug fix (2026-08-07, user-reported priority):
