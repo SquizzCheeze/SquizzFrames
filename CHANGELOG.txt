@@ -17,6 +17,10 @@ Fixed:
   count up beside the status ("Dead 1:05"). The game doesn't say when a
   status began, so the timer starts when SquizzFrames first sees it, and a
   /reload restarts it from 0:00.
+- Someone who joined the group out of range could show another member's
+  name (and health), or no name at all, until they came into range. Their
+  frame now picks them up within a second, and a name the game hasn't sent
+  yet is asked for again each second until it arrives.
 
 
 V1.37 (2026-09-29)

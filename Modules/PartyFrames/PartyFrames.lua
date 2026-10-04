@@ -2939,6 +2939,27 @@ function PartyFrames:OnEnable()
             end
             UpdateAllButtons()
         end
+
+        -- UNIT WATCHDOG (user report 2026-10-04). Someone who joins OUT OF
+        -- RANGE could keep showing ANOTHER member's name until they came into
+        -- range: the header handed their button a new unit after the
+        -- 0.3/1/2s roster passes below had run, nothing re-wired, and the
+        -- button kept reading its old token -- which is still a real member,
+        -- so the frame showed that person's name (and health). It fixed itself
+        -- in range only because UNIT_NAME_UPDATE triggers a re-wire.
+        --
+        -- A 1s out-of-combat check of the header against what was wired closes
+        -- that for any timing. Polled rather than hooked: a HookScript on a
+        -- secure child's OnAttributeChanged would run our code inside the
+        -- header's own secure update, which is a taint risk this file has
+        -- paid for before. Cheap -- an attribute read per button -- and it
+        -- re-wires only when something actually moved.
+        -- Once per session: OnEnable can run again after a disable.
+        if self._sfUnitWatchdog then self._sfUnitWatchdog:Cancel() end
+        self._sfUnitWatchdog = C_Timer.NewTicker(1, function()
+            if InCombatLockdown() or not IsInGroup() then return end
+            if HeaderUnitsChanged() then ReapplyRosterLayout() end
+        end)
         -- Retry frame for the three staggered calls below, which all bail
         -- out via ReapplyRosterLayout's own InCombatLockdown() check if
         -- combat is still active at 0.3/1.0/2.0s after the roster change --

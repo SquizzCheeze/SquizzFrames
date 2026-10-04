@@ -765,7 +765,7 @@ value never lands in Lua at all.
 the same way. The in-code comment states the principle: *losing the group number
 beats losing the name*.
 
-### Status text timer and dead-player range fade (V1.38)
+### Status text timer, dead-player range fade, out-of-range joiner names (V1.38)
 
 - **`statusText`'s `showTimer` was dormant scaffolding** (see *New Indicator SETTING*): checkbox, default
   `true`, saved -- and read by nothing, so AFK/Dead never counted (user report 2026-10-04). Now
@@ -775,6 +775,17 @@ beats losing the name*.
   buttons flagged `_sfStatusTimed` and cancels itself when none are.
 - **Don't Fade Dead Players** (`appearance.general.keepDeadUndimmed`, Layout page, default off):
   `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
+- **Out-of-range joiners showed someone else's name, or none** (user report 2026-10-04, nicknames on; both
+  happened, "randomly"). Two causes, two fixes:
+  - *Another member's name*: the header handed a button a new unit AFTER the 0.3/1/2s roster passes, so
+    nothing re-wired and `button.unit` kept its old token -- a real member, hence a real (wrong) name and
+    health. Only `UNIT_NAME_UPDATE` (fires on coming into range) re-wired. Now a 1s out-of-combat
+    watchdog in `OnEnable` (`self._sfUnitWatchdog`) runs `HeaderUnitsChanged` -> `ReapplyRosterLayout`.
+    Deliberately POLLED, not a `HookScript("OnAttributeChanged")` on the secure children: that would run
+    our code inside the header's secure update (taint risk).
+  - *Blank*: the name genuinely isn't known yet out of range (`UnitName` empty or `UNKNOWNOBJECT`).
+    `CheckNameText` now retries itself each second, one pending retry per button, up to 60.
+  UNTESTED in game when written.
 
 ### Frame Opacity (General page, V1.30)
 

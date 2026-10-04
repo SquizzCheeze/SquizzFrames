@@ -1506,6 +1506,27 @@ local function CheckNameText(button)
             name = F.UnitFullName(unit, t.hideRealmName)
         end
         classFile = F.GetClassFile(unit)
+
+        -- A member who joins OUT OF RANGE can have no name yet (empty, or the
+        -- game's "Unknown"), and the only event that would fix it,
+        -- UNIT_NAME_UPDATE, fires when they come into range -- so the frame
+        -- sat blank (user report 2026-10-04). Ask again each second, up to a
+        -- minute, one pending retry per button, and only while the button
+        -- still shows the same unit. Plain-string test only: a secret name is
+        -- a real name the frame can already draw.
+        if F.IsValueNonSecret(name) and (name == "" or name == UNKNOWNOBJECT) then
+            local tries = (button._sfNameRetries or 0) + 1
+            if tries <= 60 and not button._sfNameRetryPending then
+                button._sfNameRetries = tries
+                button._sfNameRetryPending = true
+                C_Timer.After(1, function()
+                    button._sfNameRetryPending = nil
+                    if button.unit == unit then CheckNameText(button) end
+                end)
+            end
+        else
+            button._sfNameRetries = nil
+        end
     end
 
     -- showGroupNumber: prefix the name with the unit's raid subgroup (1-8),
