@@ -1151,11 +1151,17 @@ function BU.CreateBuiltInIndicator(button, t)
         -- Shown/hidden by ApplySettingToOne's "showBackground" branch and
         -- kept in sync with the text's own show/hide by PartyFrames.lua's
         -- UpdateStatus.
+        -- On the text's own level frame, so Frame Level lifts the background
+        -- with the text (above a shield overlay, user request 2026-10-05);
+        -- its BACKGROUND layer keeps it behind the ARTWORK text there.
+        local host = indicator._sfLevelFrame or button
         if not indicator._sfBG then
-            local bg = button:CreateTexture(nil, "BACKGROUND")
+            local bg = host:CreateTexture(nil, "BACKGROUND")
             bg:SetTexture([[Interface\Buttons\WHITE8X8]])
             bg:Hide()
             indicator._sfBG = bg
+        elseif indicator._sfBG:GetParent() ~= host then
+            indicator._sfBG:SetParent(host)
         end
     elseif name == "statusIcon" then
         indicator = CreateIconIndicator(button, "StatusIcon")

@@ -30,7 +30,8 @@ Fixed:
   yet is asked for again each second until it arrives.
 - Status Text's Frame Level did nothing, so the text always sat at the
   frame's own level - under a shield overlay, for example, even at
-  Highest. It now layers like the other texts.
+  Highest. It now layers like the other texts, and its Show Background
+  strip rises with it.
 
 
 V1.37 (2026-09-29)
