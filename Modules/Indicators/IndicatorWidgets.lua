@@ -1902,6 +1902,7 @@ local function MakeCheckButton(key, defaultLabel)
                         showGroupNumber = "Show Group Number",
                         hideRealmName = "Hide Realm Name",
                         showTimer = "Show Timer",
+                        timerOpposite = "Timer on Other Side",
                         showBackground = "Show Background",
                         showAnimation = "Show Animation",
                         showStack = "Show Stack",

@@ -174,6 +174,7 @@ profile.layout.indicators = {
         position = {"BOTTOM", "healthBar", "BOTTOM", 0, 0}, frameLevel = LAYER.STATUS_TEXT,
         font = {"Friz QT__", 11, "NONE", true},
         showTimer = true,
+        timerOpposite = false,  -- timer on the bar's other edge, not after the label (V1.38)
         colors = {
             ["OFFLINE"] = {1, 0.19, 0.19, 1},
             ["DEAD"] = {1, 0.19, 0.19, 1},

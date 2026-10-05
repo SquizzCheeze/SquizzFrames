@@ -773,6 +773,11 @@ beats losing the name*.
   start time; a /reload restarts it), keyed by GUID in `statusSince` -- never by unit token or button,
   which the secure header reshuffles on every re-sort. A 1s `statusTicker` re-runs `UpdateStatus` only for
   buttons flagged `_sfStatusTimed` and cancels itself when none are.
+- **Timer on Other Side** (`timerOpposite`, `checkbutton3`, default off): the timer is a second
+  FontString, `statusText._sfTimer`, on the health bar's opposite edge from the label's anchor
+  (`StatusTimerString`), label x offset mirrored. It copies the label's font/colour/shadow/alpha on
+  every update instead of being wired into the indicator font system, so it needs no settings of
+  its own -- and every place that hides `statusText` must hide `_sfTimer` too.
 - **Don't Fade Dead Players** (`appearance.general.keepDeadUndimmed`, Layout page, default off):
   `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
 - **Status Text ignores range fade** (`SyncStatusTextAlpha`, user request): the FontString and its `_sfBG`

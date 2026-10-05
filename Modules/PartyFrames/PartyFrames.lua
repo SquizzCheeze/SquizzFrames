@@ -1546,8 +1546,8 @@ local function StatusKey(unit)
     return unit
 end
 
--- `label` alone, or "label m:ss" since the status began, per the setting.
-local function TimedStatusText(button, unit, kind, label)
+-- The "m:ss" since the status began, or nil when Show Timer is off.
+local function StatusTimer(button, unit, kind)
     local key = StatusKey(unit)
     local rec = statusSince[key]
     if not rec or rec.kind ~= kind then
@@ -1557,12 +1557,65 @@ local function TimedStatusText(button, unit, kind, label)
     local t = button.statusText.configs or button.statusText._sfTable
     if t and t.showTimer == false then
         button._sfStatusTimed = nil
-        return label
+        return nil
     end
     button._sfStatusTimed = true
     EnsureStatusTicker()
     local secs = math.floor(GetTime() - rec.t)
-    return string.format("%s %d:%02d", label, math.floor(secs / 60), secs % 60)
+    return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+end
+
+-- "Timer on Other Side" (timerOpposite, user request 2026-10-05): the timer
+-- gets a FontString of its own on the health bar's opposite edge, level with
+-- the label -- label at LEFT puts the timer at RIGHT, TOPLEFT at TOPRIGHT,
+-- BOTTOM (centred) at BOTTOMRIGHT -- with the label's x offset mirrored. Font,
+-- colour and shadow are copied from the label on every update, so it follows
+-- whatever the indicator's font settings make of the label without any wiring
+-- of its own.
+local function StatusTimerString(button)
+    local fs = button.statusText
+    local tm = fs._sfTimer
+    if not tm then
+        tm = (fs:GetParent() or button):CreateFontString(nil, fs:GetDrawLayer() or "ARTWORK")
+        fs._sfTimer = tm
+    end
+    local t = fs.configs or fs._sfTable
+    local p = t and t.position or {}
+    local point = type(p[1]) == "string" and p[1] or "CENTER"
+    local vert = point:match("^TOP") and "TOP" or (point:match("^BOTTOM") and "BOTTOM" or "")
+    local tp = vert .. (point:find("RIGHT") and "LEFT" or "RIGHT")
+    local bar = button.healthBar or button
+    tm:ClearAllPoints()
+    tm:SetPoint(tp, bar, tp, -(tonumber(p[4]) or 0), tonumber(p[5]) or 0)
+
+    local font, size, flags = fs:GetFont()
+    if font then tm:SetFont(font, size, flags or "") end
+    tm:SetTextColor(fs:GetTextColor())
+    tm:SetShadowColor(fs:GetShadowColor())
+    tm:SetShadowOffset(fs:GetShadowOffset())
+    if tm.SetIgnoreParentAlpha then
+        tm:SetIgnoreParentAlpha(fs:IsIgnoringParentAlpha())
+        tm:SetAlpha(fs:GetAlpha())
+    end
+    return tm
+end
+
+-- Show a status: the label, with its timer (if any) either inline ("AFK 1:23")
+-- or on the other side of the bar.
+local function ShowStatus(button, label, timer)
+    local fs = button.statusText
+    local t = fs.configs or fs._sfTable
+    if timer and t and t.timerOpposite then
+        fs:SetText(label)
+        fs:Show()
+        local tm = StatusTimerString(button)
+        tm:SetText(timer)
+        tm:Show()
+        return
+    end
+    fs:SetText(timer and (label .. " " .. timer) or label)
+    fs:Show()
+    if fs._sfTimer then fs._sfTimer:Hide() end
 end
 
 local function UpdateStatus(button)
@@ -1572,6 +1625,7 @@ local function UpdateStatus(button)
     -- Layout preview: no status text for fake slots (nothing to report).
     if button._sfFakeName then
         button.statusText:Hide()
+        if button.statusText._sfTimer then button.statusText._sfTimer:Hide() end
         return
     end
 
@@ -1585,20 +1639,19 @@ local function UpdateStatus(button)
     local isAFK = not issecretvalue(UnitIsAFK(unit)) and UnitIsAFK(unit)
 
     if isAFK then
-        button.statusText:SetText(TimedStatusText(button, unit, "AFK", L["AFK"]))
-        button.statusText:Show()
+        ShowStatus(button, L["AFK"], StatusTimer(button, unit, "AFK"))
     elseif not UnitIsConnected(unit) or UnitIsDead(unit) or UnitIsGhost(unit) then
         local isGhost = UnitIsGhost(unit)
         local isDead = UnitIsDead(unit)
         local kind = isGhost and "GHOST" or (isDead and "DEAD" or "OFFLINE")
         local label = isGhost and L["Ghost"] or (isDead and L["Dead"] or L["Offline"])
-        button.statusText:SetText(TimedStatusText(button, unit, kind, label))
-        button.statusText:Show()
+        ShowStatus(button, label, StatusTimer(button, unit, kind))
     else
         -- No timed status any more: forget when it began, so the next one
         -- starts from 0:00 rather than from the last.
         statusSince[StatusKey(unit)] = nil
         button._sfStatusTimed = nil
+        if button.statusText._sfTimer then button.statusText._sfTimer:Hide() end
         local summonText = GetSummonStatusText(unit)
         if summonText then
             button.statusText:SetText(summonText)
@@ -1639,6 +1692,11 @@ local function SyncStatusTextAlpha(button)
     if bg and bg.SetIgnoreParentAlpha then
         bg:SetIgnoreParentAlpha(true)
         bg:SetAlpha(a)
+    end
+    local tm = fs._sfTimer
+    if tm then
+        tm:SetIgnoreParentAlpha(true)
+        tm:SetAlpha(a)
     end
 end
 

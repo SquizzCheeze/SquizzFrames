@@ -118,7 +118,7 @@ IndicatorDefaults.AURA_TYPES = {
 --- Modules/Indicators/Indicators.lua indicatorSettings (retail/Mists branch).
 IndicatorDefaults.BUILT_IN_SETTINGS = {
     nameText    = {"enabled", "color-class", "textColor", "maxLength", "checkbutton:showGroupNumber", "checkbutton2:hideRealmName", "vehicleNamePosition", "position-single", "frameLevel", "font-noOffset"},
-    statusText  = {"enabled", "checkbutton:showTimer", "checkbutton2:showBackground", "statusPosition", "frameLevel", "font-noOffset"},
+    statusText  = {"enabled", "checkbutton:showTimer", "checkbutton3:timerOpposite", "checkbutton2:showBackground", "statusPosition", "frameLevel", "font-noOffset"},
     statusIcon  = {"enabled", "size-square", "position-single", "frameLevel"},
     -- Same shape as statusIcon (it IS a status icon, just one that gets its
     -- own slot so it can show alongside AFK/dead rather than losing to them
