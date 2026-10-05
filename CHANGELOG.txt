@@ -28,6 +28,9 @@ Fixed:
   name (and health), or no name at all, until they came into range. Their
   frame now picks them up within a second, and a name the game hasn't sent
   yet is asked for again each second until it arrives.
+- Status Text's Frame Level did nothing, so the text always sat at the
+  frame's own level - under a shield overlay, for example, even at
+  Highest. It now layers like the other texts.
 
 
 V1.37 (2026-09-29)

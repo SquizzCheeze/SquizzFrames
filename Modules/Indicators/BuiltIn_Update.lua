@@ -1129,6 +1129,12 @@ function BU.CreateBuiltInIndicator(button, t)
     elseif name == "statusText" then
         indicator = button.statusText or button:CreateFontString(nil, "ARTWORK")
         indicator._sfType = "builtin"
+        -- The same dead Frame Level slider nameText/healthText had: a
+        -- FontString has no SetFrameLevel, so the setting was skipped and the
+        -- text sat at the button's own level, under the shield overlay
+        -- whatever it was set to (user report 2026-10-05, the V1.38 timer
+        -- drawn under a shield at "Highest").
+        GiveRegionRealFrameLevel(indicator, button)
         -- "Show Background" (checkbutton2:showBackground) had no widget
         -- consuming it at all -- a FontString can't own a texture itself
         -- (CreateTexture isn't a FontString method), so a separate texture

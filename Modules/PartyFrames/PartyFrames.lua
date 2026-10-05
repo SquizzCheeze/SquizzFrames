@@ -1574,10 +1574,18 @@ end
 -- of its own.
 local function StatusTimerString(button)
     local fs = button.statusText
+    -- On the label's level frame (BuiltIn_Update's GiveRegionRealFrameLevel),
+    -- so Frame Level lifts the timer too. NOT fs:GetParent(): that is
+    -- overridden to answer the button, which put the timer at the button's
+    -- level, under the shield overlay. Re-checked each time, since the level
+    -- frame can arrive after the timer was made.
+    local host = fs._sfLevelFrame or button
     local tm = fs._sfTimer
     if not tm then
-        tm = (fs:GetParent() or button):CreateFontString(nil, fs:GetDrawLayer() or "ARTWORK")
+        tm = host:CreateFontString(nil, fs:GetDrawLayer() or "ARTWORK")
         fs._sfTimer = tm
+    elseif tm:GetParent() ~= host then
+        tm:SetParent(host)
     end
     local t = fs.configs or fs._sfTable
     local p = t and t.position or {}

@@ -777,7 +777,9 @@ beats losing the name*.
   FontString, `statusText._sfTimer`, on the health bar's opposite edge from the label's anchor
   (`StatusTimerString`), label x offset mirrored. It copies the label's font/colour/shadow/alpha on
   every update instead of being wired into the indicator font system, so it needs no settings of
-  its own -- and every place that hides `statusText` must hide `_sfTimer` too.
+  its own -- and every place that hides `statusText` must hide `_sfTimer` too. It lives on the
+  label's `_sfLevelFrame`, never `fs:GetParent()`: GiveRegionRealFrameLevel overrides GetParent
+  to answer the BUTTON, so a sibling made there sits under the shield overlay (hit 2026-10-05).
 - **Don't Fade Dead Players** (`appearance.general.keepDeadUndimmed`, Layout page, default off):
   `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
 - **Status Text ignores range fade** (`SyncStatusTextAlpha`, user request): the FontString and its `_sfBG`
