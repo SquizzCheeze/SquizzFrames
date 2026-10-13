@@ -3767,9 +3767,13 @@ end
 -- plain and non-secret, so everything here is safe to read; it never touches
 -- a live slot button.
 -----------------------------------------------------------------------
+-- Arguments are throwaway experiments on the PREVIEW only, undone by a
+-- /reload: "top" lifts the ants to TOOLTIP strata, "noclip" turns the clip
+-- off, "solid" swaps the dash image for solid red. Any combination.
 SLASH_SQUIZZANTS1 = "/sfants"
-SlashCmdList["SQUIZZANTS"] = function()
+SlashCmdList["SQUIZZANTS"] = function(msg)
     local P = "|cff33cc99[SquizzFrames]|r "
+    msg = (msg or ""):lower()
     local ok, err = pcall(function()
         local I = SquizzFrames.Indicators
         local pb = I and I.GetPreviewButton and I.GetPreviewButton()
@@ -3796,6 +3800,37 @@ SlashCmdList["SQUIZZANTS"] = function()
         local h = d.health
         print(P .. ("ants health bar: %s x %s, level=%s"):format(
             tostring(h and h:GetWidth()), tostring(h and h:GetHeight()), tostring(h and h:GetFrameLevel())))
+
+        -- Anything on the preview drawn ABOVE the ants: same strata at a
+        -- higher level, or a higher strata outright.
+        local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5,
+            FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+        local cs, cl = STRATA[c:GetFrameStrata()] or 0, c:GetFrameLevel()
+        local above = 0
+        for name, ind in pairs(pb.indicators) do
+            if type(ind) == "table" and ind.GetFrameLevel and ind.IsVisible and ind:IsVisible() then
+                local s, l = STRATA[ind:GetFrameStrata()] or 0, ind:GetFrameLevel()
+                if s > cs or (s == cs and l >= cl) then
+                    above = above + 1
+                    print(P .. ("ants: above them -> %s (%s %s)"):format(
+                        tostring(name), tostring(ind:GetFrameStrata()), tostring(l)))
+                end
+            end
+        end
+        print(P .. "ants: " .. above .. " visible indicator(s) drawn above the ants")
+
+        if msg:find("top") then
+            c:SetFrameStrata("TOOLTIP")
+            print(P .. "ants: TEST lifted to TOOLTIP strata")
+        end
+        if msg:find("noclip") then
+            c:SetClipsChildren(false)
+            print(P .. "ants: TEST clipping off (strips will overhang the frame)")
+        end
+        if msg:find("solid") then
+            for _, tex in ipairs(d.antsTex or {}) do tex:SetColorTexture(1, 0, 0, 1) end
+            print(P .. "ants: TEST solid red strips")
+        end
     end)
     if not ok then print(P .. "ants: error " .. tostring(err)) end
     print(P .. "ants: end of report")
