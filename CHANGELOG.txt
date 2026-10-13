@@ -12,7 +12,9 @@ New:
   Animated Border runs a marching dashed border in the dispel type's
   colour round the health bar. They work with any overlay style, so
   Overlay "None" plus the border gives Blizzard's new look on its own.
-  Both off by default, and both keep working in combat.
+  Both off by default, and both keep working in combat. The border has its
+  own Border Frame Level, so it can sit above icon rows you have raised
+  without moving the Dispels indicator itself.
 
 
 V1.38 (2026-10-05)

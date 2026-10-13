@@ -2163,19 +2163,25 @@ end
 local INDICATOR_DEPTH = 7
 
 -- The ants' frame level. `ref` is the Dispels wrapper, or for a caller with no
--- wrapper the button itself (+ LAYER.DISPEL). With a wrapper, the ants go above
--- the whole depth of every sibling indicator whose Frame Level is at or BELOW
--- the Dispels indicator's own -- so the setting still decides the order, and by
--- default (Medium) that means above the aura rows and below text. Measured
--- from the real frames rather than computed from the tiers, because the
--- preview's levels are flattened by the options window raising itself.
+-- wrapper the button itself (+ LAYER.DISPEL). The tier is the Dispels
+-- indicator's Border Frame Level (dispelAntsFrameLevel) when set, else its own
+-- Frame Level -- separate because a user who has tuned their layers needs
+-- Dispels itself left where it is (user request 2026-10-14). The ants then go
+-- above the whole depth of every sibling indicator whose Frame Level is at or
+-- BELOW that tier, and under everything set higher. Measured from the real
+-- frames rather than computed from the tiers, because the preview's levels are
+-- flattened by the options window raising itself.
 local function AntsFrameLevel(ref, isWrapper)
     if not isWrapper then
         return (ref:GetFrameLevel() or 0) + F.LAYER.DISPEL
     end
-    local level = ref:GetFrameLevel() or 0
-    local own = ref._sfTable and ref._sfTable.frameLevel
+    local tbl = ref._sfTable or {}
     local button = ref:GetParent()
+    local own = tbl.dispelAntsFrameLevel or tbl.frameLevel
+    local level = ref:GetFrameLevel() or 0
+    if tbl.dispelAntsFrameLevel and button and button.GetFrameLevel then
+        level = (button:GetFrameLevel() or 0) + tbl.dispelAntsFrameLevel
+    end
     if own and button and button.indicators then
         for _, ind in pairs(button.indicators) do
             pcall(function()
@@ -2661,6 +2667,12 @@ function AEI.CreateDispelsIndicator(button, t)
     function wrapper:SetDispelAnts(v)
         t.dispelAnts = v
         RebuildStyles()
+    end
+
+    -- Read at restyle by AntsFrameLevel; only the placement needs redoing.
+    function wrapper:SetDispelAntsFrameLevel(v)
+        t.dispelAntsFrameLevel = v
+        wrapper:RefreshBorderInset()
     end
 
     -- NO "player" fallback: a unit-less button must not build a container bound

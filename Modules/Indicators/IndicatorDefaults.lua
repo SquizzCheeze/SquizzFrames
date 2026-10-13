@@ -173,7 +173,7 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- it has no size or position of its own; the dispel-type symbols moved to
     -- their own "dispelIcons" indicator (2026-08-13) and took size/position/
     -- the show-icons checkbox with them.
-    dispels     = {"enabled", "dispelShowAll", "dispelTypeColors", "dispelOverlay", "dispelOverlayOpacity", "dispelGradientHeight", "dispelGradientWeakAlpha", "checkbutton:dispelPulse", "checkbutton2:dispelAnts", "frameLevel"},
+    dispels     = {"enabled", "dispelShowAll", "dispelTypeColors", "dispelOverlay", "dispelOverlayOpacity", "dispelGradientHeight", "dispelGradientWeakAlpha", "checkbutton:dispelPulse", "checkbutton2:dispelAnts", "dispelAntsFrameLevel", "frameLevel"},
     -- Dispel-type symbols, one per type, deduplicated and laid out by the
     -- engine (AEI.CreateDispelIconsIndicator). Swipe and border are off by
     -- default -- see BuildDispelIconsStyle for why.

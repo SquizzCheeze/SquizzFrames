@@ -254,6 +254,7 @@ local TOKEN_HEIGHTS = {
     ["healthFormat"] = 75,
     ["powerFormat"] = 75,
     ["frameLevel"] = 58, -- matches CreateSetting_FrameLevel's frame height (dropdown, was a 75px slider)
+    ["dispelAntsFrameLevel"] = 58, -- same widget shape (MakeFrameLevelSetting)
     ["checkbutton"] = 38,
     ["checkbutton2"] = 38,
     ["checkbutton3"] = 38,
@@ -963,6 +964,12 @@ ShowSettings = function(name)
             -- (see CreateSetting_FrameLevel), not a bounded slider.
             w:SetDBValue(t.frameLevel)
             w:SetFunc(function(fl) SetField(t, "frameLevel", fl) end)
+
+        -- Dispels' Animated Border tier. Unset reads as the indicator's own
+        -- Frame Level, which is where the border sat before this existed.
+        elseif n == "dispelAntsFrameLevel" then
+            w:SetDBValue(t.dispelAntsFrameLevel or t.frameLevel)
+            w:SetFunc(function(fl) SetField(t, "dispelAntsFrameLevel", fl) end)
 
         -- Num displayed
         elseif n == "num" then

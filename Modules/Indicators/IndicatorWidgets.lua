@@ -927,15 +927,19 @@ end
 -- Values remain plain numbers in the DB -- nothing about storage changes,
 -- so existing profiles (including hand-tuned levels that match no preset)
 -- keep working. A non-preset value simply displays as "Custom (N)".
-local function CreateSetting_FrameLevel(parent)
+-- One builder per KEY: settingWidgets is a shared namespace with one cached
+-- frame per key, so a second tier dropdown on the same page (Dispels' Border
+-- Frame Level) needs its own key or the two would be the same widget.
+local function MakeFrameLevelSetting(key, label)
+  return function(parent)
     local widget
-    if not settingWidgets["frameLevel"] then
-        widget = SF_CreateFrame("SFIndicatorSettings_FrameLevel", parent, 300, 58)
-        settingWidgets["frameLevel"] = widget
+    if not settingWidgets[key] then
+        widget = SF_CreateFrame("SFIndicatorSettings_" .. key, parent, 300, 58)
+        settingWidgets[key] = widget
 
         widget.dd = SF_CreateDropdown(widget, 230)
         widget.dd:SetPoint("TOPLEFT", 10, -20)
-        widget.ddText = CreateLabel(widget, "Frame Level", "BOTTOMLEFT", 10, 1)
+        widget.ddText = CreateLabel(widget, label, "BOTTOMLEFT", 10, 1)
         widget.ddText:SetPoint("BOTTOMLEFT", widget.dd, "TOPLEFT", 0, 1)
 
         -- Rebuilt per SetDBValue rather than once up front, so a stored
@@ -971,9 +975,16 @@ local function CreateSetting_FrameLevel(parent)
             BuildItems(frameLevel)
             widget.dd:SetSelectedValue(frameLevel)
         end
-    else widget = settingWidgets["frameLevel"] end
+    else widget = settingWidgets[key] end
     widget:Show(); return widget
+  end
 end
+
+local CreateSetting_FrameLevel = MakeFrameLevelSetting("frameLevel", "Frame Level")
+-- Dispels' Animated Border only (user request 2026-10-14): lets the dashes sit
+-- above icon rows a user has raised, without moving the Dispels indicator's
+-- own Frame Level. See AntsFrameLevel in AuraEngineIndicators.lua.
+local CreateSetting_DispelAntsFrameLevel = MakeFrameLevelSetting("dispelAntsFrameLevel", "Border Frame Level")
 
 local function CreateSetting_Size(parent)
     local widget
@@ -3418,6 +3429,7 @@ local builders = {
     ["dispelOverlayOpacity"] = CreateSetting_DispelOverlayOpacity,
     ["dispelGradientHeight"] = CreateSetting_DispelGradientHeight,
     ["dispelGradientWeakAlpha"] = CreateSetting_DispelGradientWeakAlpha,
+    ["dispelAntsFrameLevel"] = CreateSetting_DispelAntsFrameLevel,
     ["castBy"] = CreateSetting_CastBy,
     ["maxValue"] = CreateSetting_MaxValue,
     ["iconStyle"] = CreateSetting_IconStyle,
