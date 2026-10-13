@@ -2155,6 +2155,40 @@ local function HideDispelAnts(d)
     for _, tex in ipairs(d.antsTex) do tex:Hide() end
 end
 
+-- How far an indicator's own pieces can sit above its wrapper: an aura row is
+-- wrapper -> container -> icon -> cooldown -> border -> pandemic -> text
+-- (AuraEngine.lua's initializer), six steps. Placing the ants only at the
+-- wrapper's level left the icons' borders and stack text over them (user
+-- screenshot 2026-10-14).
+local INDICATOR_DEPTH = 7
+
+-- The ants' frame level. `ref` is the Dispels wrapper, or for a caller with no
+-- wrapper the button itself (+ LAYER.DISPEL). With a wrapper, the ants go above
+-- the whole depth of every sibling indicator whose Frame Level is at or BELOW
+-- the Dispels indicator's own -- so the setting still decides the order, and by
+-- default (Medium) that means above the aura rows and below text. Measured
+-- from the real frames rather than computed from the tiers, because the
+-- preview's levels are flattened by the options window raising itself.
+local function AntsFrameLevel(ref, isWrapper)
+    if not isWrapper then
+        return (ref:GetFrameLevel() or 0) + F.LAYER.DISPEL
+    end
+    local level = ref:GetFrameLevel() or 0
+    local own = ref._sfTable and ref._sfTable.frameLevel
+    local button = ref:GetParent()
+    if own and button and button.indicators then
+        for _, ind in pairs(button.indicators) do
+            pcall(function()
+                local it = ind ~= ref and ind._sfTable
+                if it and it.frameLevel and it.frameLevel <= own then
+                    level = math.max(level, ind:GetFrameLevel() + INDICATOR_DEPTH)
+                end
+            end)
+        end
+    end
+    return level
+end
+
 local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     if d.pulseFade then
         pcall(d.pulseFade.SetToAlpha, d.pulseFade, style.pulse and DISPEL_PULSE_MIN_ALPHA or 1)
@@ -2177,7 +2211,7 @@ local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     local ref = d.levelRef or health:GetParent()
     if ref and ref.GetFrameLevel then
         clip:SetFrameStrata(ref:GetFrameStrata())
-        clip:SetFrameLevel(ref:GetFrameLevel() + (d.levelRef and 0 or F.LAYER.DISPEL))
+        clip:SetFrameLevel(AntsFrameLevel(ref, d.levelRef ~= nil))
     end
     -- "Full" draws an opaque border in the SAME colour exactly where the
     -- ants would run, which hid them completely; step inside it there.
@@ -2570,9 +2604,13 @@ function AEI.CreateDispelsIndicator(button, t)
         RefreshFallbackVisuals()
     end
 
-    -- The ants take this wrapper's tier (d.levelRef), but the generic Frame
-    -- Level dispatch only moves the wrapper itself; re-place them after it.
-    hooksecurefunc(wrapper, "SetFrameLevel", function() wrapper:RefreshBorderInset() end)
+    -- The ants take their level from this wrapper and its siblings
+    -- (AntsFrameLevel), but the generic Frame Level dispatch only moves the
+    -- wrapper itself; re-place them after it. Next frame, because a rebuild
+    -- levels the indicators one by one and the siblings may not be done yet.
+    hooksecurefunc(wrapper, "SetFrameLevel", function()
+        C_Timer.After(0, function() wrapper:RefreshBorderInset() end)
+    end)
 
     function wrapper:SetDispelShowAll(val)
         t.dispelShowAll = val
