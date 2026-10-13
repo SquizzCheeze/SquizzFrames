@@ -217,6 +217,13 @@ local function DefaultFrame(opts)
             -- under our own names. Off; nil on older profiles reads as off.
             pulse = false,
             ants = false,
+            -- The border's look. Off/nil = the dispel type's colour, medium
+            -- dashes, 2 thick, speed 16 -- AuraEngineIndicators.lua's defaults.
+            antsCustomColor = false,
+            antsColor = {1, 1, 1, 1},
+            antsDash = "medium",
+            antsThickness = 2,
+            antsSpeed = 16,
             -- Off = only the types YOU can dispel. On = every dispellable
             -- type, which is what a non-healer watching a tank usually wants.
             showAll = false,

@@ -1,10 +1,11 @@
 # Generates Media\Textures\dash.tga, the strip the Dispels indicator's
 # "Animated Border" (marching ants) slides along each edge.
 #
-# 1024 x 4, the dashes DRAWN IN along its length: 4 px on, 4 px off, 128
-# periods. Each edge strip shows it once at 1024 UI units (texcoords 0..1), so
-# one pixel is one unit and the period is 8 -- see DISPEL_ANTS_PERIOD in
-# AuraEngineIndicators.lua, which must match.
+# 2048 x 4, the dashes DRAWN IN along its length: 4 px on, 4 px off, 256
+# periods. Each 1024-unit edge strip shows a slice of it (0..1, 0..0.5 or
+# 0..0.25 of its length), which puts 256, 128 or 64 periods on the strip: the
+# Short / Medium / Long dash lengths (4, 8 and 16 units a period). Keep in step
+# with DISPEL_ANTS_IMAGE_* in AuraEngineIndicators.lua.
 #
 # Deliberately NOT a small tile repeated with REPEAT wrap: that was the first
 # version (dash.png, 16x16) and in game the strips rendered nothing at all --
@@ -20,7 +21,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-$W = 1024
+$W = 2048
 $H = 4
 $On = 4
 $Period = 8

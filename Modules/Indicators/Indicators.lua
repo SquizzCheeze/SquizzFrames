@@ -1043,6 +1043,9 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         indicator:SetDispelAnts(value == true)
     elseif setting == "dispelAntsFrameLevel" and indicator.SetDispelAntsFrameLevel then
         indicator:SetDispelAntsFrameLevel(value)
+    elseif (setting == "dispelAntsCustomColor" or setting == "dispelAntsColor" or setting == "dispelAntsDash"
+        or setting == "dispelAntsThickness" or setting == "dispelAntsSpeed") and indicator.SetDispelAntsOption then
+        indicator:SetDispelAntsOption(setting, value)
     elseif setting == "showDispelIcons" and indicator.SetShowDispelIcons then
         indicator:SetShowDispelIcons(value)
     elseif setting == "showCountdownNumbers" and indicator.SetShowCountdownNumbers then

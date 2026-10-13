@@ -255,6 +255,10 @@ local TOKEN_HEIGHTS = {
     ["powerFormat"] = 75,
     ["frameLevel"] = 58, -- matches CreateSetting_FrameLevel's frame height (dropdown, was a 75px slider)
     ["dispelAntsFrameLevel"] = 58, -- same widget shape (MakeFrameLevelSetting)
+    ["dispelAntsColor"] = 38,
+    ["dispelAntsDash"] = 58,
+    ["dispelAntsThickness"] = 75,
+    ["dispelAntsSpeed"] = 75,
     ["checkbutton"] = 38,
     ["checkbutton2"] = 38,
     ["checkbutton3"] = 38,
@@ -970,6 +974,14 @@ ShowSettings = function(name)
         elseif n == "dispelAntsFrameLevel" then
             w:SetDBValue(t.dispelAntsFrameLevel or t.frameLevel)
             w:SetFunc(function(fl) SetField(t, "dispelAntsFrameLevel", fl) end)
+
+        -- Dispels' Animated Border look. nil = the widget's own default,
+        -- which matches DISPEL_ANTS_DEFAULT_* in AuraEngineIndicators.lua.
+        elseif n == "dispelAntsColor" or n == "dispelAntsDash"
+            or n == "dispelAntsThickness" or n == "dispelAntsSpeed" then
+            local key = n
+            w:SetDBValue(t[key])
+            w:SetFunc(function(v) SetField(t, key, v) end)
 
         -- Num displayed
         elseif n == "num" then

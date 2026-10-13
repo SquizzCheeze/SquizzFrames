@@ -1941,6 +1941,7 @@ local function MakeCheckButton(key, defaultLabel)
                         showPandemic = "Highlight When Refreshable",
                         dispelPulse = "Pulse Overlay",
                         dispelAnts = "Animated Border",
+                        dispelAntsCustomColor = "Custom Border Colour",
                     }
                     local labelText = labels[setting] or setting
                     if widget.cb.labelText then
@@ -3174,6 +3175,82 @@ local function CreateSetting_DispelGradientWeakAlpha(parent)
     widget:Show(); return widget
 end
 
+-- Dispels' Animated Border look (user request 2026-10-14). Each has its own
+-- settingWidgets key -- the namespace is shared and caches one frame per key.
+local function MakeSliderSetting(key, label, minV, maxV, step, default)
+    return function(parent)
+        local widget
+        if not settingWidgets[key] then
+            widget = SF_CreateFrame("SFIndicatorSettings_" .. key, parent, 300, 75)
+            settingWidgets[key] = widget
+            widget.slider = SF_CreateSlider(label, widget, minV, maxV, 230, step)
+            widget.slider:SetPoint("TOPLEFT", widget, 5, -20)
+            widget.slider.afterValueChangedFn = function(value) widget.func(value) end
+            function widget:SetFunc(func) widget.func = func end
+            function widget:SetDBValue(val) widget.slider:SetValue(val or default) end
+        else widget = settingWidgets[key] end
+        widget:Show(); return widget
+    end
+end
+-- Defaults must match DISPEL_ANTS_DEFAULT_* in AuraEngineIndicators.lua.
+-- Thickness tops out at the strips' built size (DISPEL_ANTS_MAX_THICKNESS).
+local CreateSetting_DispelAntsThickness = MakeSliderSetting("dispelAntsThickness", "Border Thickness", 1, 8, 1, 2)
+local CreateSetting_DispelAntsSpeed = MakeSliderSetting("dispelAntsSpeed", "Border Speed", 4, 64, 1, 16)
+
+-- Three lengths, not a slider: the crawl only loops cleanly when the dash
+-- period divides the fixed slide distance (see DISPEL_ANTS_PERIODS).
+local function CreateSetting_DispelAntsDash(parent)
+    local widget
+    if not settingWidgets["dispelAntsDash"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_DispelAntsDash", parent, 300, 58)
+        settingWidgets["dispelAntsDash"] = widget
+        widget.dd = SF_CreateDropdown(widget, 230)
+        widget.dd:SetPoint("TOPLEFT", 10, -20)
+        widget.ddText = CreateLabel(widget, "Dash Length", "BOTTOMLEFT", 10, 1)
+        widget.ddText:SetPoint("BOTTOMLEFT", widget.dd, "TOPLEFT", 0, 1)
+        local items = {}
+        for _, opt in ipairs({ { "short", "Short" }, { "medium", "Medium" }, { "long", "Long" } }) do
+            items[#items + 1] = {
+                text = opt[2], value = opt[1],
+                onClick = function() if widget.func then widget.func(opt[1]) end end,
+            }
+        end
+        widget.dd:SetItems(items)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(val) widget.dd:SetSelectedValue(val or "medium") end
+    else widget = settingWidgets["dispelAntsDash"] end
+    widget:Show(); return widget
+end
+
+-- Only read while Custom Border Colour is ticked; the type's colour otherwise.
+local function CreateSetting_DispelAntsColor(parent)
+    local widget
+    if not settingWidgets["dispelAntsColor"] then
+        widget = SF_CreateFrame("SFIndicatorSettings_DispelAntsColor", parent, 300, 38)
+        settingWidgets["dispelAntsColor"] = widget
+        local _r, _g, _b, _a = 1, 1, 1, 1
+        widget.color = W.CreateColorPicker(widget, "Border Colour",
+            function() return _r, _g, _b, _a end,
+            function(r, g, b, a)
+                _r, _g, _b, _a = r, g, b, a
+                -- See CreateSetting_ColorAlpha: the alpha slider fires this
+                -- during its own construction, before SetFunc has run.
+                if widget.func then widget.func({"custom_color", r, g, b, a}) end
+            end)
+        widget.color:SetPoint("TOPLEFT", 5, -8)
+        function widget:SetFunc(func) widget.func = func end
+        function widget:SetDBValue(c)
+            if c and c[1] == "custom_color" and #c >= 4 then
+                _r, _g, _b, _a = c[2], c[3], c[4], c[5] or 1
+            else
+                _r, _g, _b, _a = 1, 1, 1, 1
+            end
+            widget.color.UpdateSwatch()
+        end
+    else widget = settingWidgets["dispelAntsColor"] end
+    widget:Show(); return widget
+end
+
 -- Private Auras' duration/stack text size. Expressed as a percentage
 -- multiplier rather than a font height because Blizzard owns those
 -- FontStrings -- the size is achieved by scaling the frame they're drawn in
@@ -3430,6 +3507,10 @@ local builders = {
     ["dispelGradientHeight"] = CreateSetting_DispelGradientHeight,
     ["dispelGradientWeakAlpha"] = CreateSetting_DispelGradientWeakAlpha,
     ["dispelAntsFrameLevel"] = CreateSetting_DispelAntsFrameLevel,
+    ["dispelAntsColor"] = CreateSetting_DispelAntsColor,
+    ["dispelAntsDash"] = CreateSetting_DispelAntsDash,
+    ["dispelAntsThickness"] = CreateSetting_DispelAntsThickness,
+    ["dispelAntsSpeed"] = CreateSetting_DispelAntsSpeed,
     ["castBy"] = CreateSetting_CastBy,
     ["maxValue"] = CreateSetting_MaxValue,
     ["iconStyle"] = CreateSetting_IconStyle,

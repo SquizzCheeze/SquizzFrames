@@ -2792,9 +2792,53 @@ local function SecDispels(host, y, cfg, t)
     local cbAnts = W.CreateStyledCheckbox(host,
         L["Animated Border"] or "Animated Border",
         function() return Read("ants", false) == true end,
-        function(v) Write("ants", v) end)
+        function(v) Write("ants", v); if rebuildFields then rebuildFields() end end)
     cbAnts:SetPoint("TOPLEFT", 15, y)
     y = y - 30
+
+    -- The border's look, the party indicator's options under our names (see
+    -- Dispels.BuildSettings). Defaults match DISPEL_ANTS_DEFAULT_* there.
+    if Read("ants", false) then
+        local cbCol = W.CreateStyledCheckbox(host,
+            L["Custom Border Colour"] or "Custom Border Colour",
+            function() return Read("antsCustomColor", false) == true end,
+            function(v) Write("antsCustomColor", v); if rebuildFields then rebuildFields() end end)
+        cbCol:SetPoint("TOPLEFT", 15, y)
+        y = y - 30
+
+        if Read("antsCustomColor", false) then
+            local cp = W.CreateColorPicker(host, L["Border Colour"] or "Border Colour",
+                function()
+                    local c = Read("antsColor", nil)
+                    if type(c) ~= "table" then return 1, 1, 1, 1 end
+                    return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+                end,
+                function(r, g, b, a) Write("antsColor", {r, g, b, a}) end)
+            cp:SetPoint("TOPLEFT", 15, y)
+            y = y - 32
+        end
+
+        local ddDash = W.CreateStyledDropdown(host, 200, 40, L["Dash Length"] or "Dash Length",
+            { {value = "short", text = "Short"}, {value = "medium", text = "Medium"}, {value = "long", text = "Long"} },
+            function() return Read("antsDash", "medium") end,
+            function(v) Write("antsDash", v) end)
+        ddDash:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sTh = W.CreateStyledSlider(host, 200, 1, 8, 1,
+            L["Border Thickness"] or "Border Thickness",
+            function() return Read("antsThickness", 2) end,
+            function(v) Write("antsThickness", v) end)
+        sTh:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+
+        local sSp = W.CreateStyledSlider(host, 200, 4, 64, 1,
+            L["Border Speed"] or "Border Speed",
+            function() return Read("antsSpeed", 16) end,
+            function(v) Write("antsSpeed", v) end)
+        sSp:SetPoint("TOPLEFT", 15, y - 20)
+        y = y - 70
+    end
 
     local cbAll = W.CreateStyledCheckbox(host,
         L["Show All Types"] or "Show All Types",

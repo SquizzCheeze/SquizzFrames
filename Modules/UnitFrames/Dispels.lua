@@ -112,6 +112,14 @@ function Dispels.BuildSettings(t, unit)
         dispelGradientWeakAlpha = c.gradientWeakAlpha or 50,
         dispelPulse = c.pulse == true,
         dispelAnts = c.ants == true,
+        -- Border look. Our colour is a plain {r, g, b, a}; the party key holds
+        -- the indicators' {"custom_color", r, g, b, a} form.
+        dispelAntsCustomColor = c.antsCustomColor == true,
+        dispelAntsColor = c.antsColor and {"custom_color", c.antsColor[1], c.antsColor[2],
+            c.antsColor[3], c.antsColor[4] or 1} or nil,
+        dispelAntsDash = c.antsDash,
+        dispelAntsThickness = c.antsThickness,
+        dispelAntsSpeed = c.antsSpeed,
     }
 end
 
@@ -207,6 +215,12 @@ function Dispels.ApplySettings(frame, t)
     wrapper:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
     if wrapper.SetDispelPulse then wrapper:SetDispelPulse(settings.dispelPulse) end
     if wrapper.SetDispelAnts then wrapper:SetDispelAnts(settings.dispelAnts) end
+    if wrapper.SetDispelAntsOption then
+        for _, key in ipairs({ "dispelAntsCustomColor", "dispelAntsColor", "dispelAntsDash",
+            "dispelAntsThickness", "dispelAntsSpeed" }) do
+            wrapper:SetDispelAntsOption(key, settings[key])
+        end
+    end
     if wrapper.RefreshBorderInset then wrapper:RefreshBorderInset() end
     wrapper:Show()
 

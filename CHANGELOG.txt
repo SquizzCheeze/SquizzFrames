@@ -14,7 +14,8 @@ New:
   Overlay "None" plus the border gives Blizzard's new look on its own.
   Both off by default, and both keep working in combat. The border has its
   own Border Frame Level, so it can sit above icon rows you have raised
-  without moving the Dispels indicator itself.
+  without moving the Dispels indicator itself, plus Custom Border Colour,
+  Dash Length (short/medium/long), Border Thickness and Border Speed.
 
 
 V1.38 (2026-10-05)

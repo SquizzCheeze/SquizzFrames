@@ -2043,18 +2043,29 @@ AEI.AnchorHealthFillOverlay = AnchorHealthFillOverlay
 --     textures live in (d.texHost), and the ants animate bare mover frames
 --     whose dash textures -- recoloured on every restyle -- are their children.
 ------------------------------------------------------------------------
--- dash.tga is 1024 x 4 with the dashes drawn in (4 on, 4 off; .tools\make-dash.ps1)
--- and each strip shows it ONCE at 1024 units, so one pixel is one unit. The
--- first version repeated a 16 px tile with REPEAT wrap and rendered nothing in
--- game (2026-10-14: strips shown, sized, coloured, invisible) -- without the
--- wrap, texcoords past 1 stretch the tile's transparent last column. PERIOD and
--- STRIP must stay in step with the image. An edge longer than STRIP - PERIOD
--- (1016 units) would end in a gap.
+-- dash.tga is 2048 x 4 with the dashes drawn in (4 px on, 4 off: 256 periods;
+-- .tools\make-dash.ps1). Each strip is 1024 units and shows a SLICE of it, so
+-- the slice width sets the on-screen period: the whole image is 256 periods on
+-- the strip (period 4, "Short"), half is 128 (8, "Medium"), a quarter 64 (16,
+-- "Long"). The first version repeated a 16 px tile with REPEAT wrap and
+-- rendered nothing in game (2026-10-14: strips shown, sized, coloured,
+-- invisible) -- without the wrap, texcoords past 1 stretch the tile's
+-- transparent last column -- so the image must cover the strip outright.
+--
+-- The strips slide SLIDE units and snap back. Seamless only if SLIDE is a
+-- whole number of periods, so it is 16, a multiple of all three; and since the
+-- slide is part of the registered animation it can never change, every dash
+-- length must divide it. An edge longer than STRIP - SLIDE (1008) ends in a gap.
 local DISPEL_ANTS_TEXTURE = [[Interface\AddOns\SquizzFrames\Media\Textures\dash.tga]]
-local DISPEL_ANTS_PERIOD = 8       -- one dash + one gap, UI units
-local DISPEL_ANTS_THICKNESS = 2
-local DISPEL_ANTS_SPEED = 16       -- UI units per second
+local DISPEL_ANTS_IMAGE_PERIODS = 256 -- periods drawn in dash.tga
 local DISPEL_ANTS_STRIP = 1024     -- each edge's dash strip, clipped to the edge
+local DISPEL_ANTS_SLIDE = 16       -- slide per loop; a multiple of every period
+local DISPEL_ANTS_MAX_THICKNESS = 8 -- the strips' fixed size; the dashes are sized inside
+-- Defaults, and the choices the options offer. Period = one dash + one gap.
+local DISPEL_ANTS_PERIODS = { short = 4, medium = 8, long = 16 }
+local DISPEL_ANTS_DEFAULT_DASH = "medium"
+local DISPEL_ANTS_DEFAULT_THICKNESS = 2
+local DISPEL_ANTS_DEFAULT_SPEED = 16 -- UI units per second
 local DISPEL_PULSE_MIN_ALPHA = 0.25
 local DISPEL_PULSE_DURATION = 0.6  -- one way; BOUNCE makes a full pulse twice this
 
@@ -2083,10 +2094,11 @@ local function BuildDispelAnimations(owner, d, start)
     d.pulseFade = fade
 
     -- Ants: one clip frame over the health bar (re-anchored by every restyle,
-    -- it is not a target) holding four long dash strips, each sliding one
-    -- period along its edge and snapping back, which reads as a continuous
-    -- clockwise crawl. The strips' own anchors are fixed here, before they
-    -- become targets.
+    -- it is not a target) holding four long strips, each sliding along its
+    -- edge and snapping back, which reads as a continuous clockwise crawl.
+    -- The strips (the animation TARGETS) are fixed here, at the maximum
+    -- thickness; everything adjustable -- thickness, dash length, colour --
+    -- lives on the dash texture inside each, which is not a target.
     --
     -- The clip is NEVER hidden: hiding a frame stops the animations under it
     -- and showing it again does not restart them, so a border switched on
@@ -2097,36 +2109,38 @@ local function BuildDispelAnimations(owner, d, start)
     clip:SetFrameLevel(pulseHost:GetFrameLevel() + 1)
     clip:SetAllPoints(owner)
     d.antsClip = clip
-    d.antsTex = {}
+    d.antsEdges = {}
+    d.antsSlides = {}
     local ants = clip:CreateAnimationGroup()
     ants:SetLooping("REPEAT")
-    local P, TH, L = DISPEL_ANTS_PERIOD, DISPEL_ANTS_THICKNESS, DISPEL_ANTS_STRIP
-    -- Each strip starts one period back and slides one period forward.
+    local S, TH, L = DISPEL_ANTS_SLIDE, DISPEL_ANTS_MAX_THICKNESS, DISPEL_ANTS_STRIP
+    -- Each strip starts one slide back and slides forward. `side` is the edge
+    -- of the strip the dashes hug, so a thin border sits on the frame's edge.
     local edges = {
-        { point = "TOPLEFT",     x = -P, y = 0,  dx = P,  dy = 0  },              -- top, crawls right
-        { point = "TOPRIGHT",    x = 0,  y = P,  dx = 0,  dy = -P, vertical = true }, -- right, crawls down
-        { point = "BOTTOMRIGHT", x = P,  y = 0,  dx = -P, dy = 0  },              -- bottom, crawls left
-        { point = "BOTTOMLEFT",  x = 0,  y = -P, dx = 0,  dy = P,  vertical = true }, -- left, crawls up
+        { point = "TOPLEFT",     x = -S, y = 0,  dx = S,  dy = 0,  side = "TOP" },                    -- crawls right
+        { point = "TOPRIGHT",    x = 0,  y = S,  dx = 0,  dy = -S, side = "RIGHT", vertical = true }, -- crawls down
+        { point = "BOTTOMRIGHT", x = S,  y = 0,  dx = -S, dy = 0,  side = "BOTTOM" },                 -- crawls left
+        { point = "BOTTOMLEFT",  x = 0,  y = -S, dx = 0,  dy = S,  side = "LEFT", vertical = true },  -- crawls up
+    }
+    local ALONG = {
+        TOP = { "TOPLEFT", "TOPRIGHT" }, BOTTOM = { "BOTTOMLEFT", "BOTTOMRIGHT" },
+        LEFT = { "TOPLEFT", "BOTTOMLEFT" }, RIGHT = { "TOPRIGHT", "BOTTOMRIGHT" },
     }
     for _, e in ipairs(edges) do
         local mover = CreateFrame("Frame", nil, clip)
-        local tex = mover:CreateTexture(nil, "OVERLAY")
-        tex:SetAllPoints(mover)
-        tex:SetTexture(DISPEL_ANTS_TEXTURE)
-        if e.vertical then
-            mover:SetSize(TH, L)
-            -- Run the image's length down the strip (UL, LL, UR, LR).
-            tex:SetTexCoord(0, 0, 1, 0, 0, 1, 1, 1)
-        else
-            mover:SetSize(L, TH)
-            tex:SetTexCoord(0, 1, 0, 1)
-        end
+        if e.vertical then mover:SetSize(TH, L) else mover:SetSize(L, TH) end
         mover:SetPoint(e.point, clip, e.point, e.x, e.y)
-        d.antsTex[#d.antsTex + 1] = tex
+        local tex = mover:CreateTexture(nil, "OVERLAY")
+        tex:SetTexture(DISPEL_ANTS_TEXTURE)
+        local along = ALONG[e.side]
+        tex:SetPoint(along[1], mover, along[1])
+        tex:SetPoint(along[2], mover, along[2])
+        d.antsEdges[#d.antsEdges + 1] = { tex = tex, vertical = e.vertical }
         local slide = ants:CreateAnimation("Translation")
         slide:SetTarget(mover)
         slide:SetOffset(e.dx, e.dy)
-        slide:SetDuration(P / DISPEL_ANTS_SPEED)
+        slide:SetDuration(S / DISPEL_ANTS_DEFAULT_SPEED)
+        d.antsSlides[#d.antsSlides + 1] = slide
     end
 
     local ok = pcall(start, pulse) and pcall(start, ants)
@@ -2134,11 +2148,6 @@ local function BuildDispelAnimations(owner, d, start)
     return ok
 end
 
--- Switch the pulse and ants to match the style. Out of combat only, like every
--- restyle. The fade is a registered animation, and nothing in Blizzard's rules
--- forbids moving its alpha -- but that is read from the source, not proven in
--- game, so it is guarded: a refusal leaves the pulse as it was rather than
--- aborting the rest of the restyle.
 -- A preview's `start` for BuildDispelAnimations: no aura drives a preview, so
 -- play the group now and again whenever the preview is shown -- a preview is
 -- often built while the options window is still closed, and a hidden frame's
@@ -2151,8 +2160,8 @@ local function PreviewAnimationStart(owner)
 end
 
 local function HideDispelAnts(d)
-    if not d.antsTex then return end
-    for _, tex in ipairs(d.antsTex) do tex:Hide() end
+    if not d.antsEdges then return end
+    for _, e in ipairs(d.antsEdges) do e.tex:Hide() end
 end
 
 -- How far an indicator's own pieces can sit above its wrapper: an aura row is
@@ -2195,6 +2204,13 @@ local function AntsFrameLevel(ref, isWrapper)
     return level
 end
 
+-- Switch the pulse and ants to match the style. Out of combat only, like every
+-- restyle. The fade and the slides are registered animations, and nothing in
+-- Blizzard's rules forbids moving a fade's alpha or a slide's duration -- but
+-- that is read from the source, not proven on a live frame, so both are
+-- guarded: a refusal leaves that animation as it was rather than aborting the
+-- rest of the restyle. Everything else here (clip, dash textures) is not a
+-- target and is ours to change freely.
 local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     if d.pulseFade then
         pcall(d.pulseFade.SetToAlpha, d.pulseFade, style.pulse and DISPEL_PULSE_MIN_ALPHA or 1)
@@ -2226,10 +2242,34 @@ local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     clip:ClearAllPoints()
     clip:SetPoint("TOPLEFT", health, "TOPLEFT", inset, -inset)
     clip:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", -inset, bottomInset + (inset - bi))
-    local c = style.color or { 1, 1, 1 }
-    for _, tex in ipairs(d.antsTex) do
-        tex:SetVertexColor(c[1], c[2], c[3], 1)
+
+    -- Colour: the border's own when Custom Border Colour is on, else the
+    -- dispel type's.
+    local c = style.antsColor or style.color or { 1, 1, 1 }
+    local a = c[4] or 1
+    -- Dash length: the slice of dash.tga shown across the strip.
+    local period = DISPEL_ANTS_PERIODS[style.antsDash or DISPEL_ANTS_DEFAULT_DASH]
+        or DISPEL_ANTS_PERIODS[DISPEL_ANTS_DEFAULT_DASH]
+    local span = (DISPEL_ANTS_STRIP / period) / DISPEL_ANTS_IMAGE_PERIODS
+    local th = math.max(1, math.min(DISPEL_ANTS_MAX_THICKNESS,
+        style.antsThickness or DISPEL_ANTS_DEFAULT_THICKNESS))
+    for _, e in ipairs(d.antsEdges) do
+        local tex = e.tex
+        if e.vertical then
+            tex:SetWidth(th)
+            -- Run the image's length down the strip (UL, LL, UR, LR).
+            tex:SetTexCoord(0, 0, span, 0, 0, 1, span, 1)
+        else
+            tex:SetHeight(th)
+            tex:SetTexCoord(0, span, 0, 1)
+        end
+        tex:SetVertexColor(c[1], c[2], c[3], a)
         tex:Show()
+    end
+    -- Speed: one slide is DISPEL_ANTS_SLIDE units, so its duration sets it.
+    local speed = math.max(1, style.antsSpeed or DISPEL_ANTS_DEFAULT_SPEED)
+    for _, slide in ipairs(d.antsSlides) do
+        pcall(slide.SetDuration, slide, DISPEL_ANTS_SLIDE / speed)
     end
 end
 
@@ -2416,6 +2456,16 @@ local function ApplyDispelSlotStyle(button, d, style)
     -- overlay and nothing else.
 end
 
+-- The border's own colour as {r, g, b, a}, or nil to use the type's.
+local function AntsColorFromSetting(t)
+    if t.dispelAntsCustomColor ~= true then return nil end
+    local c = t.dispelAntsColor
+    if c and c[1] == "custom_color" and #c >= 4 then
+        return { c[2], c[3], c[4], c[5] or 1 }
+    end
+    return { 1, 1, 1, 1 }
+end
+
 local function BuildDispelStyleForType(t, def)
     local userColor = t.dispelColors and t.dispelColors[def.colorKey]
     local color = userColor or def.fallback
@@ -2432,6 +2482,13 @@ local function BuildDispelStyleForType(t, def)
         -- overlay mode, so "None" plus the border gives Blizzard's ants alone.
         pulse = typeEnabled and t.dispelPulse == true,
         ants = typeEnabled and t.dispelAnts == true,
+        -- Border look (ApplyDispelAnimationStyle). antsColor nil = the type's
+        -- colour. dispelAntsColor is stored {"custom_color", r, g, b, a} like
+        -- every other indicator colour.
+        antsColor = AntsColorFromSetting(t),
+        antsDash = t.dispelAntsDash,
+        antsThickness = t.dispelAntsThickness,
+        antsSpeed = t.dispelAntsSpeed,
         applyExtra = ApplyDispelSlotStyle,
     }
 end
@@ -2666,6 +2723,14 @@ function AEI.CreateDispelsIndicator(button, t)
 
     function wrapper:SetDispelAnts(v)
         t.dispelAnts = v
+        RebuildStyles()
+    end
+
+    -- The border's look: dispelAntsCustomColor / dispelAntsColor /
+    -- dispelAntsDash / dispelAntsThickness / dispelAntsSpeed. All read into
+    -- the style by BuildDispelStyleForType, so one setter covers them.
+    function wrapper:SetDispelAntsOption(key, v)
+        t[key] = v
         RebuildStyles()
     end
 
@@ -3858,7 +3923,8 @@ SlashCmdList["SQUIZZANTS"] = function(msg)
         print(P .. ("ants clip: shown=%s visible=%s size=%s x %s strata=%s level=%s"):format(
             tostring(c:IsShown()), tostring(c:IsVisible()), tostring(c:GetWidth()), tostring(c:GetHeight()),
             tostring(c:GetFrameStrata()), tostring(c:GetFrameLevel())))
-        for i, tex in ipairs(d.antsTex or {}) do
+        for i, e in ipairs(d.antsEdges or {}) do
+            local tex = e.tex
             local m = tex:GetParent()
             local r, g, b, a = tex:GetVertexColor()
             print(P .. ("ants strip %d: shown=%s visible=%s file=%s colour=%.2f,%.2f,%.2f,%.2f strip=%s x %s"):format(
@@ -3900,7 +3966,7 @@ SlashCmdList["SQUIZZANTS"] = function(msg)
             print(P .. "ants: TEST clipping off (strips will overhang the frame)")
         end
         if msg:find("solid") then
-            for _, tex in ipairs(d.antsTex or {}) do tex:SetColorTexture(1, 0, 0, 1) end
+            for _, e in ipairs(d.antsEdges or {}) do e.tex:SetColorTexture(1, 0, 0, 1) end
             print(P .. "ants: TEST solid red strips")
         end
     end)

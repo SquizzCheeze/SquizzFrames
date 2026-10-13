@@ -348,6 +348,12 @@ profile.layout.indicators = {
         -- profile reads as off, so no migration.
         dispelPulse = false,            -- overlay fades in and out
         dispelAnts = false,             -- marching-ants border in the type's colour
+        -- The border's look (nil Border Frame Level = follow frameLevel).
+        dispelAntsCustomColor = false,  -- false = the dispel type's colour
+        dispelAntsColor = {"custom_color", 1, 1, 1, 1},
+        dispelAntsDash = "medium",      -- "short"|"medium"|"long"
+        dispelAntsThickness = 2,
+        dispelAntsSpeed = 16,           -- UI units per second
     },
     -- 17: Missing Buffs
     {
