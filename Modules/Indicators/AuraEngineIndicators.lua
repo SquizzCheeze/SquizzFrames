@@ -2043,11 +2043,18 @@ AEI.AnchorHealthFillOverlay = AnchorHealthFillOverlay
 --     textures live in (d.texHost), and the ants animate bare mover frames
 --     whose dash textures -- recoloured on every restyle -- are their children.
 ------------------------------------------------------------------------
-local DISPEL_ANTS_TEXTURE = [[Interface\AddOns\SquizzFrames\Media\Textures\dash.png]]
-local DISPEL_ANTS_PERIOD = 10      -- one dash + one gap, UI units (dash.png is half on, half off)
+-- dash.tga is 1024 x 4 with the dashes drawn in (4 on, 4 off; .tools\make-dash.ps1)
+-- and each strip shows it ONCE at 1024 units, so one pixel is one unit. The
+-- first version repeated a 16 px tile with REPEAT wrap and rendered nothing in
+-- game (2026-10-14: strips shown, sized, coloured, invisible) -- without the
+-- wrap, texcoords past 1 stretch the tile's transparent last column. PERIOD and
+-- STRIP must stay in step with the image. An edge longer than STRIP - PERIOD
+-- (1016 units) would end in a gap.
+local DISPEL_ANTS_TEXTURE = [[Interface\AddOns\SquizzFrames\Media\Textures\dash.tga]]
+local DISPEL_ANTS_PERIOD = 8       -- one dash + one gap, UI units
 local DISPEL_ANTS_THICKNESS = 2
-local DISPEL_ANTS_SPEED = 20       -- UI units per second
-local DISPEL_ANTS_STRIP = 2048     -- each edge's dash strip; longer than any frame edge, clipped to it
+local DISPEL_ANTS_SPEED = 16       -- UI units per second
+local DISPEL_ANTS_STRIP = 1024     -- each edge's dash strip, clipped to the edge
 local DISPEL_PULSE_MIN_ALPHA = 0.25
 local DISPEL_PULSE_DURATION = 0.6  -- one way; BOUNCE makes a full pulse twice this
 
@@ -2094,7 +2101,6 @@ local function BuildDispelAnimations(owner, d, start)
     local ants = clip:CreateAnimationGroup()
     ants:SetLooping("REPEAT")
     local P, TH, L = DISPEL_ANTS_PERIOD, DISPEL_ANTS_THICKNESS, DISPEL_ANTS_STRIP
-    local n = L / P
     -- Each strip starts one period back and slides one period forward.
     local edges = {
         { point = "TOPLEFT",     x = -P, y = 0,  dx = P,  dy = 0  },              -- top, crawls right
@@ -2106,14 +2112,14 @@ local function BuildDispelAnimations(owner, d, start)
         local mover = CreateFrame("Frame", nil, clip)
         local tex = mover:CreateTexture(nil, "OVERLAY")
         tex:SetAllPoints(mover)
-        tex:SetTexture(DISPEL_ANTS_TEXTURE, "REPEAT", "REPEAT")
+        tex:SetTexture(DISPEL_ANTS_TEXTURE)
         if e.vertical then
             mover:SetSize(TH, L)
-            -- Run the image's u axis down the strip (UL, LL, UR, LR).
-            tex:SetTexCoord(0, 0, n, 0, 0, 1, n, 1)
+            -- Run the image's length down the strip (UL, LL, UR, LR).
+            tex:SetTexCoord(0, 0, 1, 0, 0, 1, 1, 1)
         else
             mover:SetSize(L, TH)
-            tex:SetTexCoord(0, n, 0, 1)
+            tex:SetTexCoord(0, 1, 0, 1)
         end
         mover:SetPoint(e.point, clip, e.point, e.x, e.y)
         d.antsTex[#d.antsTex + 1] = tex
