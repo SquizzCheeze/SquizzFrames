@@ -2166,6 +2166,19 @@ local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
         HideDispelAnts(d)
         return
     end
+    -- Tier: the Dispels indicator's OWN (its Frame Level setting, default
+    -- LAYER.DISPEL), not the slot's. The slot sits low on purpose -- the tint
+    -- belongs under everything -- and that left the ants beneath the Shield
+    -- Overlay and Heal Absorb, which span the whole bar: invisible on the
+    -- preview, which fakes both, and on any shielded unit (2026-10-14, proven
+    -- with /sfants top). d.levelRef is the indicator wrapper; a caller without
+    -- one (the unit frames' preview) falls back to the button + DISPEL.
+    -- Re-read every restyle, since the secure header re-levels buttons.
+    local ref = d.levelRef or health:GetParent()
+    if ref and ref.GetFrameLevel then
+        clip:SetFrameStrata(ref:GetFrameStrata())
+        clip:SetFrameLevel(ref:GetFrameLevel() + (d.levelRef and 0 or F.LAYER.DISPEL))
+    end
     -- "Full" draws an opaque border in the SAME colour exactly where the
     -- ants would run, which hid them completely; step inside it there.
     local inset = bi
@@ -2506,7 +2519,7 @@ function AEI.CreateDispelsIndicator(button, t)
         -- for the icon's position/level setting).
         fallbackHost = CreateFrame("Frame", nil, wrapper)
         fallbackHost:SetFrameLevel(health:GetFrameLevel() + 1)
-        fallbackCtx = { health = health }
+        fallbackCtx = { health = health, levelRef = wrapper }
         BuildDispelAnimations(fallbackHost, fallbackCtx, PreviewAnimationStart(fallbackHost))
         wrapper._sfPreviewCtx = fallbackCtx   -- for /sfants
     end
@@ -2556,6 +2569,10 @@ function AEI.CreateDispelsIndicator(button, t)
         end
         RefreshFallbackVisuals()
     end
+
+    -- The ants take this wrapper's tier (d.levelRef), but the generic Frame
+    -- Level dispatch only moves the wrapper itself; re-place them after it.
+    hooksecurefunc(wrapper, "SetFrameLevel", function() wrapper:RefreshBorderInset() end)
 
     function wrapper:SetDispelShowAll(val)
         t.dispelShowAll = val
@@ -2635,6 +2652,7 @@ function AEI.CreateDispelsIndicator(button, t)
             style = styleKey,
             extraInit = function(slotButton, d)
                 d.health = health
+                d.levelRef = wrapper   -- the ants' tier (ApplyDispelAnimationStyle)
 
                 -- Frame STRATA, not frame level, is what actually guarantees
                 -- this renders above the health bar and below the button's

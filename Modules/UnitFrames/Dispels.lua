@@ -200,6 +200,11 @@ function Dispels.ApplySettings(frame, t)
     if wrapper.SetDispelGradientWeakAlpha then
         wrapper:SetDispelGradientWeakAlpha(settings.dispelGradientWeakAlpha)
     end
+    -- The Animated Border draws at the wrapper's tier. The party path gets one
+    -- from its Frame Level setting; here nothing sets it, and the default
+    -- (frame + 1) ties with the absorb bars that span the health bar. +3 is
+    -- the "icons" step of Absorbs.lua's stack: above absorbs (2), below text (7).
+    wrapper:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
     if wrapper.SetDispelPulse then wrapper:SetDispelPulse(settings.dispelPulse) end
     if wrapper.SetDispelAnts then wrapper:SetDispelAnts(settings.dispelAnts) end
     if wrapper.RefreshBorderInset then wrapper:RefreshBorderInset() end
