@@ -2160,9 +2160,13 @@ local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
         HideDispelAnts(d)
         return
     end
+    -- "Full" draws an opaque border in the SAME colour exactly where the
+    -- ants would run, which hid them completely; step inside it there.
+    local inset = bi
+    if style.mode == "full" then inset = bi + DISPEL_FULL_BORDER_THICKNESS end
     clip:ClearAllPoints()
-    clip:SetPoint("TOPLEFT", health, "TOPLEFT", bi, -bi)
-    clip:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", -bi, bottomInset)
+    clip:SetPoint("TOPLEFT", health, "TOPLEFT", inset, -inset)
+    clip:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", -inset, bottomInset + (inset - bi))
     local c = style.color or { 1, 1, 1 }
     for _, tex in ipairs(d.antsTex) do
         tex:SetVertexColor(c[1], c[2], c[3], 1)
@@ -2498,6 +2502,7 @@ function AEI.CreateDispelsIndicator(button, t)
         fallbackHost:SetFrameLevel(health:GetFrameLevel() + 1)
         fallbackCtx = { health = health }
         BuildDispelAnimations(fallbackHost, fallbackCtx, PreviewAnimationStart(fallbackHost))
+        wrapper._sfPreviewCtx = fallbackCtx   -- for /sfants
     end
 
     local function RefreshFallbackVisuals()
@@ -3748,4 +3753,44 @@ do
     if AE and AE.OnContainersDrained then
         AE.OnContainersDrained(AEI.SyncAllContainerUnits)
     end
+end
+
+-----------------------------------------------------------------------
+-- /sfants -- state of the Dispels Animated Border on the Designer preview
+-- (added 2026-10-14, while the dashes rendered nowhere). Preview frames are
+-- plain and non-secret, so everything here is safe to read; it never touches
+-- a live slot button.
+-----------------------------------------------------------------------
+SLASH_SQUIZZANTS1 = "/sfants"
+SlashCmdList["SQUIZZANTS"] = function()
+    local P = "|cff33cc99[SquizzFrames]|r "
+    local ok, err = pcall(function()
+        local I = SquizzFrames.Indicators
+        local pb = I and I.GetPreviewButton and I.GetPreviewButton()
+        local w = pb and pb.indicators and pb.indicators.dispels
+        local d = w and w._sfPreviewCtx
+        if not d then
+            print(P .. "ants: no Dispels preview -- open /sf > Indicators > Dispels first")
+            return
+        end
+        local t = w._sfTable or {}
+        print(P .. "ants: dispelAnts=" .. tostring(t.dispelAnts) .. " overlay=" .. tostring(t.dispelOverlay))
+        local c = d.antsClip
+        if not c then print(P .. "ants: no clip frame was built") return end
+        print(P .. ("ants clip: shown=%s visible=%s size=%s x %s strata=%s level=%s"):format(
+            tostring(c:IsShown()), tostring(c:IsVisible()), tostring(c:GetWidth()), tostring(c:GetHeight()),
+            tostring(c:GetFrameStrata()), tostring(c:GetFrameLevel())))
+        for i, tex in ipairs(d.antsTex or {}) do
+            local m = tex:GetParent()
+            local r, g, b, a = tex:GetVertexColor()
+            print(P .. ("ants strip %d: shown=%s visible=%s file=%s colour=%.2f,%.2f,%.2f,%.2f strip=%s x %s"):format(
+                i, tostring(tex:IsShown()), tostring(tex:IsVisible()), tostring(tex:GetTexture()),
+                r or -1, g or -1, b or -1, a or -1, tostring(m:GetWidth()), tostring(m:GetHeight())))
+        end
+        local h = d.health
+        print(P .. ("ants health bar: %s x %s, level=%s"):format(
+            tostring(h and h:GetWidth()), tostring(h and h:GetHeight()), tostring(h and h:GetFrameLevel())))
+    end)
+    if not ok then print(P .. "ants: error " .. tostring(err)) end
+    print(P .. "ants: end of report")
 end
