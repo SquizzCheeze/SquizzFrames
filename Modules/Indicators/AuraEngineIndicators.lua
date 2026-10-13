@@ -3807,15 +3807,19 @@ SlashCmdList["SQUIZZANTS"] = function(msg)
             FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
         local cs, cl = STRATA[c:GetFrameStrata()] or 0, c:GetFrameLevel()
         local above = 0
+        -- Per indicator in its own pcall: not every entry is a plain Frame (one
+        -- had GetFrameLevel but no GetFrameStrata and killed the whole report).
         for name, ind in pairs(pb.indicators) do
-            if type(ind) == "table" and ind.GetFrameLevel and ind.IsVisible and ind:IsVisible() then
-                local s, l = STRATA[ind:GetFrameStrata()] or 0, ind:GetFrameLevel()
+            pcall(function()
+                if not (ind.IsVisible and ind:IsVisible()) then return end
+                local st = ind:GetFrameStrata()
+                local s, l = STRATA[st] or 0, ind:GetFrameLevel()
                 if s > cs or (s == cs and l >= cl) then
                     above = above + 1
                     print(P .. ("ants: above them -> %s (%s %s)"):format(
-                        tostring(name), tostring(ind:GetFrameStrata()), tostring(l)))
+                        tostring(name), tostring(st), tostring(l)))
                 end
-            end
+            end)
         end
         print(P .. "ants: " .. above .. " visible indicator(s) drawn above the ants")
 
