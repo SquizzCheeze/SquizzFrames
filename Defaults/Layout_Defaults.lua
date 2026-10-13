@@ -344,6 +344,10 @@ profile.layout.indicators = {
         -- overlay being broken rather than as a deliberate ramp.
         dispelGradientHeight = 100,
         dispelGradientWeakAlpha = 50,
+        -- 12.1.5 animations, both off by default (V1.39). A nil on an older
+        -- profile reads as off, so no migration.
+        dispelPulse = false,            -- overlay fades in and out
+        dispelAnts = false,             -- marching-ants border in the type's colour
     },
     -- 17: Missing Buffs
     {

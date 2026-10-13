@@ -110,6 +110,8 @@ function Dispels.BuildSettings(t, unit)
         -- Gradient-mode shape, in percent, ignored by the other modes.
         dispelGradientHeight = c.gradientHeight or 100,
         dispelGradientWeakAlpha = c.gradientWeakAlpha or 50,
+        dispelPulse = c.pulse == true,
+        dispelAnts = c.ants == true,
     }
 end
 
@@ -198,6 +200,8 @@ function Dispels.ApplySettings(frame, t)
     if wrapper.SetDispelGradientWeakAlpha then
         wrapper:SetDispelGradientWeakAlpha(settings.dispelGradientWeakAlpha)
     end
+    if wrapper.SetDispelPulse then wrapper:SetDispelPulse(settings.dispelPulse) end
+    if wrapper.SetDispelAnts then wrapper:SetDispelAnts(settings.dispelAnts) end
     if wrapper.RefreshBorderInset then wrapper:RefreshBorderInset() end
     wrapper:Show()
 

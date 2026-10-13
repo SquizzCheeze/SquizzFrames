@@ -2017,9 +2017,143 @@ local function AnchorHealthFillOverlay(tex, health)
 end
 AEI.AnchorHealthFillOverlay = AnchorHealthFillOverlay
 
+------------------------------------------------------------------------
+-- Pulse and Animated Border (12.1.5, user request 2026-10-14)
+--
+-- Blizzard's raid frames got both in 12.1.5, but theirs are drawn by the
+-- client off a secure attribute (dispel-indicator-overlay-animation /
+-- dispel-indicator-animated-border) -- nothing in Lua draws them, so there is
+-- nothing to borrow or reskin. These are our own, on the sanctioned route:
+-- CustomAuraButton:AddAuraShownAnimation (Blizzard_CustomAuraButton.lua). The
+-- engine Play()s a registered group when the slot's aura becomes visible and
+-- Stop()s it when it goes, so it runs off the secret aura with no Lua reading
+-- anything -- in combat included.
+--
+-- Three rules from AuraContainerUtil.InitializeInboundAnimationGroup shape
+-- everything here:
+--   * Registration is a button API call, so it happens in extraInit or never.
+--     The animations therefore ALWAYS exist (on 12.1.5) and the settings only
+--     switch their visible effect -- registering on demand would need a new
+--     container, and containers are permanent.
+--   * The group, its animations and their targets must all descend from the
+--     slot button.
+--   * Every animation TARGET gets secret Alpha/VertexColor/TexCoords aspects
+--     and may no longer have them removed. So a target is never a region we
+--     style afterwards: the pulse animates a bare host FRAME the overlay
+--     textures live in (d.texHost), and the ants animate bare mover frames
+--     whose dash textures -- recoloured on every restyle -- are their children.
+------------------------------------------------------------------------
+local DISPEL_ANTS_TEXTURE = [[Interface\AddOns\SquizzFrames\Media\Textures\dash.png]]
+local DISPEL_ANTS_PERIOD = 10      -- one dash + one gap, UI units (dash.png is half on, half off)
+local DISPEL_ANTS_THICKNESS = 2
+local DISPEL_ANTS_SPEED = 20       -- UI units per second
+local DISPEL_ANTS_STRIP = 2048     -- each edge's dash strip; longer than any frame edge, clipped to it
+local DISPEL_PULSE_MIN_ALPHA = 0.25
+local DISPEL_PULSE_DURATION = 0.6  -- one way; BOUNCE makes a full pulse twice this
+
+-- Build the pulse host and the ants on `owner` (a live slot button, or a
+-- preview's plain host frame). `start(group)` hands each animation group over:
+-- AddAuraShownAnimation on a live slot, Play() on a preview, which has no aura
+-- to drive it. Returns false if `start` refused a group -- the frames still
+-- exist then, and the overlay simply draws without animation.
+local function BuildDispelAnimations(owner, d, start)
+    if d.pulseHost then return true end
+
+    -- Pulse: the overlay's textures are created in this frame (d.texHost,
+    -- read by ApplyDispelSlotStyle) and the Alpha animation fades the frame.
+    -- Off is a 1 -> 1 fade; SetDispelPulse only moves the far end.
+    local pulseHost = CreateFrame("Frame", nil, owner)
+    pulseHost:SetAllPoints(owner)
+    d.pulseHost = pulseHost
+    d.texHost = pulseHost
+    local pulse = pulseHost:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local fade = pulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(1)
+    fade:SetDuration(DISPEL_PULSE_DURATION)
+    fade:SetSmoothing("IN_OUT")
+    d.pulseFade = fade
+
+    -- Ants: one clip frame over the health bar (re-anchored by every restyle,
+    -- it is not a target) holding four long dash strips, each sliding one
+    -- period along its edge and snapping back, which reads as a continuous
+    -- clockwise crawl. The strips' own anchors are fixed here, before they
+    -- become targets.
+    local clip = CreateFrame("Frame", nil, owner)
+    clip:SetClipsChildren(true)
+    clip:SetFrameLevel(pulseHost:GetFrameLevel() + 1)
+    clip:Hide()
+    d.antsClip = clip
+    d.antsTex = {}
+    local ants = clip:CreateAnimationGroup()
+    ants:SetLooping("REPEAT")
+    local P, TH, L = DISPEL_ANTS_PERIOD, DISPEL_ANTS_THICKNESS, DISPEL_ANTS_STRIP
+    local n = L / P
+    -- Each strip starts one period back and slides one period forward.
+    local edges = {
+        { point = "TOPLEFT",     x = -P, y = 0,  dx = P,  dy = 0  },              -- top, crawls right
+        { point = "TOPRIGHT",    x = 0,  y = P,  dx = 0,  dy = -P, vertical = true }, -- right, crawls down
+        { point = "BOTTOMRIGHT", x = P,  y = 0,  dx = -P, dy = 0  },              -- bottom, crawls left
+        { point = "BOTTOMLEFT",  x = 0,  y = -P, dx = 0,  dy = P,  vertical = true }, -- left, crawls up
+    }
+    for _, e in ipairs(edges) do
+        local mover = CreateFrame("Frame", nil, clip)
+        local tex = mover:CreateTexture(nil, "OVERLAY")
+        tex:SetAllPoints(mover)
+        tex:SetTexture(DISPEL_ANTS_TEXTURE, "REPEAT", "REPEAT")
+        if e.vertical then
+            mover:SetSize(TH, L)
+            -- Run the image's u axis down the strip (UL, LL, UR, LR).
+            tex:SetTexCoord(0, 0, n, 0, 0, 1, n, 1)
+        else
+            mover:SetSize(L, TH)
+            tex:SetTexCoord(0, n, 0, 1)
+        end
+        mover:SetPoint(e.point, clip, e.point, e.x, e.y)
+        d.antsTex[#d.antsTex + 1] = tex
+        local slide = ants:CreateAnimation("Translation")
+        slide:SetTarget(mover)
+        slide:SetOffset(e.dx, e.dy)
+        slide:SetDuration(P / DISPEL_ANTS_SPEED)
+    end
+
+    local ok = pcall(start, pulse) and pcall(start, ants)
+    d.animsLive = ok
+    return ok
+end
+
+-- Switch the pulse and ants to match the style. Out of combat only, like every
+-- restyle. The fade is a registered animation, and nothing in Blizzard's rules
+-- forbids moving its alpha -- but that is read from the source, not proven in
+-- game, so it is guarded: a refusal leaves the pulse as it was rather than
+-- aborting the rest of the restyle.
+local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
+    if d.pulseFade then
+        pcall(d.pulseFade.SetToAlpha, d.pulseFade, style.pulse and DISPEL_PULSE_MIN_ALPHA or 1)
+    end
+    local clip = d.antsClip
+    if not clip then return end
+    if not style.ants then
+        clip:Hide()
+        return
+    end
+    clip:ClearAllPoints()
+    clip:SetPoint("TOPLEFT", health, "TOPLEFT", bi, -bi)
+    clip:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", -bi, bottomInset)
+    local c = style.color or { 1, 1, 1 }
+    for _, tex in ipairs(d.antsTex) do
+        tex:SetVertexColor(c[1], c[2], c[3], 1)
+    end
+    clip:Show()
+end
+
 local function ApplyDispelSlotStyle(button, d, style)
     if not d.health then return end
     local health = d.health
+    -- Textures go in the pulse host when there is one (BuildDispelAnimations),
+    -- so the pulse fades the whole overlay, full-mode border included.
+    local host = d.texHost or button
     local bottomInset = HealthBottomInset(health)
     -- Top/left/right border inset, applied as anchor offsets below: +x moves
     -- right and +y moves up, so left is +bi, right is -bi, top is -bi.
@@ -2033,7 +2167,7 @@ local function ApplyDispelSlotStyle(button, d, style)
     local bi = FrameBorderInset(health)
 
     if not d.overlay then
-        d.overlay = button:CreateTexture(nil, "ARTWORK")
+        d.overlay = host:CreateTexture(nil, "ARTWORK")
     end
     -- Gradient mode gets its OWN separate texture rather than sharing
     -- d.overlay with full/fill: once SetGradient has ever been called on a
@@ -2045,7 +2179,7 @@ local function ApplyDispelSlotStyle(button, d, style)
     -- entirely, so full/fill's plain color+alpha via SetColorTexture stays
     -- reliable regardless of how many times gradient mode has run before.
     if not d.gradientOverlay then
-        d.gradientOverlay = button:CreateTexture(nil, "ARTWORK")
+        d.gradientOverlay = host:CreateTexture(nil, "ARTWORK")
         -- SetGradient only tints vertex colors on an EXISTING texture
         -- resource -- it doesn't assign one itself. Without this, a
         -- freshly created texture has no underlying resource for the first
@@ -2155,10 +2289,10 @@ local function ApplyDispelSlotStyle(button, d, style)
     if mode == "full" then
         if not d.border then
             d.border = {
-                top = button:CreateTexture(nil, "OVERLAY"),
-                bottom = button:CreateTexture(nil, "OVERLAY"),
-                left = button:CreateTexture(nil, "OVERLAY"),
-                right = button:CreateTexture(nil, "OVERLAY"),
+                top = host:CreateTexture(nil, "OVERLAY"),
+                bottom = host:CreateTexture(nil, "OVERLAY"),
+                left = host:CreateTexture(nil, "OVERLAY"),
+                right = host:CreateTexture(nil, "OVERLAY"),
             }
         end
         local b = d.border
@@ -2191,6 +2325,7 @@ local function ApplyDispelSlotStyle(button, d, style)
     elseif d.border then
         for _, edge in pairs(d.border) do edge:Hide() end
     end
+    ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     -- No icon here. The dispel-type symbols are their own indicator now
     -- (AEI.CreateDispelIconsIndicator) -- this slot draws the health-bar
     -- overlay and nothing else.
@@ -2208,6 +2343,10 @@ local function BuildDispelStyleForType(t, def)
         -- Gradient-mode shape only; ignored by none/fill/full.
         gradientWeakAlpha = t.dispelGradientWeakAlpha or DISPEL_GRADIENT_WEAK_ALPHA_DEFAULT,
         gradientHeight = t.dispelGradientHeight or DISPEL_GRADIENT_HEIGHT_DEFAULT,
+        -- 12.1.5 animations (BuildDispelAnimations). Independent of the
+        -- overlay mode, so "None" plus the border gives Blizzard's ants alone.
+        pulse = typeEnabled and t.dispelPulse == true,
+        ants = typeEnabled and t.dispelAnts == true,
         applyExtra = ApplyDispelSlotStyle,
     }
 end
@@ -2235,6 +2374,11 @@ AEI.DISPEL_TYPES = DISPEL_TYPES
 -- Returns the def it drew, or nil if it drew nothing.
 function AEI.PreviewDispelOverlay(host, ctx, t)
     if not (host and ctx and t) then return nil end
+    -- Before the first paint, so the textures are created inside the pulse
+    -- host. No aura drives a preview, so the groups are simply played.
+    if not ctx.pulseHost then
+        BuildDispelAnimations(host, ctx, function(group) group:Play() end)
+    end
     if t.enabled ~= false then
         for _, def in ipairs(DISPEL_TYPES) do
             local on = not t.dispelTypesEnabled or t.dispelTypesEnabled[def.colorKey] ~= false
@@ -2250,6 +2394,7 @@ function AEI.PreviewDispelOverlay(host, ctx, t)
     if ctx.border then
         for _, edge in pairs(ctx.border) do edge:Hide() end
     end
+    if ctx.antsClip then ctx.antsClip:Hide() end
     return nil
 end
 
@@ -2330,6 +2475,7 @@ function AEI.CreateDispelsIndicator(button, t)
         fallbackHost = CreateFrame("Frame", nil, wrapper)
         fallbackHost:SetFrameLevel(health:GetFrameLevel() + 1)
         fallbackCtx = { health = health }
+        BuildDispelAnimations(fallbackHost, fallbackCtx, function(group) group:Play() end)
     end
 
     local function RefreshFallbackVisuals()
@@ -2347,7 +2493,7 @@ function AEI.CreateDispelsIndicator(button, t)
         if fallbackCtx.border then
             for _, edge in pairs(fallbackCtx.border) do edge:Hide() end
         end
-
+        if fallbackCtx.antsClip then fallbackCtx.antsClip:Hide() end
     end
 
     local function RebuildStyles()
@@ -2419,6 +2565,16 @@ function AEI.CreateDispelsIndicator(button, t)
         RebuildStyles()
     end
 
+    function wrapper:SetDispelPulse(v)
+        t.dispelPulse = v
+        RebuildStyles()
+    end
+
+    function wrapper:SetDispelAnts(v)
+        t.dispelAnts = v
+        RebuildStyles()
+    end
+
     -- NO "player" fallback: a unit-less button must not build a container bound
         -- to the player's own auras (see OnPartyButtonsWired). AE.RequestContainer
         -- asserts on a nil unit, so callers guard before reaching it.
@@ -2465,6 +2621,14 @@ function AEI.CreateDispelsIndicator(button, t)
                 -- EACH OTHER within that shared strata.
                 slotButton:SetFrameStrata("MEDIUM")
                 slotButton:SetFrameLevel(1 + def.level)
+                -- Pulse/ants, registered now or never (see
+                -- BuildDispelAnimations). Before the style is applied, so the
+                -- overlay's textures are created inside the pulse host.
+                if slotButton.AddAuraShownAnimation then
+                    BuildDispelAnimations(slotButton, d, function(group)
+                        slotButton:AddAuraShownAnimation(group)
+                    end)
+                end
                 ApplyDispelSlotStyle(slotButton, d, AE.styles[styleKey])
             end,
         }

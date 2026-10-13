@@ -637,6 +637,8 @@ function I.HandleIndicators(button)
             if t.dispelGradientWeakAlpha and indicator.SetDispelGradientWeakAlpha then
                 indicator:SetDispelGradientWeakAlpha(t.dispelGradientWeakAlpha)
             end
+            if indicator.SetDispelPulse then indicator:SetDispelPulse(t.dispelPulse == true) end
+            if indicator.SetDispelAnts then indicator:SetDispelAnts(t.dispelAnts == true) end
             if indicator.SetShowDispelIcons then indicator:SetShowDispelIcons(t.showDispelIcons) end
 
             -- font
@@ -1035,6 +1037,10 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         indicator:SetDispelGradientHeight(value)
     elseif setting == "dispelGradientWeakAlpha" and indicator.SetDispelGradientWeakAlpha then
         indicator:SetDispelGradientWeakAlpha(value)
+    elseif setting == "dispelPulse" and indicator.SetDispelPulse then
+        indicator:SetDispelPulse(value == true)
+    elseif setting == "dispelAnts" and indicator.SetDispelAnts then
+        indicator:SetDispelAnts(value == true)
     elseif setting == "showDispelIcons" and indicator.SetShowDispelIcons then
         indicator:SetShowDispelIcons(value)
     elseif setting == "showCountdownNumbers" and indicator.SetShowCountdownNumbers then

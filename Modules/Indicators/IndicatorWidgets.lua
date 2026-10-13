@@ -1928,6 +1928,8 @@ local function MakeCheckButton(key, defaultLabel)
                         useSpellIcons = "Use Spell Icons",
                         showLFGEye = "LFG Eye for Other Group",
                         showPandemic = "Highlight When Refreshable",
+                        dispelPulse = "Pulse Overlay",
+                        dispelAnts = "Animated Border",
                     }
                     local labelText = labels[setting] or setting
                     if widget.cb.labelText then

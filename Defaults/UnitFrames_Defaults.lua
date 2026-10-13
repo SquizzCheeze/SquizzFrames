@@ -213,6 +213,10 @@ local function DefaultFrame(opts)
             -- overlay and should not disagree about its shape.
             gradientHeight = 100,
             gradientWeakAlpha = 50,
+            -- 12.1.5 animations, the party indicator's dispelPulse/dispelAnts
+            -- under our own names. Off; nil on older profiles reads as off.
+            pulse = false,
+            ants = false,
             -- Off = only the types YOU can dispel. On = every dispellable
             -- type, which is what a non-healer watching a tank usually wants.
             showAll = false,

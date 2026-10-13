@@ -2,6 +2,19 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.39
+-----
+
+New:
+
+- Pulse Overlay and Animated Border, two new Dispels options for party,
+  raid and unit frames (12.1.5). Pulse fades the dispel overlay in and out;
+  Animated Border runs a marching dashed border in the dispel type's
+  colour round the health bar. They work with any overlay style, so
+  Overlay "None" plus the border gives Blizzard's new look on its own.
+  Both off by default, and both keep working in combat.
+
+
 V1.38 (2026-10-05)
 -----
 

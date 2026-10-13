@@ -2780,6 +2780,22 @@ local function SecDispels(host, y, cfg, t)
         y = y - 70
     end
 
+    -- 12.1.5 animations. Offered with any overlay mode: the border works on
+    -- its own with "None", which gives Blizzard's look without the tint.
+    local cbPulse = W.CreateStyledCheckbox(host,
+        L["Pulse Overlay"] or "Pulse Overlay",
+        function() return Read("pulse", false) == true end,
+        function(v) Write("pulse", v) end)
+    cbPulse:SetPoint("TOPLEFT", 15, y)
+    y = y - 26
+
+    local cbAnts = W.CreateStyledCheckbox(host,
+        L["Animated Border"] or "Animated Border",
+        function() return Read("ants", false) == true end,
+        function(v) Write("ants", v) end)
+    cbAnts:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
     local cbAll = W.CreateStyledCheckbox(host,
         L["Show All Types"] or "Show All Types",
         function() return Read("showAll", false) == true end,
