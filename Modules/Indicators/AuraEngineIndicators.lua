@@ -2080,10 +2080,15 @@ local function BuildDispelAnimations(owner, d, start)
     -- period along its edge and snapping back, which reads as a continuous
     -- clockwise crawl. The strips' own anchors are fixed here, before they
     -- become targets.
+    --
+    -- The clip is NEVER hidden: hiding a frame stops the animations under it
+    -- and showing it again does not restart them, so a border switched on
+    -- after the group was played sat frozen (the preview did exactly that).
+    -- "Off" hides the dash textures instead; the strips keep sliding unseen.
     local clip = CreateFrame("Frame", nil, owner)
     clip:SetClipsChildren(true)
     clip:SetFrameLevel(pulseHost:GetFrameLevel() + 1)
-    clip:Hide()
+    clip:SetAllPoints(owner)
     d.antsClip = clip
     d.antsTex = {}
     local ants = clip:CreateAnimationGroup()
@@ -2128,14 +2133,31 @@ end
 -- forbids moving its alpha -- but that is read from the source, not proven in
 -- game, so it is guarded: a refusal leaves the pulse as it was rather than
 -- aborting the rest of the restyle.
+-- A preview's `start` for BuildDispelAnimations: no aura drives a preview, so
+-- play the group now and again whenever the preview is shown -- a preview is
+-- often built while the options window is still closed, and a hidden frame's
+-- animations stop rather than wait.
+local function PreviewAnimationStart(owner)
+    return function(group)
+        group:Play()
+        owner:HookScript("OnShow", function() group:Play() end)
+    end
+end
+
+local function HideDispelAnts(d)
+    if not d.antsTex then return end
+    for _, tex in ipairs(d.antsTex) do tex:Hide() end
+end
+
 local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     if d.pulseFade then
         pcall(d.pulseFade.SetToAlpha, d.pulseFade, style.pulse and DISPEL_PULSE_MIN_ALPHA or 1)
     end
     local clip = d.antsClip
     if not clip then return end
+    -- Show/hide the dashes, never the clip -- see BuildDispelAnimations.
     if not style.ants then
-        clip:Hide()
+        HideDispelAnts(d)
         return
     end
     clip:ClearAllPoints()
@@ -2144,8 +2166,8 @@ local function ApplyDispelAnimationStyle(d, style, health, bi, bottomInset)
     local c = style.color or { 1, 1, 1 }
     for _, tex in ipairs(d.antsTex) do
         tex:SetVertexColor(c[1], c[2], c[3], 1)
+        tex:Show()
     end
-    clip:Show()
 end
 
 local function ApplyDispelSlotStyle(button, d, style)
@@ -2377,7 +2399,7 @@ function AEI.PreviewDispelOverlay(host, ctx, t)
     -- Before the first paint, so the textures are created inside the pulse
     -- host. No aura drives a preview, so the groups are simply played.
     if not ctx.pulseHost then
-        BuildDispelAnimations(host, ctx, function(group) group:Play() end)
+        BuildDispelAnimations(host, ctx, PreviewAnimationStart(host))
     end
     if t.enabled ~= false then
         for _, def in ipairs(DISPEL_TYPES) do
@@ -2394,7 +2416,7 @@ function AEI.PreviewDispelOverlay(host, ctx, t)
     if ctx.border then
         for _, edge in pairs(ctx.border) do edge:Hide() end
     end
-    if ctx.antsClip then ctx.antsClip:Hide() end
+    HideDispelAnts(ctx)
     return nil
 end
 
@@ -2475,7 +2497,7 @@ function AEI.CreateDispelsIndicator(button, t)
         fallbackHost = CreateFrame("Frame", nil, wrapper)
         fallbackHost:SetFrameLevel(health:GetFrameLevel() + 1)
         fallbackCtx = { health = health }
-        BuildDispelAnimations(fallbackHost, fallbackCtx, function(group) group:Play() end)
+        BuildDispelAnimations(fallbackHost, fallbackCtx, PreviewAnimationStart(fallbackHost))
     end
 
     local function RefreshFallbackVisuals()
@@ -2493,7 +2515,7 @@ function AEI.CreateDispelsIndicator(button, t)
         if fallbackCtx.border then
             for _, edge in pairs(fallbackCtx.border) do edge:Hide() end
         end
-        if fallbackCtx.antsClip then fallbackCtx.antsClip:Hide() end
+        HideDispelAnts(fallbackCtx)
     end
 
     local function RebuildStyles()
