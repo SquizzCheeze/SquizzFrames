@@ -33,6 +33,11 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.39"] = {
+        "Dispels can pulse: Pulse Overlay fades the dispel overlay in and out while the debuff is up.",
+        "Animated Border: a marching dashed border round the health bar in the dispel type's colour, like Blizzard's new 12.1.5 look. Pick its colour, dash length, thickness and speed, and give it its own Frame Level so it sits where you want among your icon rows.",
+        "Both are off by default, work on party, raid and unit frames, and keep working in combat.",
+    },
     ["1.38"] = {
         "The status text's timer works: AFK, Dead, Ghost and Offline now count up (\"Dead 1:05\").",
         "Don't Fade Dead Players (Layout page): dead or ghost group members stay at full opacity however far away they are.",
