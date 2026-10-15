@@ -33,6 +33,9 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["1.40"] = {
+        "Fixed a \"LibSharedMedia: Attempt to register a file that doesn't exist\" error at login (seen with BigWigs installed).",
+    },
     ["1.39"] = {
         "Dispels can pulse: Pulse Overlay fades the dispel overlay in and out while the debuff is up.",
         "Animated Border: a marching dashed border round the health bar in the dispel type's colour, like Blizzard's new 12.1.5 look. Pick its colour, dash length, thickness and speed, and give it its own Frame Level so it sits where you want among your icon rows.",
