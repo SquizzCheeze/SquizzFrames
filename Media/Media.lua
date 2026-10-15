@@ -58,6 +58,3 @@ LSM:Register("border", "Default", [[Interface\Tooltips\UI-Tooltip-Border]])
 LSM:Register("font", "Friz Quadrata", [[Fonts\FRIZQT__.TTF]])
 LSM:Register("font", "Arial Narrow", [[Fonts\ARIALN.TTF]])
 LSM:Register("font", "Skurri", [[Fonts\skurri.TTF]])
-
--- Register sounds
-LSM:Register("sound", "Raid Warning", [[Sound\RaidWarning.wav]])

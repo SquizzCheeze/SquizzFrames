@@ -2,6 +2,18 @@ SquizzFrames - Changelog
 ========================
 
 
+V1.40
+-----
+
+Fixed:
+
+- A "LibSharedMedia-3.0: Attempt to register a file that doesn't exist
+  ('Sound\RaidWarning.wav')" error at login, seen with BigWigs' newer
+  copy of the library. SquizzFrames registered an old game sound that no
+  longer exists and that nothing in the addon ever played; the line is
+  gone.
+
+
 V1.39 (2026-10-14)
 -----
 
