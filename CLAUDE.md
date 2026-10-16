@@ -35,7 +35,8 @@ SquizzFrames/
 └── Modules/
     ├── LoadModules.xml      # Loads PartyFrames, Indicators (incl. AuraEngine), ClickCasting, Options
     ├── PartyFrames/         # Secure group header + unit buttons (party1-4 + player)
-    │   ├── PartyFrames.lua  # Layout, anchoring, growth, edit mode, sizing
+    │   ├── PartyFrames.lua  # Layout, anchoring, growth, edit mode, sizing. Publishes PartyFrames.shared (private helpers for the split-out files; anything assigned after load goes over as a GETTER, e.g. GetPartyFrame)
+    │   ├── PartyPreview.lua # The Layout page's mock party/raid grid (SetPreviewMode etc.); moved out in 2.0
     │   ├── LayoutPanel.lua  # The "layout" options page; split out of OptionsFrame 2026-09-10 (publishes IsRaidTab for the shared group preview)
     │   ├── UnitButton.lua   # Secure button OnLoad, click-casting hooks
     │   └── UnitButton.xml   # SecureUnitButtonTemplate + health/power bars, texts, icons
