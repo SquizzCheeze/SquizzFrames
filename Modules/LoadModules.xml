@@ -75,6 +75,9 @@
     <!-- Widget building blocks. Right before IndicatorWidgets.lua, which
          imports them from SquizzFrames.IndicatorWidgetsBase at load. -->
     <Script file="Indicators/IndicatorWidgetsBase.lua"/>
+    <!-- Spell-list settings. After the building blocks it imports, before
+         IndicatorWidgets.lua, which imports it at load. -->
+    <Script file="Indicators/IndicatorWidgetsSpells.lua"/>
     <Script file="Indicators/IndicatorWidgets.lua"/>
     <Script file="Indicators/IndicatorsPanel.lua"/>
     <!-- After IndicatorsPanel: consumes its CreateMockUnitButton factory. -->
