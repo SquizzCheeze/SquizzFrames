@@ -37,6 +37,7 @@ SquizzFrames/
     ├── PartyFrames/         # Secure group header + unit buttons (party1-4 + player)
     │   ├── PartyFrames.lua  # Layout, anchoring, growth, edit mode, sizing. Publishes PartyFrames.shared (private helpers for the split-out files; anything assigned after load goes over as a GETTER, e.g. GetPartyFrame)
     │   ├── PartyPreview.lua # The Layout page's mock party/raid grid (SetPreviewMode etc.); moved out in 2.0
+    │   ├── PartyRange.lua   # Out-of-range fading (range poll, checker, alpha); moved out in 2.0. Publishes PartyFrames.range; PartyFrames.lua keeps same-named FORWARDERS (RebuildRangeChecker/UpdateRangeAlpha/ResetRangeAlpha/RefreshRangePolling) so call sites and event registrations are unchanged
     │   ├── LayoutPanel.lua  # The "layout" options page; split out of OptionsFrame 2026-09-10 (publishes IsRaidTab for the shared group preview)
     │   ├── UnitButton.lua   # Secure button OnLoad, click-casting hooks
     │   └── UnitButton.xml   # SecureUnitButtonTemplate + health/power bars, texts, icons

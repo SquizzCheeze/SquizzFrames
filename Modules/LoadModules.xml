@@ -9,6 +9,9 @@
     <!-- The Layout page's mock grid. After PartyFrames.lua: it reads
          PartyFrames.shared at load. -->
     <Script file="PartyFrames/PartyPreview.lua"/>
+    <!-- Out-of-range fading. Same: reads PartyFrames.shared at load, and
+         publishes PartyFrames.range for the forwarders in PartyFrames.lua. -->
+    <Script file="PartyFrames/PartyRange.lua"/>
     <!-- The Layout options page. Named for the page rather than the module,
          since "Layout" is what it is called in the nav. -->
     <Script file="PartyFrames/LayoutPanel.lua"/>
