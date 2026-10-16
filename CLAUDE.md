@@ -36,6 +36,7 @@ SquizzFrames/
     ├── LoadModules.xml      # Loads PartyFrames, Indicators (incl. AuraEngine), ClickCasting, Options
     ├── PartyFrames/         # Secure group header + unit buttons (party1-4 + player)
     │   ├── PartyFrames.lua  # Layout, anchoring, growth, edit mode, sizing. Publishes PartyFrames.shared (private helpers for the split-out files; anything assigned after load goes over as a GETTER, e.g. GetPartyFrame)
+    │   ├── PartyButtons.lua # Per-button health/power/role/status text + AFK/Dead timers, /sfdrinktest; moved out in 2.0. Publishes PartyFrames.buttons; same-named FORWARDERS stay in PartyFrames.lua (UpdateHealth/Power/Status, UpdateButtonAll, UpdateAllButtons, Sync[All]StatusTextAlpha)
     │   ├── PartyPreview.lua # The Layout page's mock party/raid grid (SetPreviewMode etc.); moved out in 2.0
     │   ├── PartyRange.lua   # Out-of-range fading (range poll, checker, alpha); moved out in 2.0. Publishes PartyFrames.range; PartyFrames.lua keeps same-named FORWARDERS (RebuildRangeChecker/UpdateRangeAlpha/ResetRangeAlpha/RefreshRangePolling) so call sites and event registrations are unchanged
     │   ├── LayoutPanel.lua  # The "layout" options page; split out of OptionsFrame 2026-09-10 (publishes IsRaidTab for the shared group preview)
