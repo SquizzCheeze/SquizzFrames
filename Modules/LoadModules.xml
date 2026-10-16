@@ -72,6 +72,9 @@
     <Script file="Indicators/AuraEngineCustom.lua"/>
     <Script file="Indicators/BuiltIn_Update.lua"/>
     <Script file="Indicators/Custom_Dispatch.lua"/>
+    <!-- Widget building blocks. Right before IndicatorWidgets.lua, which
+         imports them from SquizzFrames.IndicatorWidgetsBase at load. -->
+    <Script file="Indicators/IndicatorWidgetsBase.lua"/>
     <Script file="Indicators/IndicatorWidgets.lua"/>
     <Script file="Indicators/IndicatorsPanel.lua"/>
     <!-- After IndicatorsPanel: consumes its CreateMockUnitButton factory. -->

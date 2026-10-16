@@ -51,6 +51,7 @@ SquizzFrames/
     │   ├── AuraButtonTemplate.xml # Empty virtual "CustomAuraButtonTemplate" — must exist by this exact name for AuraContainer buttons to create at all
     │   ├── BuiltIn_Update.lua    # Legacy built-in update functions (healthText, manual aura scan for debuffs/dispels/etc — still the pre-12.1 fallback)
     │   ├── IndicatorDefaults.lua  # Module-side re-export accessor for Defaults/Indicator_Defaults.lua (NOT the same file — see Data Structures)
+    │   ├── IndicatorWidgetsBase.lua # Setting-widget building blocks (SF_Create* wrappers, settingWidgets cache, anchorPoints, CreateLabel/LayoutDropdownRow); moved out of IndicatorWidgets.lua in 2.0. Loads right before it and publishes SquizzFrames.IndicatorWidgetsBase, which IndicatorWidgets.lua imports under the same local names
     │   ├── IndicatorWidgets.lua   # Custom indicator frame factories (legacy scan-based) + shared setting widgets
     │   ├── Custom_Dispatch.lua    # Legacy aura scanner + per-type dispatch (still used for trackByName customs, text/icon customs, and all customs pre-12.1)
     │   └── IndicatorsPanel.lua    # Options UI for indicators
