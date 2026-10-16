@@ -78,6 +78,8 @@
     <!-- Spell-list settings. After the building blocks it imports, before
          IndicatorWidgets.lua, which imports it at load. -->
     <Script file="Indicators/IndicatorWidgetsSpells.lua"/>
+    <!-- Dispels settings. Same arrangement as the spell lists above. -->
+    <Script file="Indicators/IndicatorWidgetsDispels.lua"/>
     <Script file="Indicators/IndicatorWidgets.lua"/>
     <Script file="Indicators/IndicatorsPanel.lua"/>
     <!-- After IndicatorsPanel: consumes its CreateMockUnitButton factory. -->

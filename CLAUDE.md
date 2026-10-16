@@ -53,6 +53,7 @@ SquizzFrames/
     │   ├── IndicatorDefaults.lua  # Module-side re-export accessor for Defaults/Indicator_Defaults.lua (NOT the same file — see Data Structures)
     │   ├── IndicatorWidgetsBase.lua # Setting-widget building blocks (SF_Create* wrappers, settingWidgets cache, anchorPoints, CreateLabel/LayoutDropdownRow); moved out of IndicatorWidgets.lua in 2.0. Loads right before it and publishes SquizzFrames.IndicatorWidgetsBase, which IndicatorWidgets.lua imports under the same local names
     │   ├── IndicatorWidgetsSpells.lua # Spell-list settings (CreateSetting_Auras, DebuffBlacklist, BigDebuffCC, the BuiltIn* checklists); moved out in 2.0. Loads between Base and IndicatorWidgets.lua, publishes SquizzFrames.IndicatorWidgetsSpells, imported under the same names
+    │   ├── IndicatorWidgetsDispels.lua # Dispels settings (type toggles/colours, overlay, opacity, gradient, ants) + the shared filter checklist (DispelFilters/TargetCounterFilters/RoleFilters) and TextScale; moved out in 2.0, same import arrangement (SquizzFrames.IndicatorWidgetsDispels)
     │   ├── IndicatorWidgets.lua   # Custom indicator frame factories (legacy scan-based) + shared setting widgets
     │   ├── Custom_Dispatch.lua    # Legacy aura scanner + per-type dispatch (still used for trackByName customs, text/icon customs, and all customs pre-12.1)
     │   └── IndicatorsPanel.lua    # Options UI for indicators
