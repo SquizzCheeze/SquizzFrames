@@ -894,11 +894,16 @@ local function ApplySettingToOne(button, name, setting, value, value2)
             if value and t and t.type == "built-in" and BuiltIn and BuiltIn.CheckAll then
                 BuiltIn.CheckAll(button)
             end
-        elseif value then
-            -- indicator frame doesn't exist yet — create it
-            if t then
-                button.indicators[name] = I.CreateIndicator(button, t)
-            end
+        elseif value and t then
+            -- The frame doesn't exist yet: HandleIndicators skips a disabled
+            -- indicator entirely. Run the full rebuild rather than a bare
+            -- I.CreateIndicator, which made the frame but skipped everything
+            -- HandleIndicators does after creation -- position, size, frame
+            -- level, SetupIndicator and the CheckAll pass -- so an indicator
+            -- switched on live sat blank until a /reload (user report
+            -- 2026-10-16, Missing Buffs). HandleIndicators builds it because
+            -- t.enabled was just set above, and only creates what is missing.
+            I.HandleIndicators(button)
         end
         return
     end

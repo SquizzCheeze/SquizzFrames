@@ -5,6 +5,12 @@ SquizzFrames - Changelog
 V2.0
 -----
 
+Fixed:
+
+- Turning an indicator on that was off when you last logged in or
+  reloaded (Missing Buffs, for example) now shows it straight away, in the
+  right place and size. It used to stay blank until a /reload.
+
 Behind the scenes:
 
 - Removed the old code that only ran on game versions before 12.1 (no
