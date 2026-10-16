@@ -19,7 +19,8 @@ Behind the scenes:
   Indicator, and the old click-casting route. Nothing you can see should
   change; those indicators have run on Blizzard's aura engine since 12.1.
 - The party and raid frame code is being split into smaller files, one
-  piece at a time, starting with the Layout page's preview. Nothing you
+  piece at a time (the Layout preview, range fading, the per-frame
+  updates and the Dispels code so far). Nothing you
   can see should change.
 
 

@@ -45,7 +45,8 @@ SquizzFrames/
     ├── Indicators/          # Cell-style indicator system (built-in + custom) + 12.1 AuraEngine
     │   ├── Indicators.lua        # Registry, runtime, ApplySettingToOne, preview, built-in-vs-AuraEngine dispatch
     │   ├── AuraEngine.lua         # 12.1 ONLY: shared AuraContainer/AddAuraGroup/AddAuraSlot engine (styles, combat-safe container creation, restyle scheduler)
-    │   ├── AuraEngineIndicators.lua # 12.1 ONLY: healerHots/externalCooldowns/defensiveCooldowns/debuffs/ccIndicator/dispels + custom color/bar, built on AuraEngine
+    │   ├── AuraEngineIndicators.lua # healerHots/externalCooldowns/defensiveCooldowns/debuffs/ccIndicator + custom color/bar, built on AuraEngine. Publishes AEI.shared (ExtractSize) for the split-out file
+    │   ├── AuraEngineDispels.lua # Dispels overlay (+ pulse/ants animations) and Dispel Icons; moved out of AuraEngineIndicators.lua in 2.0. Loads right after it; the custom color/bar code back there reaches HealthBottomInset/FrameBorderInset/AnchorHealthFillOverlay through same-named forwarders to AEI.*
     │   ├── AuraButtonTemplate.xml # Empty virtual "CustomAuraButtonTemplate" — must exist by this exact name for AuraContainer buttons to create at all
     │   ├── BuiltIn_Update.lua    # Legacy built-in update functions (healthText, manual aura scan for debuffs/dispels/etc — still the pre-12.1 fallback)
     │   ├── IndicatorDefaults.lua  # Module-side re-export accessor for Defaults/Indicator_Defaults.lua (NOT the same file — see Data Structures)

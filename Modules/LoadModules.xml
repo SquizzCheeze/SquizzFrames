@@ -63,6 +63,10 @@
     <Script file="Indicators/IndicatorDefaults.lua"/>
     <Script file="Indicators/AuraEngine.lua"/>
     <Script file="Indicators/AuraEngineIndicators.lua"/>
+    <!-- Dispels + Dispel Icons. Right after AuraEngineIndicators.lua: it reads
+         AEI.shared at load and publishes AEI.CreateDispelsIndicator and the
+         health-bar helpers before anything builds an indicator. -->
+    <Script file="Indicators/AuraEngineDispels.lua"/>
     <Script file="Indicators/BuiltIn_Update.lua"/>
     <Script file="Indicators/Custom_Dispatch.lua"/>
     <Script file="Indicators/IndicatorWidgets.lua"/>
