@@ -343,8 +343,7 @@ function I.CreateIndicator(button, t)
             if indicator then indicator:Hide() end
             indicator = BuiltIn.CreateBuiltInIndicator(button, t)
         end
-    elseif t.type == "color" and not t.trackByName and (t.anchor or "healthbar-current") ~= "unitButton"
-        and SquizzFrames.IS_121 then
+    elseif t.type == "color" and not t.trackByName and (t.anchor or "healthbar-current") ~= "unitButton" then
         if not indicator or indicator._sfType ~= "custom" then
             if indicator then indicator:Hide() end
             local AEI = SquizzFrames.AuraEngineIndicators
@@ -353,7 +352,7 @@ function I.CreateIndicator(button, t)
                 indicator = AcquireCustomFrame(button, t)
             end
         end
-    elseif t.type == "bar" and not t.trackByName and SquizzFrames.IS_121 then
+    elseif t.type == "bar" and not t.trackByName then
         if not indicator or indicator._sfType ~= "custom" then
             if indicator then indicator:Hide() end
             local AEI = SquizzFrames.AuraEngineIndicators

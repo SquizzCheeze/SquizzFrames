@@ -27,8 +27,6 @@ if not SquizzFrames then return end
 local AEI = {}
 SquizzFrames.AuraEngineIndicators = AEI
 
-if not SquizzFrames.IS_121 then return end
-
 local F = SquizzFrames.F
 
 local GROUP_KEY = "healerHots"

@@ -275,8 +275,8 @@ end
 -- EllesmereUI's click-casting module (EllesmereUI_Kick.lua), which works
 -- around it with a "/click <ProxyGlobalName>" macro transport instead --
 -- that calls SecureActionButton_OnClick directly, bypassing the buggy
--- code path. This mirrors that fix.
-local IS_121 = SquizzFrames.IS_121
+-- code path. This mirrors that fix. (The 12.0.7 clickbutton transport was
+-- deleted in 2.0; no client can run it.)
 
 local actionProxies = setmetatable({}, { __mode = "k" })
 local actionProxyCounter = 0
@@ -284,14 +284,10 @@ local function GetActionProxy(button)
     if not button then return end
     local proxy = actionProxies[button]
     if proxy then return proxy end
-    local proxyName
-    if IS_121 then
-        -- 12.1's macro transport references the proxy by name ("/click
-        -- <name>"), so it needs a global name. 12.0's clickbutton transport
-        -- references the frame object directly, so it stays anonymous.
-        actionProxyCounter = actionProxyCounter + 1
-        proxyName = "SquizzFramesActionProxy" .. actionProxyCounter
-    end
+    -- The macro transport references the proxy by name ("/click <name>"), so
+    -- it needs a global name.
+    actionProxyCounter = actionProxyCounter + 1
+    local proxyName = "SquizzFramesActionProxy" .. actionProxyCounter
     proxy = CreateFrame("Button", proxyName, button, "SecureActionButtonTemplate")
     proxy:SetSize(1, 1)
     proxy:SetAlpha(0)
@@ -343,48 +339,41 @@ local function RouteProxyAction(button, attrKey, realAction, modifierAgnostic)
     proxy:SetAttribute(modifierAgnostic and ("*" .. attrKey) or attrKey, realAction)
     local clickbuttonKey = attrKey:gsub("type", "clickbutton", 1)
     local macrotextKey = attrKey:gsub("type", "macrotext", 1)
-    if IS_121 then
-        -- "/click <frame>" with NO button argument clicks with LeftButton.
-        -- The proxy's own SecureActionButton_OnClick then derives which
-        -- attribute to run from the button it actually received plus the
-        -- modifiers still physically held -- i.e. "<mods->type1" -- so a
-        -- binding on any button other than Left looked up an attribute we
-        -- never set, and silently did nothing.
-        --
-        -- That's why modified TARGET worked but modified MENU didn't on the
-        -- PTR (bug report 2026-08-11): target is conventionally Left (type1),
-        -- which happened to match the LeftButton default, while menu is
-        -- conventionally Right (type2), which never did. Same latent break
-        -- for a target bound to any non-Left button.
-        --
-        -- Passing the matching button name makes the proxy resolve the exact
-        -- attrKey we set on it. 12.1-only by construction (this whole branch
-        -- is IS_121); 12.0.7 keeps the clickbutton transport untouched, which
-        -- never had the problem because it forwards the real button itself.
-        local buttonNum = tonumber(attrKey:match("type(%d)$"))
-        local clickButton = buttonNum and PROXY_CLICK_BUTTON[buttonNum]
-        if not clickButton then
-            -- KEYBOARD / WHEEL: the suffix is a name, not a number
-            -- ("type-kb3" -> "kb3", "ctrl-type-SCROLLUP" -> "SCROLLUP"), and
-            -- it's passed through to /click verbatim. The proxy then derives
-            -- its attribute from that same name, so it finds the exact key we
-            -- set above. Without this the macro carried no button at all,
-            -- which means LeftButton -- the proxy looked up "type1", which we
-            -- never set, and the binding silently did nothing.
-            clickButton = attrKey:match("type%-(.+)$")
-        end
-        local macro = "/click " .. proxy:GetName()
-        if clickButton then
-            macro = macro .. " " .. clickButton
-        end
-        button:SetAttribute(attrKey, "macro")
-        button:SetAttribute(macrotextKey, macro)
-        button:SetAttribute(clickbuttonKey, nil)
-    else
-        button:SetAttribute(attrKey, "click")
-        button:SetAttribute(clickbuttonKey, proxy)
-        button:SetAttribute(macrotextKey, nil)
+    -- "/click <frame>" with NO button argument clicks with LeftButton.
+    -- The proxy's own SecureActionButton_OnClick then derives which
+    -- attribute to run from the button it actually received plus the
+    -- modifiers still physically held -- i.e. "<mods->type1" -- so a
+    -- binding on any button other than Left looked up an attribute we
+    -- never set, and silently did nothing.
+    --
+    -- That's why modified TARGET worked but modified MENU didn't on the
+    -- PTR (bug report 2026-08-11): target is conventionally Left (type1),
+    -- which happened to match the LeftButton default, while menu is
+    -- conventionally Right (type2), which never did. Same latent break
+    -- for a target bound to any non-Left button.
+    --
+    -- Passing the matching button name makes the proxy resolve the exact
+    -- attrKey we set on it.
+    local buttonNum = tonumber(attrKey:match("type(%d)$"))
+    local clickButton = buttonNum and PROXY_CLICK_BUTTON[buttonNum]
+    if not clickButton then
+        -- KEYBOARD / WHEEL: the suffix is a name, not a number
+        -- ("type-kb3" -> "kb3", "ctrl-type-SCROLLUP" -> "SCROLLUP"), and
+        -- it's passed through to /click verbatim. The proxy then derives
+        -- its attribute from that same name, so it finds the exact key we
+        -- set above. Without this the macro carried no button at all,
+        -- which means LeftButton -- the proxy looked up "type1", which we
+        -- never set, and the binding silently did nothing.
+        clickButton = attrKey:match("type%-(.+)$")
     end
+    local macro = "/click " .. proxy:GetName()
+    if clickButton then
+        macro = macro .. " " .. clickButton
+    end
+    button:SetAttribute(attrKey, "macro")
+    button:SetAttribute(macrotextKey, macro)
+    -- Still cleared: a profile saved under 12.0.7 may have left one set.
+    button:SetAttribute(clickbuttonKey, nil)
 end
 
 -- Clear every override binding we set on a frame for keyboard/wheel keys.

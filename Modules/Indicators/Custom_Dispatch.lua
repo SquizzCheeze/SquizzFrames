@@ -177,10 +177,9 @@ function CD.UpdateIndicatorTable(t, context)
     -- must never unconditionally :Hide() an engine-backed wrapper -- nothing
     -- calls :Show() on it again since presence comes from the engine, not
     -- Show()/Hide() in this file.
-    if t.type == "color" and not t.trackByName and (t.anchor or "healthbar-current") ~= "unitButton"
-        and SquizzFrames.IS_121 then
+    if t.type == "color" and not t.trackByName and (t.anchor or "healthbar-current") ~= "unitButton" then
         entry.engineDriven = true
-    elseif t.type == "bar" and not t.trackByName and SquizzFrames.IS_121 then
+    elseif t.type == "bar" and not t.trackByName then
         entry.engineDriven = true
     end
 

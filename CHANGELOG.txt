@@ -2,6 +2,18 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.0
+-----
+
+Behind the scenes:
+
+- Removed the old code that only ran on game versions before 12.1 (no
+  game client can run them any more): the old aura scanning for Healer
+  HoTs, Dispels, External and Defensive Cooldowns, Debuffs and the CC
+  Indicator, and the old click-casting route. Nothing you can see should
+  change; those indicators have run on Blizzard's aura engine since 12.1.
+
+
 V1.40 (2026-10-15)
 -----
 

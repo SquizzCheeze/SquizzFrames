@@ -16,13 +16,9 @@
 -- directly every update. Registering an unstyled region (e.g. a FontString
 -- with no font set) hard-errors inside the engine, so styling must always
 -- happen before registration.
---
--- 12.1 ONLY: on a pre-12.1 client this whole file is inert. Callers must
--- check SquizzFrames.IS_121 before using AuraEngine.
 
 local SquizzFrames = _G["SquizzFrames"]
 if not SquizzFrames then return end
-if not SquizzFrames.IS_121 then return end
 
 local F = SquizzFrames.F
 local InCombatLockdown = InCombatLockdown
@@ -1396,7 +1392,6 @@ end)
 -- survives AND yields nothing while the client is on a build where aura
 -- secrecy exists at all.
 function AE.AurasRestricted()
-    if not SquizzFrames.IS_121 then return false end
     local ok, data = pcall(C_UnitAuras.GetAuraDataByIndex, "player", 1, "HELPFUL")
     if not ok then return true end
     return data == nil

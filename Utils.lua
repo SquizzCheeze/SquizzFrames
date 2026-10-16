@@ -64,16 +64,9 @@ function SquizzFrames.ClaimReloadSlash(key)
     end)
 end
 
-SquizzFrames.IS_121 = (select(4, GetBuildInfo()) or 0) >= 120100
--- 12.1.5+. Same shape as IS_121 above, and the interface number really is
--- 120105 (expansion 12, patch 01, minor 05) -- not 120500.
---
--- For guarding behaviour that must NOT change on 12.1.0. NOTHING READS IT
--- YET: its first consumer was the "Show Unfiltered Auras" fix, and that
--- option was removed outright instead (it had been dead since Blizzard's
--- 69465 hotfix). Kept because the TOC now declares 120105 and 12.1.5 is
--- close -- delete it if it is still unused when that patch has settled.
-SquizzFrames.IS_1215 = (select(4, GetBuildInfo()) or 0) >= 120105
+-- IS_121 / IS_1215 (client build gates) were removed in 2.0: the TOC is
+-- 120105 only, so every client runs the 12.1 code and the pre-12.1 branches
+-- they selected were deleted.
 
 -----------------------------------------------------------------------
 -- Specialization API compat
