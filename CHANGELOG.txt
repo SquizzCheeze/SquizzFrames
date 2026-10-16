@@ -20,7 +20,7 @@ Behind the scenes:
   change; those indicators have run on Blizzard's aura engine since 12.1.
 - The party and raid frame code is being split into smaller files, one
   piece at a time (so far the Layout preview, range fading, the per-frame
-  updates and the Dispels code). Nothing you can see should change.
+  updates, the Dispels code and the custom colour/bar indicators). Nothing you can see should change.
 
 
 V1.40 (2026-10-15)

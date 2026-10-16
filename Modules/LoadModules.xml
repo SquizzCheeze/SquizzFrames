@@ -67,6 +67,9 @@
          AEI.shared at load and publishes AEI.CreateDispelsIndicator and the
          health-bar helpers before anything builds an indicator. -->
     <Script file="Indicators/AuraEngineDispels.lua"/>
+    <!-- Custom color + bar indicators. After AuraEngineDispels.lua, whose
+         health-bar helpers it calls at runtime. -->
+    <Script file="Indicators/AuraEngineCustom.lua"/>
     <Script file="Indicators/BuiltIn_Update.lua"/>
     <Script file="Indicators/Custom_Dispatch.lua"/>
     <Script file="Indicators/IndicatorWidgets.lua"/>
