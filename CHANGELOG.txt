@@ -18,6 +18,9 @@ Behind the scenes:
   HoTs, Dispels, External and Defensive Cooldowns, Debuffs and the CC
   Indicator, and the old click-casting route. Nothing you can see should
   change; those indicators have run on Blizzard's aura engine since 12.1.
+- The party and raid frame code is being split into smaller files, one
+  piece at a time, starting with the Layout page's preview. Nothing you
+  can see should change.
 
 
 V1.40 (2026-10-15)

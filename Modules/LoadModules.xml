@@ -6,6 +6,9 @@
     <Include file="PartyFrames/UnitButton.xml"/>
     <Script file="PartyFrames/UnitButton.lua"/>
     <Script file="PartyFrames/PartyFrames.lua"/>
+    <!-- The Layout page's mock grid. After PartyFrames.lua: it reads
+         PartyFrames.shared at load. -->
+    <Script file="PartyFrames/PartyPreview.lua"/>
     <!-- The Layout options page. Named for the page rather than the module,
          since "Layout" is what it is called in the nav. -->
     <Script file="PartyFrames/LayoutPanel.lua"/>
