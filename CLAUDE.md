@@ -964,7 +964,7 @@ re-inventing something already half-built.
 
 ## Version Compatibility
 
-- **Target**: WoW 12.1 — `## Interface: 120100`. 12.0.7 was dropped from the TOC on 2026-08-21: that client no longer exists, so listing it only advertised support the addon could not actually deliver (and made CurseForge tag every upload as 12.0.7-compatible). The pre-12.1 code paths are still in the tree but unreachable — see the dead-code note in section 7.
+- **Target**: WoW 12.1.5 — `## Interface: 120105` only (user decision 2026-10-16, all seven addons: there is no way back to 12.1.0, and every update from here is a 12.1.5+ fix or addition, so 120100 was dropped from the TOC). Before that it was `120100`. 12.0.7 was dropped from the TOC on 2026-08-21: that client no longer exists, so listing it only advertised support the addon could not actually deliver (and made CurseForge tag every upload as 12.0.7-compatible). The pre-12.1 code paths are still in the tree but unreachable — see the dead-code note in section 7.
 - **12.1 code paths**: rather than a separate branch/release, 12.1-only code paths live in this codebase gated at runtime by `SquizzFrames.IS_121` (`Utils.lua`, build number `>= 120100`) rather than by TOC/`.toc`-version branching. This covers the AuraEngine subsystem (section 7), and the click-casting proxy transport fix. These are **active** on a 12.1 client and inert on 12.0.7.
 - Uses modern APIs: `C_AddOns.GetAddOnMetadata`, `C_Spell.GetSpellName`, `C_Spell.GetSpellInfo`, `C_UnitAuras`, `C_Item.IsUsableItem`
 - Fallback globals provided in Utils/Core for older API compat
