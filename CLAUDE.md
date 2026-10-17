@@ -792,9 +792,10 @@ beats losing the name*.
   `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
 - **Status Text ignores range fade** (`SyncStatusTextAlpha`, user request): the FontString and its `_sfBG`
   `SetIgnoreParentAlpha(true)` and take `partyFrame:GetEffectiveAlpha()` -- the CONTAINER's alpha, so the
-  blanket Frame Opacity and the Blizzard-panel fade still apply (ignoring all alpha would leave text
-  floating over faded-out frames). Re-synced wherever either alpha changes: the range poll, ResetRangeAlpha,
-  `PartyFrames.ApplyOpacity` and the panel fade. Unconditional, no setting.
+  blanket Frame Opacity still applies (ignoring all alpha would leave text floating over faded-out
+  frames). Re-synced wherever either alpha changes: the range poll, ResetRangeAlpha and
+  `PartyFrames.ApplyOpacity`. Unconditional, no setting. (The old Blizzard-panel fade, disabled since
+  2026-08-01, was deleted in 2.0.)
 - **Out-of-range joiners showed someone else's name, or none** (user report 2026-10-04, nicknames on; both
   happened, "randomly"). Two causes, two fixes:
   - *Another member's name*: the header handed a button a new unit AFTER the 0.3/1/2s roster passes, so

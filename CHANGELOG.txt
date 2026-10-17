@@ -23,6 +23,9 @@ Behind the scenes:
   updates, the Dispels code, the custom colour/bar indicators and the
   indicator settings' building blocks, spell lists and Dispels settings,
   and the Unit Frames page's Resources section). Nothing you can see should change.
+- Removed the old code that faded the party frames while a Blizzard window
+  was open. It has been switched off since August, when the frames stopped
+  sitting above those windows.
 
 
 V1.40 (2026-10-15)

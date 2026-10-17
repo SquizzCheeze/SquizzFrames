@@ -30,11 +30,11 @@ profile.appearance = {
         scale = 1.0,
         -- NOTE: not actually read anywhere (CreatePartyContainer/
         -- CreateHeader/UnitButton_OnLoad hardcode strata directly, not via
-        -- this field). 2026-08-01: testing plain "MEDIUM" (see
+        -- this field). 2026-08-01: plain "MEDIUM", confirmed (see
         -- PartyFrames.lua's CreatePartyContainer for the full history/why --
         -- was "HIGH" 2026-07-30/31 to beat nameplates, which needed a
-        -- separate ApplyBlizzardPanelVisibility fade to stop also covering
-        -- Blizzard's own panels; now mirroring DandersFrames/
+        -- separate fade to stop also covering Blizzard's own panels, deleted
+        -- in 2.0; now mirroring DandersFrames/
         -- EllesmereUIRaidFrames, neither of which elevates strata at all).
         -- Kept here only so a future options-panel Strata control has a
         -- sane starting value to write into once one exists.

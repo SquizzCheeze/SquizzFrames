@@ -497,10 +497,10 @@ end
 -- Status Text at full opacity however far its button has faded for range
 -- (user request 2026-10-04): AFK/Dead/Offline is exactly what you need to read
 -- on a faded frame. It IGNORES its parents' alpha and takes the CONTAINER's
--- instead, so it still follows the blanket Frame Opacity and the fade while a
--- Blizzard panel is open -- ignoring all alpha would leave the text floating
--- over frames that had faded out. Called from the range poll, the range reset,
--- ApplyOpacity and the panel fade: every place either alpha changes.
+-- instead, so it still follows the blanket Frame Opacity -- ignoring all alpha
+-- would leave the text floating over frames that had faded out. Called from
+-- the range poll, the range reset and ApplyOpacity: every place either alpha
+-- changes.
 local function SyncStatusTextAlpha(button)
     local fs = button and button.statusText
     if not (fs and fs.SetIgnoreParentAlpha) then return end

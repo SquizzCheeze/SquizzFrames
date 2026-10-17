@@ -44,13 +44,6 @@ local raidGroupSlots = {}      -- [subgroup] = visual slot index (1-based)
 local raidGroupCounts = {}     -- [subgroup] = member count, from the last census
 local activeHeaderScratch = {} -- reused by ActiveHeaders(), never held onto
 local initialized = false
-local panelVisibilityTicker -- Blizzard special-frame visibility poll, started in OnEnable's init()
--- [frame] = true for every UIPanelWindows-managed panel currently open, per
--- ShowUIPanel/HideUIPanel hooks installed once in OnEnable's init() -- see
--- ApplyBlizzardPanelVisibility's comment for why this exists instead of
--- polling UIPanelWindows' frame names directly.
-local openBlizzardPanels = {}
-local blizzardPanelHooksInstalled = false
 -- Out-of-range fading lives in PartyRange.lua (moved in 2.0). These keep the
 -- old names as forwarders, so every call site and every event/callback
 -- registration below is unchanged. PartyFrames.range is published when
@@ -515,13 +508,12 @@ local function CreatePartyContainer()
     -- as this container) -- that worked reliably, but also covered Blizzard's
     -- own MEDIUM-strata full-screen panels (Character, Talents, Spellbook,
     -- etc), which then needed a whole separate fade-on-panel-open mechanism
-    -- (ApplyBlizzardPanelVisibility/panelVisibilityTicker further down) to
-    -- paper over. A high FRAME LEVEL at plain MEDIUM strata was also tried,
+    -- to paper over (disabled 2026-08-01, deleted in 2.0). A high FRAME LEVEL at plain MEDIUM strata was also tried,
     -- and confirmed NOT to reliably beat nameplates (they self-raise via
     -- "toplevel"/"useParentLevel" on every interaction -- see the full
     -- writeup in memory: nameplate-strata-fix-revised-to-framelevel.md).
     --
-    -- 2026-08-01: TESTING a full revert to plain "MEDIUM" (the engine
+    -- 2026-08-01: reverted to plain "MEDIUM", and CONFIRMED since (the engine
     -- default -- this call is only here for explicitness/searchability, not
     -- because MEDIUM needs to be asserted). Both DandersFrames and
     -- EllesmereUIRaidFrames were checked directly (their actual installed
@@ -531,13 +523,8 @@ local function CreatePartyContainer()
     -- internal layering they need (e.g. Danders' movers) is done via a HIGH
     -- frame LEVEL at the SAME strata as the frames it sits above, not a
     -- different strata tier. This branch mirrors that: party frames no
-    -- longer try to out-strata nameplates or Blizzard's panels, and
-    -- ApplyBlizzardPanelVisibility's ticker/hooks are left installed but the
-    -- fade they'd apply is now a no-op in practice (nothing to counteract at
-    -- MEDIUM). If nameplates are confirmed (via user in-game testing) to
-    -- cover the frames again at this position, revert this single line back
-    -- to "HIGH" and re-enable the fade's practical purpose -- nothing else
-    -- needs to change, the whole mechanism is still intact.
+    -- longer try to out-strata nameplates or Blizzard's panels, so there is
+    -- nothing for a panel fade to counteract. Do not elevate this again.
     partyFrame:SetFrameStrata("MEDIUM")
     local initialPoint = GetAnchorPoint(db)
     partyFrame:SetPoint(initialPoint, UIParent, initialPoint, anchorX / scale, anchorY / scale)
@@ -2747,39 +2734,6 @@ function PartyFrames:OnEnable()
             RefreshRangePolling()
         end
 
-        -- Blizzard special-frame visibility poll (bug fix 2026-07-31): party
-        -- frames stay at "HIGH" strata (see CreatePartyContainer's comment
-        -- for the full nameplate-vs-Blizzard-menu history/why level-based
-        -- alternatives don't work) to reliably beat nameplates, which ALSO
-        -- covers Blizzard's own MEDIUM-strata full-screen panels since those
-        -- never escalate strata themselves. Rather than chase an unwinnable
-        -- level fight to fix that too, just fade the container out while any
-        -- such panel is open. See ApplyBlizzardPanelVisibility's own comment
-        -- for the UISpecialFrames + ShowUIPanel/HideUIPanel-hook combo this
-        -- ended up needing (UISpecialFrames alone missed several modern
-        -- panels, e.g. Talents/PlayerSpellsFrame).
-        --
-        -- 2026-08-01: DISABLED for the MEDIUM-strata experiment (see
-        -- CreatePartyContainer's comment) -- with the container no longer
-        -- elevated above Blizzard's panels, there's nothing left for this to
-        -- paper over, and leaving it running only risked an unwanted fade
-        -- if some panel's open/close state ever misbehaved. Neither the
-        -- ticker nor the hooks are started; ApplyBlizzardPanelVisibility and
-        -- openBlizzardPanels are untouched and still fully working, just
-        -- unreferenced. If HIGH strata comes back, uncomment both blocks
-        -- below to bring the fade back with it.
-        -- if not panelVisibilityTicker then
-        --     panelVisibilityTicker = C_Timer.NewTicker(0.3, ApplyBlizzardPanelVisibility)
-        -- end
-        -- if not blizzardPanelHooksInstalled then
-        --     blizzardPanelHooksInstalled = true
-        --     hooksecurefunc("ShowUIPanel", function(frame)
-        --         if frame then openBlizzardPanels[frame] = true end
-        --     end)
-        --     hooksecurefunc("HideUIPanel", function(frame)
-        --         if frame then openBlizzardPanels[frame] = nil end
-        --     end)
-        -- end
         PartyFrames.ApplyOpacity()
 
         initialized = true
@@ -2817,10 +2771,6 @@ function PartyFrames:OnDisable()
     -- Stops the range poll and, if one was running, undoes whatever dimming
     -- was last applied instead of freezing it in place (PartyRange.lua).
     PartyFrames.range.StopPolling()
-    if panelVisibilityTicker then
-        panelVisibilityTicker:Cancel()
-        panelVisibilityTicker = nil
-    end
 end
 
 -----------------------------------------------------------------------
@@ -2832,77 +2782,6 @@ function PartyFrames:OnUnitEvent(unit)
     local button = unitButtons[unit]
     if button then
         UpdateButtonAll(button)
-    end
-end
-
--- Fades the party frame container out while any Blizzard "special frame" is
--- open (Character, Talents/PlayerSpells, Spellbook, Collections, Auction
--- House, etc) -- see CreatePartyContainer's comment for why this exists
--- (party frames stay at HIGH strata to reliably beat nameplates, which also
--- covers these MEDIUM-strata Blizzard panels; this is how that side effect
--- gets resolved instead). Uses SetAlpha, not Show/Hide -- mirrors
--- UpdateRangeAlpha's own convention just above, and avoids fighting with
--- the several OTHER places that already call partyFrame:Show()/:Hide() for
--- unrelated reasons (roster changes, Designer preview, OnDisable, etc) --
--- an alpha toggle layers on top of whatever those decide without needing to
--- know about them.
--- UISpecialFrames is Blizzard's own array of GLOBAL FRAME NAME strings --
--- every ESC-closable panel registers itself into it, so this covers new/
--- addon-added panels too without maintaining a hardcoded list. Re-scanned
--- fresh every poll (not cached) since entries can be appended at any time
--- (other addons' panels, lazily-loaded Blizzard panels, etc).
---
--- UISpecialFrames alone isn't complete, though: PlayerSpellsFrame (Talents/
--- Spellbook/Specialization) never registers there (confirmed by reading
--- Blizzard_PlayerSpellsFrame's actual source -- no UISpecialFrames reference
--- anywhere in it), and it's not the only one -- DeathRecapFrame,
--- EditModeManagerFrame, EncounterJournal, and ChromieTimeFrame's own source
--- are ALSO silent on UISpecialFrames (checked directly). UISpecialFrames
--- only covers frames that show/hide themselves directly; anything using
--- Blizzard's modern docked-panel system (UIPanelWindows -- Character,
--- Collections, Encounter Journal, Talents, Death Recap, ~55 panels total)
--- goes through that system's API instead and was never a safe bet to assume
--- present in UISpecialFrames case-by-case.
---
--- First attempt at covering UIPanelWindows generically: poll every frame
--- name in that table via :IsShown(). Regressed -- the container got
--- permanently stuck faded to alpha 0 even after closing every visible
--- panel, because at least one entry (never isolated which) apparently
--- stays IsShown()==true indefinitely; UIPanelWindows entries are positioned/
--- animated by the manager, not a simple show=open/hide=closed contract.
---
--- Second attempt (current): rather than polling frame state, hook the
--- manager's own choke point. EVERY UIPanelWindows-registered panel opens/
--- closes by calling the global ShowUIPanel(frame)/HideUIPanel(frame)
--- functions (confirmed via Blizzard_UIParentPanelManager/Shared/
--- UIParentPanelManager.lua -- both early-return on a redundant call via
--- `if frame:IsShown() then return end` / `if not frame:IsShown() then
--- return end`, so a hooksecurefunc on them fires once per real open/close,
--- not once per call). openBlizzardPanels below is keyed by frame identity
--- and updated by those hooks -- inherently self-correcting (adding an
--- already-present key or removing an absent one is a no-op), so it can't
--- drift stuck-open the way polling an unreliable IsShown() did. This covers
--- every current AND future UIPanelWindows panel with no name list at all;
--- UISpecialFrames is kept alongside it for the (older/simpler) panels that
--- show/hide themselves directly without going through ShowUIPanel.
-function ApplyBlizzardPanelVisibility()
-    if not partyFrame then return end
-    local anyOpen = false
-    for _, name in ipairs(UISpecialFrames) do
-        local frame = _G[name]
-        if frame and frame.IsShown and frame:IsShown() then
-            anyOpen = true
-            break
-        end
-    end
-    if not anyOpen and next(openBlizzardPanels) then
-        anyOpen = true
-    end
-    if anyOpen then
-        partyFrame:SetAlpha(0)
-        SyncAllStatusTextAlpha()   -- status text ignores parent alpha; hide it with the frames
-    else
-        PartyFrames.ApplyOpacity()
     end
 end
 
