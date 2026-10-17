@@ -725,9 +725,18 @@ end
 
 -- Build one page into `host` (hidden), registering its frame so the controls
 -- it makes can find their page (see IndexControl).
+--
+-- The page frame is HIDDEN before build() runs, always. Builders may pin
+-- furniture outside their own frame (Unit Frames' and Tank Tracker's tab strip
+-- and preview pane) and tie it to the page's OnShow/OnHide, showing it at once
+-- if the page is already shown. Built shown and hidden afterwards, inside a
+-- window that is not yet visible, that Hide() fires no OnHide, so the
+-- furniture stayed up over every other page (user screenshot 2026-10-17).
+-- The caller Show()s the page when it actually wants it on screen.
 function Window:BuildPage(page, host)
     local pf = CreateFrame("Frame", nil, host)
     pf:SetAllPoints(host)
+    pf:Hide()
     page.frame = pf
     lib.pageOfFrame[pf] = page
     if page.build then page.build(pf) end
@@ -748,7 +757,6 @@ function Window:BuildAllPages()
                         self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
                     end
                     self:BuildPage(page, host)
-                    page.frame:Hide()
                 end
             end
         end
