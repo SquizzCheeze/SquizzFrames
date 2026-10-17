@@ -387,7 +387,11 @@ function Window:BuildResults()
     local panel = CreateFrame("Frame", nil, self.frame, "BackdropTemplate")
     panel:SetPoint("TOPRIGHT", self.searchBox, "BOTTOMRIGHT", 0, -4)
     panel:SetWidth(320)
-    panel:SetFrameLevel(self.frame:GetFrameLevel() + 50)
+    -- A strata above the window, not just a higher level: pages pin their own
+    -- furniture high in the window's strata (Unit Frames' tab strip and
+    -- preview sit 50+ levels up, their mocks higher still), and the list was
+    -- drawn under them (user screenshot 2026-10-17).
+    panel:SetFrameStrata("FULLSCREEN_DIALOG")
     Backdrop(panel, "bg", "border")
     panel:Hide()
     self.results = panel
