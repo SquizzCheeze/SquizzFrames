@@ -23,6 +23,8 @@ profile.general = {
     hideBlizzardFrames = true,
     locked = false,
     fadeOut = true,
+    -- 2.0: Blizzard's Edit Mode turns ours on and off too. nil also means on.
+    followBlizzardEditMode = true,
 }
 
 profile.appearance = {

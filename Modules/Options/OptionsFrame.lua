@@ -23,7 +23,7 @@ local optionsFrame -- the shell window's frame, "SquizzFramesOptionsFrame"
 -- Minimum content height per scroll page (content can exceed; the window
 -- scrolls). Indicators manages its own layout and isn't part of this.
 local pageHeights = {
-    ["general"] = 665, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme (2.0)
+    ["general"] = 690, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme, +25 Follow Blizzard's Edit Mode (2.0)
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
@@ -90,6 +90,38 @@ end
 -- rebuild, since the title-bar button is created once and never rebuilt.
 if F and F.NewMessageOwner then
     F.NewMessageOwner():RegisterMessage("EditModeChanged", RefreshEditModeButtons)
+end
+
+-- Following Blizzard's Edit Mode (2.0, user decision 2026-10-16, as in
+-- Squizzumables): opening it (Esc > Edit Mode) turns ours on too, and closing
+-- it turns ours off again -- but only if opening it was what turned ours on,
+-- so Edit Mode switched on from our title bar stays on. General > Follow
+-- Blizzard's Edit Mode (general.followBlizzardEditMode, nil = on) stops it.
+--
+-- EventRegistry's EditMode.Enter / EditMode.Exit are Blizzard's own
+-- notifications: listening calls nothing on EditModeManagerFrame, so nothing
+-- of ours runs inside Edit Mode's code (touching that frame taints it).
+-- Blizzard's Edit Mode cannot open in combat, and SetEditModeEnabled's own
+-- callees defer their secure work if it ever did.
+do
+    local enabledForBlizzard = false
+    local function Following()
+        local p = SquizzFrames.db and SquizzFrames.db.profile
+        return not (p and p.general and p.general.followBlizzardEditMode == false)
+    end
+    if EventRegistry and EventRegistry.RegisterCallback then
+        local owner = {}
+        EventRegistry:RegisterCallback("EditMode.Enter", function()
+            if not Following() or SquizzFrames.editMode then return end
+            SetEditModeEnabled(true)
+            enabledForBlizzard = SquizzFrames.editMode and true or false
+        end, owner)
+        EventRegistry:RegisterCallback("EditMode.Exit", function()
+            if not enabledForBlizzard then return end
+            enabledForBlizzard = false
+            if SquizzFrames.editMode then SetEditModeEnabled(false) end
+        end, owner)
+    end
 end
 
 -----------------------------------------------------------------------
@@ -397,6 +429,22 @@ local function BuildGeneralFields(frame)
 
     local cb4 = W.CreateStyledCheckbox(fieldsHost, L["Fade Out of Range"] or "Fade Out of Range", GetFadeOut, SetFadeOut)
     cb4:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 25
+
+    -- 2.0: Blizzard's Edit Mode turns ours on and off too (see the
+    -- EditMode.Enter/Exit listeners near SetEditModeEnabled). Inline
+    -- accessors: this file is short of locals (see CLAUDE.md).
+    local cbFollow = W.CreateStyledCheckbox(fieldsHost,
+        L["Follow Blizzard's Edit Mode"] or "Follow Blizzard's Edit Mode",
+        function()
+            local p = GetProfile()
+            return not (p and p.general and p.general.followBlizzardEditMode == false)
+        end,
+        function(checked)
+            local p = GetProfile()
+            if p and p.general then p.general.followBlizzardEditMode = checked and true or false end
+        end)
+    cbFollow:SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 25
 
     -- Section: Frame Opacity -- one blanket slider per frame group. Built

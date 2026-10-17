@@ -22,7 +22,11 @@ New:
   It also finds every indicator by name, built-in and custom, in the
   Party and Raid lists, and opens it on the Indicators page.
   Unit Frames and Tank Tracker show their live preview in a column down
-  the right of the window.
+  the right of the window, and so does the Indicators Designer.
+- Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on
+  SquizzFrames' Edit Mode too, and closing it turns it off again (unless
+  you had turned it on yourself). Untick Follow Blizzard's Edit Mode on
+  the General page to keep them separate.
 - Theme (General page): SquizzFrames now shares Squizzumables' theme -
   Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal. One choice
   covers both addons. Until you pick one, the accent stays class coloured,
