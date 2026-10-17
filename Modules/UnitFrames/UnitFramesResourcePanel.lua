@@ -117,6 +117,11 @@ do
     -- Persists across page switches within a session, like activeIndicatorTab.
     local activeResourceTab = "general"
 
+    -- For search (2.0): the page indexes and re-opens each sub-tab by key.
+    Panel.RESOURCE_TABS = RESOURCE_TABS
+    function Panel.GetResourceTab() return activeResourceTab end
+    function Panel.SetResourceTab(key) activeResourceTab = key end
+
     local function Rebuild()
         if rebuildFields then rebuildFields() end
     end

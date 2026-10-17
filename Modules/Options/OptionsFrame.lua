@@ -163,7 +163,10 @@ local function CreateOptionsFrame()
         { label = "Frames", pages = {
             Page("layout", "Party and Raid", "Size, growth and look of the group frames", Pages.layout),
             Page("unitFrames", "Unit Frames", "Player, target, focus, boss and arena frames", Pages.unitFrames, {
-                autoIndex = false,
+                -- Builds one section at a time, so search is told which
+                -- section a control is in and how to reopen it.
+                select = function(scope) SquizzFrames.UnitFramesPanel.Select(scope) end,
+                indexAll = function() SquizzFrames.UnitFramesPanel.IndexAll() end,
                 onResize = function()
                     -- The indicator sub-tab strip wraps to the width it had
                     -- when built, so re-measure once the drag has settled.

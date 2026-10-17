@@ -13,9 +13,10 @@ New:
   Nicknames), Tools (Tank Tracker, Click Casting) and General (General,
   Profiles). Every page has its title at the top, and every control on
   every page now takes the theme's colours too. Search finds every
-  setting on General, Party and Raid, Pet Frames, Nicknames, Click
-  Casting and Profiles: pick a result and the page opens, scrolls to it
-  and flashes it. Unit Frames, Tank Tracker and Indicators are next.
+  setting on General, Party and Raid, Unit Frames, Pet Frames, Nicknames,
+  Click Casting and Profiles: pick a result and the page (and the right
+  tab or section) opens, scrolls to it
+  and flashes it. Tank Tracker and Indicators are next.
 - Theme (General page): SquizzFrames now shares Squizzumables' theme -
   Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal. One choice
   covers both addons. Until you pick one, the accent stays class coloured,

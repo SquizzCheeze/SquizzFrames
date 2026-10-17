@@ -200,6 +200,19 @@ function lib:IndexSection(frame, title)
     if page then page.lastSection = Clean(title) end
 end
 
+--- For a page that builds ONE of its sections at a time: call before building
+--- a section. Controls made after it are filed under `key` (which also dedupes:
+--- a control with the same key, section and label is one entry), shown under
+--- `label` in results, and picking one calls the page spec's select(scope)
+--- to bring that section back before scrolling to the control. Such a page
+--- also gives indexAll(), which the window calls once to build every section.
+function lib:SetIndexScope(frame, key, label, scope)
+    local page = OwningPage(frame)
+    if not page then return end
+    page.scopeKey, page.scopeLabel, page.scope = key, Clean(label), scope
+    page.lastSection = nil
+end
+
 --- A control on a page: searchable by its label (and tip), and the result
 --- scrolls the page to it.
 function lib:IndexControl(frame, label, tip)
@@ -208,16 +221,23 @@ function lib:IndexControl(frame, label, tip)
     local page = OwningPage(frame)
     if not page or page.autoIndex == false then return end
     page.controls = page.controls or {}
-    local key = (page.lastSection or "") .. "\0" .. label
+    local key = (page.scopeKey or "") .. "\0" .. (page.lastSection or "") .. "\0" .. label
     local e = page.controls[key]
     if e then
         e.frame = frame
         return
     end
-    e = { label = label, tip = Clean(tip), page = page.key, path = page.lastSection, frame = frame }
-    -- A frame later: the page was just shown and resized, and the scroll
-    -- range only catches up once the client has laid it out.
+    local path = page.lastSection
+    if page.scopeLabel then
+        path = page.scopeLabel .. (path and (" > " .. path) or "")
+    end
+    e = { label = label, tip = Clean(tip), page = page.key, path = path, frame = frame,
+          scope = page.scope }
+    -- A frame later: the page was just shown (and its section rebuilt, which
+    -- re-points e.frame), and the scroll range only catches up once the
+    -- client has laid it out.
     e.onSelect = function(win)
+        if e.scope ~= nil and page.select then page.select(e.scope) end
         if win then C_Timer.After(0, function() win:RevealControl(e.frame) end) end
     end
     page.controls[key] = e
@@ -763,6 +783,7 @@ function Window:BuildAllPages()
                         self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
                     end
                     self:BuildPage(page, host)
+                    if page.indexAll then page.indexAll(page.frame) end
                 end
             end
         end

@@ -619,7 +619,12 @@ dropdown, colour picker -- each calls `Shell:IndexControl`, and `CreateTitledPan
 calls `Shell:IndexSection` to name the section; the owning page is found by
 walking parents, so rebuilds re-point entries instead of duplicating them;
 windows build every page hidden on first open so unvisited pages are found),
-except on pages registered `autoIndex = false` (Unit Frames, Tank Tracker,
+except on pages registered `autoIndex = false`. A page that builds ONE section at
+a time (Unit Frames) calls `Shell:SetIndexScope(frame, key, label, scope)` before
+each section and gives `select(scope)` + `indexAll()` in its page spec; the
+window calls indexAll once on first open (see `UnitFramesPanel.IndexAll` for
+how to keep that cheap -- every build leaks frames), and a result calls
+select before scrolling. Still opted out: (Tank Tracker,
 Indicators: they build one section at a time), plus whatever `Shell:AddSearchEntry(addonId,
 {label, tip, page, path, onSelect})` adds -- step 3 of phase 3 fills that per
 page. The window keeps the global name `SquizzFramesOptionsFrame`

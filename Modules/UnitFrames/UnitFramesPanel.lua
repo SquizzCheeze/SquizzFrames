@@ -2292,6 +2292,39 @@ local function BuildFields(frame)
         activeSection = "general"
     end
 
+    -- Search (2.0): this page only builds the section on screen, so tell the
+    -- options window which one this is, and how to get back to it. The key
+    -- leaves the unit out, so a setting every unit tab has is ONE result
+    -- (opening it on whichever tab indexed it first -- Player, see IndexAll).
+    local Shell = LibStub and LibStub("LibSquizzShell-1.0", true)
+    if Shell then
+        local key, label = activeSection, nil
+        for _, sec in ipairs(SECTIONS) do
+            if sec.key == activeSection then label = sec.label end
+        end
+        local subTabs, subKey = nil, nil
+        if activeSection == "indicators" then
+            subTabs, subKey = INDICATOR_TABS, activeIndicatorTab
+        elseif activeSection == "resource" and Panel.GetResourceTab then
+            subTabs, subKey = Panel.RESOURCE_TABS, Panel.GetResourceTab()
+        end
+        for _, tab in ipairs(subTabs or {}) do
+            if tab.key == subKey then
+                key = key .. ":" .. subKey
+                label = (label or "") .. " > " .. tab.label
+            end
+        end
+        local unitLabel = activeUnit
+        for _, tab in ipairs(UNIT_TABS) do
+            if tab.key == activeUnit then unitLabel = tab.label end
+        end
+        if activeSection ~= "resource" then label = unitLabel .. " > " .. (label or "") end
+        Shell:SetIndexScope(frame, key, label, {
+            unit = activeUnit, section = activeSection,
+            tab = activeIndicatorTab, resourceTab = Panel.GetResourceTab and Panel.GetResourceTab(),
+        })
+    end
+
     for _, sec in ipairs(SECTIONS) do
         if sec.key == activeSection then
             sec.build(host, -10, cfg, t)
@@ -2530,4 +2563,58 @@ end
 -- same as any other section rebuild; a no-op before Panel.Build has run.
 function Panel.Rebuild()
     if rebuildFields then rebuildFields() end
+end
+
+-- Search (2.0). Select: bring back the unit tab, section and sub-tab a search
+-- result was indexed under, then rebuild, which re-points the result at the
+-- fresh control for the window to scroll to.
+function Panel.Select(scope)
+    if type(scope) ~= "table" then return end
+    activeUnit = scope.unit or activeUnit
+    activeSection = scope.section or activeSection
+    if scope.tab then activeIndicatorTab = scope.tab end
+    if scope.resourceTab and Panel.SetResourceTab then Panel.SetResourceTab(scope.resourceTab) end
+    if rebuildFields then rebuildFields() end
+end
+
+-- IndexAll: build every section once, out of sight, so search knows them all;
+-- called once by the window on first open. Player covers every section; Boss
+-- and Arena add only what is theirs alone (their stack controls), and only the
+-- sections those live in, because every build makes frames the game never
+-- frees. The state the player left is restored afterwards.
+local INDEX_PLAN = {
+    { unit = "player" },
+    { unit = "boss",  sections = { general = true, frame = true, position = true } },
+    { unit = "arena", sections = { general = true, frame = true, position = true } },
+}
+function Panel.IndexAll()
+    if not rebuildFields then return end
+    local saved = { activeUnit, activeSection, activeIndicatorTab,
+                    Panel.GetResourceTab and Panel.GetResourceTab() }
+    for _, plan in ipairs(INDEX_PLAN) do
+        activeUnit = plan.unit
+        for _, sec in ipairs(SECTIONS) do
+            if not plan.sections or plan.sections[sec.key] then
+                activeSection = sec.key
+                if sec.key == "indicators" then
+                    for _, tab in ipairs(INDICATOR_TABS) do
+                        activeIndicatorTab = tab.key
+                        rebuildFields()
+                    end
+                elseif sec.key == "resource" and Panel.RESOURCE_TABS then
+                    if plan.unit == "player" then
+                        for _, tab in ipairs(Panel.RESOURCE_TABS) do
+                            Panel.SetResourceTab(tab.key)
+                            rebuildFields()
+                        end
+                    end
+                else
+                    rebuildFields()
+                end
+            end
+        end
+    end
+    activeUnit, activeSection, activeIndicatorTab = saved[1], saved[2], saved[3]
+    if saved[4] and Panel.SetResourceTab then Panel.SetResourceTab(saved[4]) end
+    rebuildFields()
 end
