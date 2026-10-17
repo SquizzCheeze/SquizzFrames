@@ -129,6 +129,9 @@ local function Button(parent, label, width, height)
         self:SetBackdropColor(RGBA("controlHi"))
     end)
     b:SetScript("OnLeave", function(self) self:SetActive(self.active) end)
+    -- The label is our own FontString, so a caller's SetText (Squizzumables'
+    -- "Unlock Frames" / "Lock Frames") is routed to it.
+    function b:SetText(t) self.text:SetText(t or "") end
     return b
 end
 
@@ -440,6 +443,18 @@ function Window:Search(query)
     local strong, mid, weak = {}, {}, {}
     for _, addonId in ipairs(self.opts.addons or {}) do
         local spec = lib.addons[addonId]
+        -- An addon with its own search (Squizzumables: fuzzy, sub-tab aware)
+        -- answers for itself: spec.search(query) returns entries { label,
+        -- path, page, onSelect(win) }, ranked already, ahead of the rest.
+        if spec and spec.search then
+            local ok, list = pcall(spec.search, query)
+            for _, r in ipairs(ok and list or {}) do
+                if r.page and spec.pageByKey[r.page] then
+                    strong[#strong + 1] = { addon = addonId, page = r.page, label = r.label,
+                        path = r.path or spec.pageByKey[r.page].label, onSelect = r.onSelect }
+                end
+            end
+        end
         if spec then
             for _, group in ipairs(spec.groups or {}) do
                 for _, page in ipairs(group.pages or {}) do
@@ -650,6 +665,7 @@ function Window:BuildContent()
     colHost:SetPoint("TOPLEFT", 0, -40)
     colHost:SetPoint("BOTTOMRIGHT")
     self.previewCol, self.previewHost = col, colHost
+    self.previewTitle, self.previewSub = colTitle, colSub
 
     local main = CreateFrame("Frame", nil, body)
     main:SetPoint("TOPLEFT")
@@ -798,7 +814,7 @@ function Window:ShowPage(id)
     self:HighlightRow(page.addon .. ":" .. page.key)
     self:ScrollToTop()
     if page.onShow then page.onShow(page.frame) end
-    if self.opts.onShowPage then self.opts.onShowPage(page.key, page.addon) end
+    if self.opts.onShowPage then self.opts.onShowPage(page.key, page.addon, page) end
 end
 
 -- Show `page`'s preview in the column (building it the first time), or hide
@@ -818,6 +834,14 @@ function Window:ApplyPreview(page)
     local w = self.opts.previewWidth or 250
     self.main:SetPoint("BOTTOMRIGHT", self.body, "BOTTOMRIGHT", -(w + 6), 0)
     self.previewCol:Show()
+    -- previewTitle = false: the page draws its own heading (Squizzumables'
+    -- PreviewColumn), so ours steps aside and the host takes the whole column.
+    local titled = page.previewTitle ~= false
+    self.previewTitle:SetShown(titled)
+    self.previewSub:SetShown(titled)
+    self.previewHost:ClearAllPoints()
+    self.previewHost:SetPoint("TOPLEFT", self.previewCol, "TOPLEFT", 0, titled and -40 or 0)
+    self.previewHost:SetPoint("BOTTOMRIGHT", self.previewCol, "BOTTOMRIGHT")
     local pf = page.previewFrame
     if not pf then
         pf = CreateFrame("Frame", nil, self.previewHost)
@@ -855,26 +879,35 @@ end
 --- Build every page this window shows that has not been built yet, hidden,
 --- so search can find settings on pages nobody has opened. 1.x built every
 --- page on first open anyway, so this costs what it always did.
-function Window:BuildAllPages()
+function Window:BuildAllPages(order)
+    -- `order` (optional): "addon:key" ids to build FIRST, in that order --
+    -- Squizzumables' builders lean on each other in an order that is not the
+    -- sidebar's. Everything else follows in sidebar order.
+    local pages = {}
+    for _, id in ipairs(order or {}) do
+        local p = self:FindPage(id)
+        if p then pages[#pages + 1] = p end
+    end
     for _, addonId in ipairs(self.opts.addons or {}) do
         local spec = lib.addons[addonId]
         for _, group in ipairs(spec and spec.groups or {}) do
-            for _, page in ipairs(group.pages or {}) do
-                if not page.frame then
-                    local host = page.layout == "fill" and self.fillHost or self.scrollChild
-                    -- At the width the page will really have: with its preview
-                    -- column up, if it has one. Built at full width, text sized
-                    -- from the host's width ran under the column and was cut
-                    -- off (Unit Frames' notes, user screenshot 2026-10-17).
-                    self:ApplyPreview(page)
-                    if page.layout ~= "fill" then
-                        local h = math.max(page.height or 400, self.scrollFrame:GetHeight())
-                        self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
-                    end
-                    self:BuildPage(page, host)
-                    if page.indexAll then page.indexAll(page.frame) end
-                end
+            for _, page in ipairs(group.pages or {}) do pages[#pages + 1] = page end
+        end
+    end
+    for _, page in ipairs(pages) do
+        if not page.frame then
+            local host = page.layout == "fill" and self.fillHost or self.scrollChild
+            -- At the width the page will really have: with its preview
+            -- column up, if it has one. Built at full width, text sized
+            -- from the host's width ran under the column and was cut
+            -- off (Unit Frames' notes, user screenshot 2026-10-17).
+            self:ApplyPreview(page)
+            if page.layout ~= "fill" then
+                local h = math.max(page.height or 400, self.scrollFrame:GetHeight())
+                self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
             end
+            self:BuildPage(page, host)
+            if page.indexAll then page.indexAll(page.frame) end
         end
     end
     -- Leave the column as the page actually on screen wants it (none yet on
@@ -924,6 +957,12 @@ function Window:RevealControl(frame)
     fl:Show()
     fl.ag:Stop()
     fl.ag:Play()
+end
+
+--- Repaint what follows the accent (the selected sidebar row, the title
+--- line). For a theme change, or each tick of Rainbow.
+function Window:RefreshAccent()
+    if self.current then self:HighlightRow(self.current.addon .. ":" .. self.current.key) end
 end
 
 function Window:ScrollToTop()
