@@ -33,6 +33,9 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.0.1"] = {
+        "With Squizzumables, a resource bar or cast bar attached to a Cooldown Manager row no longer loads in the wrong place and jumps into position after login or /reload.",
+    },
     ["2.0"] = {
         "A new options window, shared with Squizzumables: the theme's colours, a search box that finds any setting, and live previews down the right.",
         "One theme for both addons: Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal (General page).",
