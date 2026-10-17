@@ -624,8 +624,8 @@ a time (Unit Frames) calls `Shell:SetIndexScope(frame, key, label, scope)` befor
 each section and gives `select(scope)` + `indexAll()` in its page spec; the
 window calls indexAll once on first open (see `UnitFramesPanel.IndexAll` for
 how to keep that cheap -- every build leaks frames), and a result calls
-select before scrolling. Still opted out: (Tank Tracker,
-Indicators: they build one section at a time), plus whatever `Shell:AddSearchEntry(addonId,
+select before scrolling. Tank Tracker does the same per tab. Still opted out:
+Indicators (one indicator's settings at a time). Plus whatever `Shell:AddSearchEntry(addonId,
 {label, tip, page, path, onSelect})` adds -- step 3 of phase 3 fills that per
 page. The window keeps the global name `SquizzFramesOptionsFrame`
 (GroupPreview anchors to it and hooks its OnHide) and

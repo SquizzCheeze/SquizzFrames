@@ -182,7 +182,10 @@ local function CreateOptionsFrame()
             Page("nicknames", "Nicknames", "Names shown in place of players' own", Pages.nicknames),
         } },
         { label = "Tools", pages = {
-            Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker, { autoIndex = false }),
+            Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker, {
+                select = function(scope) SquizzFrames.TankTrackerPanel.Select(scope) end,
+                indexAll = function() SquizzFrames.TankTrackerPanel.IndexAll() end,
+            }),
             Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
                 onShow = function(frame)
                     if frame.RebuildClickCasting then frame:RebuildClickCasting() end

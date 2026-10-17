@@ -541,6 +541,17 @@ local function BuildFields(frame)
 
     local y = headerPinned and -10 or -(HEADER_HEIGHT + 10)
 
+    -- Search (2.0): only the tab on screen is built, so tell the options
+    -- window which one this is; Panel.Select brings it back for a result.
+    local Shell = LibStub and LibStub("LibSquizzShell-1.0", true)
+    if Shell then
+        local label = activeTab
+        for _, tab in ipairs(TABS) do
+            if tab.key == activeTab then label = tab.label end
+        end
+        Shell:SetIndexScope(frame, activeTab, label, { tab = activeTab })
+    end
+
     if activeTab == "general" then
         BuildGeneral(host, y)
         return
@@ -712,4 +723,25 @@ function Panel.Build(frame)
     end
     rebuildFields()
     frame:HookScript("OnShow", function() rebuildFields() end)
+end
+
+-- Search (2.0): reopen the tab a result was indexed under (the rebuild
+-- re-points the result at the fresh control), and build each tab once so
+-- search knows them all. Debuffs and Defensives only have settings to index
+-- while the tracker is on; the tab the player left is restored afterwards.
+function Panel.Select(scope)
+    if type(scope) ~= "table" or not scope.tab then return end
+    activeTab = scope.tab
+    if rebuildFields then rebuildFields() end
+end
+
+function Panel.IndexAll()
+    if not rebuildFields then return end
+    local saved = activeTab
+    for _, tab in ipairs(TABS) do
+        activeTab = tab.key
+        rebuildFields()
+    end
+    activeTab = saved
+    rebuildFields()
 end
