@@ -7,6 +7,9 @@ V2.0
 
 New:
 
+- The Status Icon (ready check, AFK, dead, offline, summon and the rest)
+  no longer fades with out-of-range players, the same as the Status Text.
+  It still follows the Frame Opacity sliders.
 - A new options window, the same as Squizzumables': the theme's colours,
   a search box in the title bar, and the pages in four groups - Frames
   (Party and Raid, Unit Frames, Pet Frames), On the Frames (Indicators,

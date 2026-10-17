@@ -502,10 +502,22 @@ end
 -- the range poll, the range reset and ApplyOpacity: every place either alpha
 -- changes.
 local function SyncStatusTextAlpha(button)
-    local fs = button and button.statusText
-    if not (fs and fs.SetIgnoreParentAlpha) then return end
+    if not button then return end
     local partyFrame = GetPartyFrame()
     local a = partyFrame and partyFrame:GetEffectiveAlpha() or 1
+
+    -- The Status Icon (ready check, AFK, dead, offline, summon...) gets the
+    -- same treatment (user request 2026-10-17): it is the other thing you
+    -- need to read on a faded frame. It has no opacity setting of its own to
+    -- overwrite. A rebuilt indicator picks this up on the next range poll.
+    local icon = button.indicators and button.indicators.statusIcon
+    if icon and icon.SetIgnoreParentAlpha then
+        icon:SetIgnoreParentAlpha(true)
+        icon:SetAlpha(a)
+    end
+
+    local fs = button.statusText
+    if not (fs and fs.SetIgnoreParentAlpha) then return end
     fs:SetIgnoreParentAlpha(true)
     fs:SetAlpha(a)
     local bg = fs._sfBG

@@ -840,7 +840,7 @@ beats losing the name*.
   to answer the BUTTON, so a sibling made there sits under the shield overlay (hit 2026-10-05).
 - **Don't Fade Dead Players** (`appearance.general.keepDeadUndimmed`, Layout page, default off):
   `UpdateRangeAlpha` gives a dead/ghost unit alpha 1 the same way it does the player's own frame.
-- **Status Text ignores range fade** (`SyncStatusTextAlpha`, user request): the FontString and its `_sfBG`
+- **Status Text AND Status Icon ignore range fade** (`SyncStatusTextAlpha`, user requests 2026-10-04 / 2026-10-17; the icon is `button.indicators.statusIcon`): the FontString and its `_sfBG`
   `SetIgnoreParentAlpha(true)` and take `partyFrame:GetEffectiveAlpha()` -- the CONTAINER's alpha, so the
   blanket Frame Opacity still applies (ignoring all alpha would leave text floating over faded-out
   frames). Re-synced wherever either alpha changes: the range poll, ResetRangeAlpha and
