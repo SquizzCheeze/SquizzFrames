@@ -603,9 +603,11 @@ phase 3, when the window is rebuilt on the shared shell. The old
 
 ### Options window (Libs/LibSquizzShell-1.0) -- 2.0 phase 3
 
-The window is a library meant to be shared with Squizzumables (a copy in each,
-change both + bump `MINOR`; Squizzumables only takes its copy when it moves
-onto it, at the end of phase 3). Addons and windows are separate:
+The window is a library SHARED with Squizzumables since 2026-10-17: a
+byte-identical copy in each addon -- ⚠ change both and bump `MINOR` from now
+on (it is MINOR 1 in both). Squizzumables registers its pages as "fill" pages
+with its own search (`spec.search`), own preview headings (`previewTitle =
+false`) and a build order (`BuildAllPages(order)`). Addons and windows are separate:
 `Shell:RegisterAddon(id, {title, groups = {{label, pages = {...}}}})` registers
 pages; `Shell:CreateWindow({name, addons = {...}, buttons, onHide, onShowPage})`
 shows one or more addons. A page is built ONCE (`build(host)`, lazily, on first
