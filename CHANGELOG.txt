@@ -27,6 +27,8 @@ New:
   raid, so you can place them without a group. A Party / Raid toggle
   above them switches between the two, and they have the same box, name,
   click-to-select and arrow-key nudging (Shift for 10px) as Squizzumables.
+  So do the unit frames (player, target, target of target, focus, focus
+  target, and the boss and arena stacks).
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on
   SquizzFrames' Edit Mode too, and closing it turns it off again (unless
   you had turned it on yourself). Untick Follow Blizzard's Edit Mode on

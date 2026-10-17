@@ -1036,6 +1036,12 @@ local function CreateMover(unit)
     return mover
 end
 
+-- Names shown above each frame's Edit Mode box (a stack by its key).
+local MOVER_NAMES = {
+    player = "Player", target = "Target", targettarget = "Target of Target",
+    focus = "Focus", focustarget = "Focus Target", boss = "Boss Frames", arena = "Arena Frames",
+}
+
 function UnitFrames:SetEditMode(enabled)
     local CB = SquizzFrames.UnitFrameCastBar
     for _, unit in ipairs(ALL_UNITS) do
@@ -1059,7 +1065,8 @@ function UnitFrames:SetEditMode(enabled)
                 -- it for one watcher tick and snap it straight back.
                 local idx = StackIndex(unit)
                 local attached = IsAttached(unit)
-                mover:EnableMouse((idx == nil or idx == 1) and not attached)
+                local draggable = (idx == nil or idx == 1) and not attached
+                mover:EnableMouse(draggable)
                 if attached then
                     mover.border:SetColorTexture(0.45, 0.45, 0.5, 0.30)
                     mover.label:SetText(unit .. " (attached)")
@@ -1068,8 +1075,38 @@ function UnitFrames:SetEditMode(enabled)
                     mover.label:SetText(unit)
                 end
                 mover:Show()
+                -- 2.0: the shared mover look (Grid/EditMover.lua), the same box
+                -- as Squizzumables'. It replaces this mover's own tint and
+                -- label. A stack's later frames get a box with no name (they
+                -- follow the first); an attached frame gets its name and
+                -- "(attached)" but no nudge -- its position is its target's.
+                local EM = SquizzFrames.EditMover
+                if EM then
+                    mover.border:Hide()
+                    mover.label:Hide()
+                    local name = (idx and idx > 1) and ""
+                        or ((MOVER_NAMES[StackKey(unit) or unit] or unit) .. (attached and " (attached)" or ""))
+                    EM.Show(mover, name, {
+                        nudge = draggable and function(dx, dy)
+                            if InCombatLockdown() then return end
+                            local t = GetFrameConfig(unit)
+                            if not t then return end
+                            t.anchorX = (t.anchorX or 0) + dx
+                            t.anchorY = (t.anchorY or 0) + dy
+                            -- Mirrored partner, as the drag saves it.
+                            local partner = MirrorPartnerFor(unit)
+                            local pt = partner and GetFrameConfig(partner)
+                            if pt then
+                                pt.anchorX = -t.anchorX
+                                pt.anchorY = t.anchorY
+                            end
+                            ApplyLayout()
+                        end or nil,
+                    })
+                end
             else
                 mover:Hide()
+                if SquizzFrames.EditMover then SquizzFrames.EditMover.Hide(mover) end
             end
         end
         -- Detached cast bars get their own handle. CastBar.SetEditMode does
