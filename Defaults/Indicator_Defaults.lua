@@ -611,18 +611,6 @@ function SquizzFrames.GetDefaultCustomIndicatorTable(name, indicatorName, type, 
             maxValue = {false, 10, true},
             glowOptions = {"None", {0.95, 0.95, 0.32, 1}},
         }
-    elseif type == "bars" then
-        t = {
-            name = name, indicatorName = indicatorName, type = type,
-            enabled = true, auraType = auraType, auras = {},
-            position = {"TOPRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = 5,
-            size = {18, 4}, num = 3, numPerLine = 3,
-            orientation = "top-to-bottom", spacing = {-1, -1},
-            font = defaultFont,
-            showStack = false, showDuration = false,
-            maxValue = {false, 10, true},
-            glowOptions = {"None", {0.95, 0.95, 0.32, 1}},
-        }
     elseif type == "rect" then
         t = {
             name = name, indicatorName = indicatorName, type = type,
@@ -666,14 +654,6 @@ function SquizzFrames.GetDefaultCustomIndicatorTable(name, indicatorName, type, 
             expiringThreshold = 5,
             expiringColor = {"custom_color", 1, 0, 0, 1},
         }
-    elseif type == "texture" then
-        t = {
-            name = name, indicatorName = indicatorName, type = type,
-            enabled = true, auraType = auraType, auras = {},
-            position = {"TOP", "button", "TOP", 0, 0}, size = {16, 16}, frameLevel = 10,
-            texture = {"Interface\\AddOns\\SquizzFrames\\Media\\Textures\\circle.tga", 0, {1, 1, 1, 1}},
-            fadeOut = true,
-        }
     elseif type == "glow" then
         t = {
             name = name, indicatorName = indicatorName, type = type,
@@ -681,36 +661,6 @@ function SquizzFrames.GetDefaultCustomIndicatorTable(name, indicatorName, type, 
             frameLevel = 1,
             glowOptions = {"Pixel", {0.95, 0.95, 0.32, 1}, 9, 0.25, 8, 2},
             fadeOut = true,
-        }
-    elseif type == "overlay" then
-        t = {
-            name = name, indicatorName = indicatorName, type = type,
-            enabled = true, auraType = auraType, auras = {},
-            smooth = false, frameLevel = 1,
-            colors = {{0, 0.61, 1, 0.55}, {false, 0.5, {1, 1, 0, 0.5}}, {false, 3, {1, 0, 0, 0.5}}},
-            orientation = "horizontal",
-        }
-    elseif type == "block" then
-        t = {
-            name = name, indicatorName = indicatorName, type = type,
-            enabled = true, auraType = auraType, auras = {},
-            position = {"TOPRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = 5,
-            size = {10, 10},
-            colors = {"duration", {0, 1, 0, 1}, {false, 0.5, {1, 1, 0, 1}}, {false, 3, {1, 0, 0, 1}}, {0, 0, 0, 1}},
-            font = defaultFont,
-            showStack = false, showDuration = false,
-            glowOptions = {"None", {0.95, 0.95, 0.32, 1}},
-        }
-    elseif type == "blocks" then
-        t = {
-            name = name, indicatorName = indicatorName, type = type,
-            enabled = true, auraType = auraType, auras = {},
-            position = {"TOPRIGHT", "button", "TOPRIGHT", 0, 0}, frameLevel = 5,
-            size = {10, 10}, num = 5, numPerLine = 5,
-            orientation = "right-to-left", spacing = {-1, -1},
-            font = defaultFont,
-            showStack = false, showDuration = false,
-            glowOptions = {"None", {0.95, 0.95, 0.32, 1}},
         }
     elseif type == "border" then
         t = {

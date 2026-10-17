@@ -187,8 +187,6 @@ local TOKEN_HEIGHTS = {
     ["glow"] = 34,
     ["targetedSpellsGlow"] = 58,
     ["customColors"] = 58,
-    ["overlayColors"] = 58,
-    ["blockColors"] = 58,
     ["colors"] = 58,
     ["vehicleNamePosition"] = 75,
     ["statusPosition"] = 58,
@@ -215,7 +213,6 @@ local TOKEN_HEIGHTS = {
     ["stack"] = 38,
     ["roleTexture"] = 34,
     ["highlightType"] = 34,
-    ["texture"] = 34,
     ["barTexture"] = 34,
     ["builtInExternals"] = 280,
     ["builtInDefensives"] = 280,
@@ -1094,15 +1091,6 @@ ShowSettings = function(name)
             w:SetDBValue(t.highlightType or "none")
             w:SetFunc(function(ht) SetField(t, "highlightType", ht) end)
 
-        -- Texture
-        elseif n == "texture" then
-            local default = t.texture or {"circle", 0, {1, 1, 1, 1}}
-            w:SetDBValue(default)
-            w:SetFunc(function(tex)
-                t.texture = tex
-                FireUpdate(t.indicatorName, "texture", tex)
-            end)
-
         -- Shield Overlay / Heal Absorb fill texture (LSM statusbar name)
         elseif n == "barTexture" then
             w:SetDBValue(t.barTexture)
@@ -1186,11 +1174,8 @@ ShowSettings = function(name)
             w:SetFunc(function(sc) t.statusColors = sc; FireUpdate(t.indicatorName, "statusColors", sc) end)
 
         -- Number colors list
-        elseif n == "colors" or n == "blockColors" or n == "overlayColors" or n == "customColors" then
-            local key = (n == "blockColors") and "blockColors"
-                or (n == "overlayColors") and "overlayColors"
-                or (n == "customColors") and "customColors"
-                or "colors"
+        elseif n == "colors" or n == "customColors" then
+            local key = (n == "customColors") and "customColors" or "colors"
             local default = t[key] or {{0, 1, 0, 1}}
             w:SetDBValue(default)
             -- CreateSetting_Colors' picker now passes (r,g,b,a) directly

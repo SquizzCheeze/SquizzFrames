@@ -5,8 +5,8 @@
 --   * enabledIndicators & customIndicators tables for fast aura dispatch.
 --   * UpdateIndicatorTable(t) — rebuilds a custom indicator's aura lookup.
 --   * CreateCustomIndicatorFrame(button, t) — creates the frame for a type
---     (icon, icons, text, bar, bars, rect, color, texture, glow, overlay,
---     block, blocks, border).
+--     (icon, icons, text, bar, rect, color, glow, border; texture, overlay,
+--     block, blocks and bars were removed in 2.0, see Core.lua's MigrateRetiredCustomTypes).
 --   * Scan(button) — called on UNIT_AURA; feeds found auras to the dispatcher.
 --   * Show(button, auraType) — sorts found auras and calls SetCooldown.
 --   * Reset(button, auraType) — clears found auras and hides indicators.
@@ -131,9 +131,6 @@ function CD.UpdateIndicatorTable(t, context)
     end
 
     if t.type == "icon" or t.type == "icons" then
-        entry.found = {}
-        entry.num = t.num or 1
-    elseif t.type == "bars" or t.type == "blocks" then
         entry.found = {}
         entry.num = t.num or 1
     elseif t.type == "border" then
@@ -702,7 +699,7 @@ local function CreateBorderFrame(parent)
     return f
 end
 
--- Grid of icon frames (for icons, bars, blocks types).
+-- Grid of icon frames (for the icons type).
 local function CreateGridFrame(parent, maxSlots)
     maxSlots = maxSlots or 10
     local f = CreateFrame("Frame", nil, parent)
@@ -770,22 +767,12 @@ function CD.CreateCustomIndicatorFrame(button, t)
         indicator = CreateTextFrame(parent)
     elseif indicatorType == "bar" then
         indicator = CreateBarFrame(parent)
-    elseif indicatorType == "bars" then
-        indicator = CreateGridFrame(parent, (t.num or 3))
     elseif indicatorType == "rect" then
         indicator = CreateRectFrame(parent)
     elseif indicatorType == "color" then
         indicator = CreateColorOverlay(parent, t)
-    elseif indicatorType == "texture" then
-        indicator = CreateIconFrame(parent) -- simplified: same as icon
     elseif indicatorType == "glow" then
         indicator = CreateGlowFrame(parent)
-    elseif indicatorType == "overlay" then
-        indicator = CreateBarFrame(parent) -- simplified: bar on healthBar
-    elseif indicatorType == "block" then
-        indicator = CreateRectFrame(parent) -- simplified: same as rect
-    elseif indicatorType == "blocks" then
-        indicator = CreateGridFrame(parent, (t.num or 5))
     elseif indicatorType == "border" then
         indicator = CreateBorderFrame(parent)
     else
@@ -842,7 +829,7 @@ end
 -- ------------------------------------------------------------------
 local function UpdateIndicator(indicator, entry, unit, spell, start, duration, debuffType, icon, count, refreshing, realSpellId, auraInstanceID)
     if entry.found then
-        -- Multi-slot (icons/bars/blocks/icon).
+        -- Multi-slot (icons/icon).
         if not entry.found[unit] then entry.found[unit] = {} end
         tinsert(entry.found[unit], { entry.auraOrder[spell] or 999, start, duration, debuffType, icon, count, refreshing, realSpellId, auraInstanceID })
     else
@@ -1066,8 +1053,8 @@ function CD.ShowCustomIndicators(button, auraType)
                     sort(t, comparator)
                     -- Branch on the FRAME's shape, not on entry.found.
                     --
-                    -- entry.found is set for "icon" as well as icons/bars/
-                    -- blocks (see the type check in CD.Rebuild), but a single
+                    -- entry.found is set for "icon" as well as "icons"
+                    -- (see the type check in CD.Rebuild), but a single
                     -- "icon" gets a plain CreateIconFrame, whose SetCooldown
                     -- signature has NO leading slot index. Feeding it the
                     -- multi-slot call shifted every argument by one:
@@ -1181,7 +1168,7 @@ function CD.InitPreview(button)
                     local firstAura = entry._auras and entry._auras[1]
                     local icon = (type(firstAura) == "number" and F.GetSpellIcon(firstAura))
                         or [[Interface\Icons\INV_Misc_QuestionMark]]
-                    -- Grid types (icons/bars/blocks): fill every configured
+                    -- Grid types (icons): fill every configured
                     -- slot (up to entry.num, the indicator's max-icons
                     -- setting) with the same representative icon, so the
                     -- preview communicates "this many icons can show" instead

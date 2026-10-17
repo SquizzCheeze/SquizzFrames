@@ -79,14 +79,9 @@ IndicatorDefaults.CUSTOM_TYPES_ALL = {
     { value = "icons",   text = "Icons" },
     { value = "text",    text = "Text" },
     { value = "bar",     text = "Bar" },
-    { value = "bars",    text = "Bars" },
     { value = "rect",    text = "Rect" },
     { value = "color",   text = "Color" },
-    { value = "texture", text = "Texture" },
     { value = "glow",    text = "Glow" },
-    { value = "overlay", text = "Overlay" },
-    { value = "block",   text = "Block" },
-    { value = "blocks",  text = "Blocks" },
     { value = "border",  text = "Border" },
 }
 
@@ -215,14 +210,9 @@ IndicatorDefaults.CUSTOM_SETTINGS = {
     icons   = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "checkbutton4:showAnimation", "glowOptions", "size-square", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     text    = {"enabled", "auras", "duration", "stack", "colors", "position-single", "frameLevel", "font-noOffset"},
     bar     = {"enabled", "auras", "maxValue", "colors", "checkbutton3:showStack", "durationVisibility", "barOrientation", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    bars    = {"enabled", "auras", "maxValue", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     rect    = {"enabled", "auras", "colors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     color   = {"enabled", "auras", "customColors", "expiringColor", "anchor", "frameLevel:50"},
-    texture = {"enabled", "checkbutton3:fadeOut", "auras", "texture", "size", "position-single", "frameLevel"},
     glow    = {"enabled", "checkbutton3:fadeOut", "auras", "glowOptions", "frameLevel"},
-    overlay = {"enabled", "auras", "overlayColors", "checkbutton3:smooth", "barOrientation", "frameLevel:50"},
-    block   = {"enabled", "auras", "blockColors", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
-    blocks  = {"enabled", "auras", "checkbutton3:showStack", "durationVisibility", "glowOptions", "size", "num:10", "numPerLine:10", "spacing", "orientation", "position-single", "frameLevel", "font1:stackFont", "font2:durationFont"},
     border  = {"enabled", "checkbutton3:fadeOut", "auras", "thickness", "frameLevel:50"},
 }
 

@@ -1127,7 +1127,7 @@ local function ApplySettingToOne(button, name, setting, value, value2)
     elseif setting == "spacing" and indicator.SetSpacing then
         indicator:SetSpacing(value)
         if RefreshHighlightSize then RefreshHighlightSize(name) end
-    elseif setting == "auras" or setting == "customColors" or setting == "blockColors" or setting == "overlayColors" or setting == "anchor" then
+    elseif setting == "auras" or setting == "customColors" or setting == "anchor" then
         -- Custom-indicator aura list or per-type color list changed.
         -- Custom_Dispatch's per-indicator "entry" (built by UpdateIndicatorTable)
         -- caches these at rebuild time -- e.g. the "color" type's entry.color is

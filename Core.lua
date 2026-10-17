@@ -801,6 +801,42 @@ local function MigrateRemovedPrivateAuras(profile, listKey)
     end
 end
 
+-- Five custom indicator types were removed in 2.0 (user decision 2026-10-17):
+-- each was a stand-in that drew as another type and ignored the settings that
+-- made it different. Hidden from the Create dropdown since 2026-08-14, but a
+-- profile can still hold one from before that. Convert each to the type it was
+-- actually drawing, so nothing on screen changes, and fill any field the new
+-- type needs from its defaults without overwriting what the entry already has.
+-- Safe to re-run: a converted entry no longer matches.
+local RETIRED_CUSTOM_TYPES = {
+    texture = "icon",    -- drew with the Icon frame (the aura's own icon)
+    overlay = "bar",     -- drew with the Bar frame
+    block   = "rect",    -- drew with the Rect frame
+    blocks  = "icons",   -- drew a row of icons
+    bars    = "icons",   -- drew a row of icons, not bars
+}
+local function MigrateRetiredCustomTypes(profile, listKey)
+    listKey = listKey or "indicators"
+    if not profile or not profile.layout or not profile.layout[listKey] then return end
+    for _, ind in ipairs(profile.layout[listKey]) do
+        local newType = ind.type and RETIRED_CUSTOM_TYPES[ind.type]
+        if newType then
+            local defaults = SquizzFrames.GetDefaultCustomIndicatorTable
+                and SquizzFrames.GetDefaultCustomIndicatorTable(ind.name, ind.indicatorName, newType, ind.auraType)
+            if defaults then
+                for k, v in pairs(defaults) do
+                    if ind[k] == nil then
+                        ind[k] = (type(v) == "table" and F.CopyTable) and F.CopyTable(v) or v
+                    end
+                end
+            end
+            MigrationPrint("converted custom indicator '" .. tostring(ind.name) .. "' from "
+                .. ind.type .. " to " .. newType .. " (" .. listKey .. ")")
+            ind.type = newType
+        end
+    end
+end
+
 -- Carry the old Dispels icon settings onto the new Dispel Icons indicator
 -- (split 2026-08-13).
 --
@@ -1104,6 +1140,7 @@ local function EnsureIndicatorLists(profile)
         MigrateAggroBlinkMarker(profile, listKey)
         MigrateCooldownIconSquare(profile, listKey)
         MigrateRemovedPrivateAuras(profile, listKey)
+        MigrateRetiredCustomTypes(profile, listKey)
         -- AFTER MigrateMissingBuiltIns above, which is what actually creates
         -- the new dispelIcons entry for an existing profile -- this only moves
         -- the old settings onto it.

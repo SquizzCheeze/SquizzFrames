@@ -1354,8 +1354,6 @@ local function CreateSetting_ExpiringColor(parent)
     widget:Show(); return widget
 end
 
-local CreateSetting_BlockColors = CreateSetting_Colors
-local CreateSetting_OverlayColors = CreateSetting_Colors
 local CreateSetting_CustomColors = CreateSetting_Colors
 
 local function CreateSetting_StatusColors(parent)
@@ -1885,26 +1883,6 @@ local function CreateSetting_BarTexture(parent)
     widget:Show(); return widget
 end
 
-local function CreateSetting_Texture(parent)
-    local widget
-    if not settingWidgets["texture"] then
-        widget = SF_CreateFrame("SFIndicatorSettings_Texture", parent, 300, ROW_HEIGHT)
-        settingWidgets["texture"] = widget
-        local textures = {"circle", "square", "blizzard"}
-        widget.dd = LayoutDropdownRow(widget, "Texture", 140)
-        local items = {}
-        for _, t in ipairs(textures) do
-            table.insert(items, { text = t, value = t, onClick = function()
-                widget.texTable[1] = t; widget.func(widget.texTable)
-            end })
-        end
-        widget.dd:SetItems(items)
-        function widget:SetFunc(func) widget.func = func end
-        function widget:SetDBValue(texTable) widget.texTable = texTable or {"circle", 0, {1,1,1,1}}; widget.dd:SetSelectedValue(widget.texTable[1]) end
-    else widget = settingWidgets["texture"] end
-    widget:Show(); return widget
-end
-
 -----------------------------------------------------------------------
 -- Spell-list settings: IndicatorWidgetsSpells.lua (moved in 2.0), loaded first
 -----------------------------------------------------------------------
@@ -2216,8 +2194,6 @@ local builders = {
     ["glowColor"] = CreateSetting_GlowColor,
     ["pandemicColor"] = CreateSetting_PandemicColor,
     ["colors"] = CreateSetting_Colors,
-    ["blockColors"] = CreateSetting_BlockColors,
-    ["overlayColors"] = CreateSetting_OverlayColors,
     ["customColors"] = CreateSetting_CustomColors,
     ["expiringColor"] = CreateSetting_ExpiringColor,
     ["color-class"] = CreateSetting_ClassColor,
@@ -2230,7 +2206,6 @@ local builders = {
     ["glow"] = CreateSetting_Glow,
     ["glowOptions"] = CreateSetting_Glow,
     ["targetedSpellsGlow"] = CreateSetting_Glow,
-    ["texture"] = CreateSetting_Texture,
     ["barTexture"] = CreateSetting_BarTexture,
     ["builtInAoEHealings"] = CreateSetting_BuiltInAoEHealings,
     ["builtInDefensives"] = CreateSetting_BuiltInDefensives,

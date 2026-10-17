@@ -23,6 +23,10 @@ Behind the scenes:
   updates, the Dispels code, the custom colour/bar indicators and the
   indicator settings' building blocks, spell lists and Dispels settings,
   and the Unit Frames page's Resources section). Nothing you can see should change.
+- Removed five custom indicator types that have not been offered since
+  August: Texture, Overlay, Block, Blocks and Bars. Each one only ever drew
+  as another type. If you made one before then, it is converted to the
+  type it was really drawing (Icon, Bar, Rect or Icons), so it looks the same.
 - Removed the old code that faded the party frames while a Blizzard window
   was open. It has been switched off since August, when the frames stopped
   sitting above those windows.
