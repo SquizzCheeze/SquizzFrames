@@ -1619,8 +1619,11 @@ function ApplyLayout()
     if CBmod and CBmod.anchorRetryWanted then
         CBmod.anchorRetryWanted = false
         anchorRetries = (anchorRetries or 0) + 1
-        if anchorRetries <= 5 then
-            C_Timer.After(2, function() ApplyLayout() end)
+        -- Half-second steps over the same ten seconds: a Squizzumables group
+        -- turns up about half a second after login, and a 2s step left the
+        -- resource bar visibly in the wrong place until the retry landed.
+        if anchorRetries <= 20 then
+            C_Timer.After(0.5, function() ApplyLayout() end)
         end
     end
 
