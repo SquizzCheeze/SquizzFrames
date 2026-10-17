@@ -181,7 +181,8 @@ local function CreateOptionsFrame()
             Page("indicators", "Indicators", "What draws on each party and raid frame", Pages.indicators,
                 { layout = "fill", autoIndex = false,
                   -- Every indicator by name, read live (customs change).
-                  search = function(add) SquizzFrames.IndicatorsPanel.SearchEntries(add) end }),
+                  search = function(add) SquizzFrames.IndicatorsPanel.SearchEntries(add) end,
+                  preview = function(column) SquizzFrames.IndicatorsPanel.BuildPreview(column) end }),
             Page("nicknames", "Nicknames", "Names shown in place of players' own", Pages.nicknames),
         } },
         { label = "Tools", pages = {

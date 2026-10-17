@@ -1979,22 +1979,28 @@ local function Build(parentFrame, optionsFrame)
     RefreshGroupPreviewVisual()
 
     -- ============================================================
-    -- preview canvas. Fills whatever space is left above the fixed-
-    -- height bottom section, so it grows/shrinks with the window instead of
-    -- being pinned to a fraction of it (WoW anchors are pixel offsets, not
-    -- percentages -- easier to fix the bottom section's height and let the
-    -- top fill the remainder than to recompute a percentage on every resize).
+    -- List + settings fill the page below the toggle. The Designer preview
+    -- canvas used to sit between them, above a fixed-height bottom section;
+    -- since 2.0 it is in the options window's preview column instead
+    -- (Panel.BuildPreview, built before this runs), so the list and the
+    -- settings get the whole height.
     -- ============================================================
     local bottomSection = CreateFrame("Frame", nil, parent)
-    bottomSection:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 5, 5)
+    bottomSection:SetPoint("TOPLEFT", toggleHeader, "BOTTOMLEFT", 0, -5)
     bottomSection:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -5, 5)
-    bottomSection:SetHeight(BOTTOM_SECTION_HEIGHT)
-
-    local previewSection = CreateFrame("Frame", nil, parent)
-    previewSection:SetPoint("TOPLEFT", toggleHeader, "BOTTOMLEFT", 0, -5)
-    previewSection:SetPoint("TOPRIGHT", toggleHeader, "BOTTOMRIGHT", 0, -5)
-    previewSection:SetPoint("BOTTOM", bottomSection, "TOP", 0, 5)
-    BuildPreviewCanvas(previewSection)
+    if not previewButton then
+        -- No preview column (the panel hosted somewhere without one): keep
+        -- the old split, canvas on top.
+        bottomSection:ClearAllPoints()
+        bottomSection:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 5, 5)
+        bottomSection:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -5, 5)
+        bottomSection:SetHeight(BOTTOM_SECTION_HEIGHT)
+        local previewSection = CreateFrame("Frame", nil, parent)
+        previewSection:SetPoint("TOPLEFT", toggleHeader, "BOTTOMLEFT", 0, -5)
+        previewSection:SetPoint("TOPRIGHT", toggleHeader, "BOTTOMRIGHT", 0, -5)
+        previewSection:SetPoint("BOTTOM", bottomSection, "TOP", 0, 5)
+        BuildPreviewCanvas(previewSection)
+    end
 
     -- ============================================================
     -- BOTTOM-LEFT: indicator list (built-ins only, category-grouped) +
@@ -2117,6 +2123,10 @@ local function SearchEntries(add)
 end
 
 SquizzFrames.IndicatorsPanel = {
+    -- The Designer canvas, built into the options window's preview column
+    -- (2.0). The window builds it before the page, so Build finds
+    -- previewButton set and lays the list and settings out without it.
+    BuildPreview = function(column) BuildPreviewCanvas(column) end,
     SearchEntries = SearchEntries,
     Build = Build,
     Rebuild = BuildIndicatorList,
