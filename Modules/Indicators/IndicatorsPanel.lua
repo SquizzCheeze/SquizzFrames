@@ -39,8 +39,6 @@ local selectedButton     -- currently selected row button
 -- it (see the Party/Raid toggle buttons built in Build()).
 local activeIndicatorLayoutKey = "main"
 
-local DEFAULT_PREVIEW_SCALE = 2
-
 -- Real configured button dimensions for whichever tab is active (Layout
 -- tab's Party/Raid sizes are independent -- 100x40 vs 70x24 by default), not
 -- an arbitrary mock size -- so percentage-based settings (textWidth,
@@ -1622,16 +1620,11 @@ local function BuildPreviewCanvas(canvasFrame)
     local realW, realH, realPowerH = GetRealButtonDimensions()
     previewButton = CreateMockUnitButton(previewBG, "SquizzIndicatorsPreview", realW, realH, realPowerH)
     previewButton:SetPoint("CENTER", previewBG, "CENTER", 0, 0)
-    -- Start at the largest whole Scale (up to DEFAULT_PREVIEW_SCALE) at which
-    -- the frame fits the canvas: in the 250px preview column a fixed 2 put a
-    -- wide party frame past both edges.
-    local canvasW = canvasFrame:GetWidth() or 0
-    local fit = (canvasW > 0 and realW and realW > 0) and math.floor((canvasW - 20) / realW) or DEFAULT_PREVIEW_SCALE
-    previewButton:SetScale(math.max(1, math.min(DEFAULT_PREVIEW_SCALE, fit)))
-
-    -- No Scale slider since 2.0 (user decision 2026-10-17): in the preview
-    -- column a zoomed-in frame is clipped with no way to pan to the rest, so
-    -- zooming only hid things. The fitted scale above is the only scale.
+    -- Always 1:1 since 2.0 (user decision 2026-10-17): the Designer sits in the
+    -- options window's 250px preview column and is clipped to it. The Scale
+    -- slider is gone -- zoomed in, a clipped frame could not be panned, so
+    -- zooming only hid things.
+    previewButton:SetScale(1)
 
     -- Show All checkbox (bottom-left of the canvas). Was a stub
     -- before: getValue always returned false (so it visually never stayed
