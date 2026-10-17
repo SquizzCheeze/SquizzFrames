@@ -1624,19 +1624,16 @@ local function BuildPreviewCanvas(canvasFrame)
     previewButton:SetPoint("CENTER", previewBG, "CENTER", 0, 0)
     -- Start at the largest whole Scale (up to DEFAULT_PREVIEW_SCALE) at which
     -- the frame fits the canvas: in the 250px preview column a fixed 2 put a
-    -- wide party frame past both edges. Before the Scale slider below is made,
-    -- since it reads the scale once, at creation.
+    -- wide party frame past both edges.
     local canvasW = canvasFrame:GetWidth() or 0
     local fit = (canvasW > 0 and realW and realW > 0) and math.floor((canvasW - 20) / realW) or DEFAULT_PREVIEW_SCALE
     previewButton:SetScale(math.max(1, math.min(DEFAULT_PREVIEW_SCALE, fit)))
 
-    -- Scale slider (1-5). Bottom-left corner of the canvas.
-    local scaleSlider = W.CreateStyledSlider(previewBG, 60, 1, 5, 1, "Scale",
-        function() return previewButton:GetScale() end,
-        function(val) previewButton:SetScale(val) end)
-    scaleSlider:SetPoint("BOTTOMLEFT", previewBG, "BOTTOMLEFT", 10, 10)
+    -- No Scale slider since 2.0 (user decision 2026-10-17): in the preview
+    -- column a zoomed-in frame is clipped with no way to pan to the rest, so
+    -- zooming only hid things. The fitted scale above is the only scale.
 
-    -- Show All checkbox (to the right of the scale slider). Was a stub
+    -- Show All checkbox (bottom-left of the canvas). Was a stub
     -- before: getValue always returned false (so it visually never stayed
     -- checked) and setValue ignored its own `checked` argument and just
     -- re-ran BuildPreview() with nothing actually changed -- rebuilding from
@@ -1657,7 +1654,7 @@ local function BuildPreviewCanvas(canvasFrame)
             previewButton._sfShowAllIndicators = checked
             if SquizzFrames.Indicators then SquizzFrames.Indicators.BuildPreview() end
         end)
-    showAllCB:SetPoint("LEFT", scaleSlider, "RIGHT", 14, 2)
+    showAllCB:SetPoint("BOTTOMLEFT", previewBG, "BOTTOMLEFT", 10, 10)
 
     if SquizzFrames.Indicators then SquizzFrames.Indicators.SetPreviewButton(previewButton) end
 end
