@@ -16,6 +16,7 @@ Defaults\LoadDefaults.xml
 Media\LoadMedia.xml
 HideBlizzard.lua
 Modules\Options\Options.lua
+Modules\Options\Tooltips.lua
 Modules\Options\Widgets.lua
 Modules\Options\OptionsFrame.lua
 Modules\LoadModules.xml

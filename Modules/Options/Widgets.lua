@@ -53,8 +53,38 @@ local function C4(t) return t[1], t[2], t[3], t[4] end
 -- controls after it belong to. The shell works out which page owns the
 -- control, so widgets made anywhere else (popups, previews) are ignored.
 local Shell = LibStub and LibStub("LibSquizzShell-1.0", true)
+
+-- Tooltips (2.0): looked up by label and place in Modules/Options/Tooltips.lua,
+-- shown on hover over the control and whatever in it takes the mouse (a
+-- slider's or dropdown's own child), and given to the search index.
+local function AttachTip(frame, label, tip)
+    local function Show(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(label, 1, 1, 1)
+        GameTooltip:AddLine(tip, nil, nil, nil, true)
+        GameTooltip:Show()
+    end
+    local function Hide() GameTooltip:Hide() end
+    local targets = { frame }
+    for _, child in ipairs({ frame:GetChildren() }) do targets[#targets + 1] = child end
+    for _, f in ipairs(targets) do
+        if f.HookScript and not f._sfTipHooked then
+            f._sfTipHooked = true
+            f:HookScript("OnEnter", Show)
+            f:HookScript("OnLeave", Hide)
+        end
+    end
+end
+
 local function IndexControl(frame, label, tip)
-    if Shell and type(label) == "string" then Shell:IndexControl(frame, label, tip) end
+    if type(label) ~= "string" then return end
+    if not tip and SquizzFrames.TooltipFor then
+        local section, pageKey
+        if Shell and Shell.SectionOf then section, pageKey = Shell:SectionOf(frame) end
+        tip = SquizzFrames.TooltipFor(label, section, pageKey)
+    end
+    if tip then AttachTip(frame, label, tip) end
+    if Shell then Shell:IndexControl(frame, label, tip) end
 end
 local function IndexSection(frame, title)
     if Shell and type(title) == "string" then Shell:IndexSection(frame, title) end
