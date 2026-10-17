@@ -603,6 +603,18 @@ phase 3, when the window is rebuilt on the shared shell. The old
 
 ### Options window (Libs/LibSquizzShell-1.0) -- 2.0 phase 3
 
+**The combined `/squizz` window (MINOR 2, 2026-10-17)** is NOT a third window
+holding both addons' pages: pages pin furniture to the window that built them
+(Unit Frames, Tank Tracker) and some are singletons (the Indicators Designer),
+so a page cannot live in two windows. Instead each addon registers an opener
+(`Shell:RegisterOpener(id, {open = fn(pageId, show) -> win, slash = fn(msg)})`
+-- ours is at the end of OptionsFrame.lua, Squizzumables' replaced its own
+`/squizz`), and `/squizz` (registered by the LIBRARY) sets `lib.combined`:
+each window's sidebar then lists the other addons as one row, search covers
+them, and picking one hands over (`lib:HandOff`) to that addon's window at the
+same rect -- one window on screen at a time. Closing a window (not a hand-off,
+not the combat hide) ends combined mode, so `/sf` and `/sq` open standalone.
+
 The window is a library SHARED with Squizzumables since 2026-10-17: a
 byte-identical copy in each addon -- ⚠ change both and bump `MINOR` from now
 on (it is MINOR 1 in both). Squizzumables registers its pages as "fill" pages

@@ -1112,6 +1112,18 @@ local function ToggleOptions()
     win:Toggle()
 end
 
+-- The combined /squizz window (2.0): how the shared shell builds and opens
+-- ours. See LibSquizzShell's "The combined window".
+if Shell.RegisterOpener then
+    Shell:RegisterOpener("SquizzFrames", {
+        open = function(pageId, show)
+            CreateOptionsFrame()
+            if show then win:Open(pageId) end
+            return win
+        end,
+    })
+end
+
 -----------------------------------------------------------------------
 -- First-run welcome (shown once, ever)
 -----------------------------------------------------------------------

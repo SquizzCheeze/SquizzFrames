@@ -30,6 +30,10 @@ New:
   So do the unit frames (player, target, target of target, focus, focus
   target, and the boss and arena stacks), the cast bars, the resource
   bar, the pet frames and the Tank Tracker.
+- /squizz (with Squizzumables installed too) opens one window for both
+  addons: the other addon is listed at the bottom of the sidebar, search
+  covers both, and picking one of its pages or settings switches to it in
+  the same spot. /sf and /sq still open each addon on its own.
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on
   SquizzFrames' Edit Mode too, and closing it turns it off again (unless
   you had turned it on yourself). Untick Follow Blizzard's Edit Mode on
