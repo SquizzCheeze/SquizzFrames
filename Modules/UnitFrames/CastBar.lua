@@ -113,6 +113,14 @@ end
 -- (yet -- Blizzard_CooldownViewer is load-on-demand, and a Squizzumables group
 -- is only built once its module has run). Every attach and match lookup goes
 -- through here so the "sqz:" form works everywhere a plain name does.
+-- Blizzard's viewers and the Squizzumables group that replaces each one.
+local VIEWER_TO_SQZ_GROUP = {
+    EssentialCooldownViewer = "Essential",
+    UtilityCooldownViewer = "Utility",
+    BuffIconCooldownViewer = "Buffs",
+    BuffBarCooldownViewer = "Buff Bars",
+}
+
 function CastBar.ResolveTarget(key)
     if type(key) ~= "string" or key == "" then return nil end
     local f
@@ -121,7 +129,23 @@ function CastBar.ResolveTarget(key)
         local get = _G.Squizzumables_GetCDMGroupFrame
         f = (type(get) == "function") and get(group) or nil
     else
-        f = _G[key]
+        -- Attached to one of Blizzard's viewers while Squizzumables' cooldown
+        -- manager is replacing it: use Squizzumables' group instead. Its
+        -- "Hide Blizzard's Cooldown Manager" keeps Blizzard's viewer hidden
+        -- but following the group, so this looked right -- until Blizzard's
+        -- Edit Mode opened, when Squizzumables (2.0) parks the viewers
+        -- offscreen and everything attached went with them, stuck at the
+        -- screen's top-left corner (user screenshot 2026-10-17). Only while
+        -- that group is on screen; otherwise Blizzard's viewer is the right
+        -- frame after all.
+        local sqzGroup = VIEWER_TO_SQZ_GROUP[key]
+        local get = sqzGroup and _G.Squizzumables_GetCDMGroupFrame
+        local g = (type(get) == "function") and get(sqzGroup) or nil
+        if type(g) == "table" and g.IsShown and g:IsShown() then
+            f = g
+        else
+            f = _G[key]
+        end
     end
     if type(f) == "table" and f.GetObjectType then return f end
     return nil

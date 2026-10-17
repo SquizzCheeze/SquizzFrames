@@ -39,6 +39,11 @@ New:
 
 Fixed:
 
+- With Squizzumables' cooldown manager on, a bar or frame attached to
+  Blizzard's Essential, Utility or Buff cooldowns now follows
+  Squizzumables' group of the same name. Opening Blizzard's Edit Mode used
+  to send it (and anything attached to it) to the top-left of the screen,
+  because Squizzumables moves Blizzard's hidden bars out of the way then.
 - Blizzard's player cast bar could reappear alongside SquizzFrames' own
   (Hide Blizzard Frames on, our player cast bar on). The game moves its cast
   bar around on its own - when it applies your Edit Mode layout, for
