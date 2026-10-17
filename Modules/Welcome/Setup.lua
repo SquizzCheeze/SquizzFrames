@@ -271,6 +271,8 @@ local function Build()
     -- draws through another addon's update note (Welcome.lua).
     local Welcome = SquizzFrames.Welcome
     if Welcome and Welcome.NotesHidden then frame:HookScript("OnHide", Welcome.NotesHidden) end
+    -- 2.0 motion (Motion.lua): pops in, fades out; instant with Reduce Motion.
+    if SquizzFrames.Motion then SquizzFrames.Motion.WrapShowHide(frame, { appear = 0.15, fromScale = 0.9, fade = 0.2 }) end
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", frame, "TOPLEFT", 22, -16)

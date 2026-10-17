@@ -1,0 +1,130 @@
+--[[ SquizzFrames Motion.lua -- 2.0 motion (phase 4, design doc "Motion")
+
+    Short fades and pops so things arrive and leave rather than blinking,
+    built on the game's own animation groups. A port of Squizzumables'
+    UI/Motion.lua, the same API on SquizzFrames.Motion. General > Reduce
+    Motion (general.reduceMotion) turns every one of them into an instant
+    change.
+
+      Motion.Appear(frame, seconds, fromScale?)   fade in (and grow from fromScale)
+      Motion.FadeOut(frame, seconds, done)       fade out, then done() -- which hides
+      Motion.CancelFade(frame)                   stop a fade-out that is under way
+      Motion.WrapShowHide(frame, opts)           a frame whose Show/Hide do both
+
+    For our own PLAIN frames only (options pages, setup, the update note).
+    Never a secure frame: the party, raid and unit frames do not animate.
+
+    Alpha animations end where the frame's own alpha is, so a frame drawn at
+    70% opacity fades in to 70%, not to 100%.
+]]
+
+local SquizzFrames = _G["SquizzFrames"]
+if not SquizzFrames then return end
+
+local Motion = {}
+SquizzFrames.Motion = Motion
+
+function Motion.Reduced()
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    return (p and p.general and p.general.reduceMotion) and true or false
+end
+
+-- A frame's animation group for `kind`, made once.
+local function Group(frame, kind)
+    frame.sfMotion = frame.sfMotion or {}
+    local g = frame.sfMotion[kind]
+    if not g then
+        g = frame:CreateAnimationGroup()
+        frame.sfMotion[kind] = g
+    end
+    return g
+end
+
+--- Fade `frame` in over `seconds`, growing from `fromScale` (e.g. 0.9) to full
+--- size when given. Call after the frame is shown.
+function Motion.Appear(frame, seconds, fromScale)
+    if Motion.Reduced() or not frame then return end
+    local g = Group(frame, "appear")
+    if not g.alpha then
+        g.alpha = g:CreateAnimation("Alpha")
+        g.scale = g:CreateAnimation("Scale")
+        g.scale:SetOrigin("CENTER", 0, 0)
+    end
+    g:Stop()
+    g.alpha:SetFromAlpha(0)
+    g.alpha:SetToAlpha(frame:GetAlpha())
+    g.alpha:SetDuration(seconds)
+    local s = fromScale or 1
+    g.scale:SetScaleFrom(s, s)
+    g.scale:SetScaleTo(1, 1)
+    g.scale:SetDuration(seconds)
+    g:Play()
+end
+
+--- Fade `frame` out over `seconds`, then call `done` (which normally hides
+--- it). Instant with Reduce Motion on, or when the frame is not showing.
+function Motion.FadeOut(frame, seconds, done)
+    if Motion.Reduced() or not (frame and frame:IsShown()) then
+        if done then done() end
+        return
+    end
+    local g = Group(frame, "fade")
+    if not g.alpha then
+        g.alpha = g:CreateAnimation("Alpha")
+        -- Not SetToFinalAlpha: that would leave the frame at 0 for its next
+        -- showing. `done` hides it inside OnFinished, before the frame's own
+        -- alpha can draw again.
+        g:SetScript("OnFinished", function(self)
+            local cb = self.done
+            self.done = nil
+            if cb then cb() end
+        end)
+    end
+    local appear = frame.sfMotion.appear
+    if appear then appear:Stop() end
+    g:Stop()
+    g.alpha:SetFromAlpha(frame:GetAlpha())
+    g.alpha:SetToAlpha(0)
+    g.alpha:SetDuration(seconds)
+    g.done = done
+    g:Play()
+end
+
+function Motion.Fading(frame)
+    local g = frame and frame.sfMotion and frame.sfMotion.fade
+    return g and g:IsPlaying() and true or false
+end
+
+function Motion.CancelFade(frame)
+    local g = frame and frame.sfMotion and frame.sfMotion.fade
+    if g then
+        g.done = nil
+        g:Stop()
+    end
+end
+
+--- Give `frame` an animated Show/Hide/SetShown: `opts.appear` seconds in
+--- (growing from `opts.fromScale`), `opts.fade` seconds out. Callers keep
+--- calling Show/Hide as before; a Hide while already fading out is ignored,
+--- and a Show cancels a fade-out.
+function Motion.WrapShowHide(frame, opts)
+    local show, hide = frame.Show, frame.Hide
+    frame.Show = function(self)
+        local wasShown = self:IsShown() and not Motion.Fading(self)
+        Motion.CancelFade(self)
+        show(self)
+        if not wasShown then Motion.Appear(self, opts.appear, opts.fromScale) end
+    end
+    frame.Hide = function(self)
+        if not self:IsShown() or Motion.Fading(self) then return end
+        Motion.FadeOut(self, opts.fade, function() hide(self) end)
+    end
+    frame.SetShown = function(self, on)
+        if on then self:Show() else self:Hide() end
+    end
+    -- The real one, for code that must hide this instant.
+    frame.sfHideNow = function(self)
+        Motion.CancelFade(self)
+        hide(self)
+    end
+end

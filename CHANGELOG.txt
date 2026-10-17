@@ -39,6 +39,9 @@ New:
   preset, the Tank Tracker, unit frames), place your frames and choose a
   theme. A new install starts with it; anyone else can use Run Setup on
   the update note, or /sf setup. It replaces the old welcome popup.
+- Motion: the options pages fade in as you switch between them, and setup
+  and the update note pop in and fade out. Reduce Motion on the General
+  page makes all of it instant.
 - Settings now have tooltips: hover one for what it does. Search matches
   the tooltip text as well.
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on

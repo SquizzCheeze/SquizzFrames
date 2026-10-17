@@ -250,6 +250,8 @@ local function BuildFrame()
     -- it lets the next queued note through (see NotesQueue).
     frame:SetToplevel(true)
     frame:HookScript("OnHide", OnNotesHidden)
+    -- 2.0 motion (Motion.lua): pops in, fades out; instant with Reduce Motion.
+    if SquizzFrames.Motion then SquizzFrames.Motion.WrapShowHide(frame, { appear = 0.15, fromScale = 0.9, fade = 0.2 }) end
     if W and W.StylizeFrame then
         W.StylizeFrame(frame, {0.09, 0.09, 0.09, 0.96}, {0, 0, 0, 1})
     end

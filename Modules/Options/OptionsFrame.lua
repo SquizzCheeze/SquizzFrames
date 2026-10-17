@@ -23,7 +23,7 @@ local optionsFrame -- the shell window's frame, "SquizzFramesOptionsFrame"
 -- Minimum content height per scroll page (content can exceed; the window
 -- scrolls). Indicators manages its own layout and isn't part of this.
 local pageHeights = {
-    ["general"] = 690, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme, +25 Follow Blizzard's Edit Mode (2.0)
+    ["general"] = 715, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme, +25 Follow Blizzard's Edit Mode (2.0); +25 Reduce Motion
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
@@ -141,7 +141,13 @@ local win -- the shell window, made on first open
 -- page you just landed on. The Layout and Indicators pages keep INDEPENDENT
 -- Party/Raid selections and share one preview window, so without this the
 -- preview could show a raid beside a page editing party. No-op while closed.
-local function OnShowPage(key)
+local function OnShowPage(key, _, page)
+    -- 2.0 motion: the page coming in fades up over 0.12s (instant with
+    -- Reduce Motion), its preview with it -- as in Squizzumables.
+    if SquizzFrames.Motion and page then
+        if page.frame then SquizzFrames.Motion.Appear(page.frame, 0.12) end
+        if page.previewFrame then SquizzFrames.Motion.Appear(page.previewFrame, 0.12) end
+    end
     local GroupPreview = SquizzFrames.GroupPreview
     if not (GroupPreview and GroupPreview.SetRaidMode) then return end
     if key == "layout" then
@@ -458,6 +464,19 @@ local function BuildGeneralFields(frame)
             if p and p.general then p.general.followBlizzardEditMode = checked and true or false end
         end)
     cbFollow:SetPoint("TOPLEFT", 15, yOffset)
+    yOffset = yOffset - 25
+
+    -- 2.0 motion (Motion.lua): every fade and pop becomes instant. Chained,
+    -- not kept in a local: this file is short of locals.
+    W.CreateStyledCheckbox(fieldsHost, L["Reduce Motion"] or "Reduce Motion",
+        function()
+            local p = GetProfile()
+            return (p and p.general and p.general.reduceMotion) and true or false
+        end,
+        function(checked)
+            local p = GetProfile()
+            if p and p.general then p.general.reduceMotion = checked and true or false end
+        end):SetPoint("TOPLEFT", 15, yOffset)
     yOffset = yOffset - 25
 
     -- Section: Frame Opacity -- one blanket slider per frame group. Built

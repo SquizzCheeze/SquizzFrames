@@ -31,6 +31,8 @@ local TIPS = {
     ["Lock Frames"] = "Stops the frames being dragged. Edit Mode still moves them.",
     ["Fade Out of Range"] = "Dims party and raid members who are too far away to heal or help. "
         .. "Their status text and status icon stay readable.",
+    ["Reduce Motion"] = "Turns off the fades and pops: the pages of this window, setup and the update "
+        .. "note appear and disappear instantly instead.",
     ["Follow Blizzard's Edit Mode"] = "Opening Blizzard's Edit Mode (Esc > Edit Mode) turns on "
         .. "SquizzFrames' Edit Mode too, and closing it turns it off again.",
     ["Frame Opacity|Party Frames"] = "How see-through the party frames are, on top of any range fade.",
