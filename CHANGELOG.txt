@@ -21,6 +21,8 @@ New:
   (and the right tab or section) opens, scrolls to it and flashes it.
   It also finds every indicator by name, built-in and custom, in the
   Party and Raid lists, and opens it on the Indicators page.
+  Unit Frames and Tank Tracker show their live preview in a column down
+  the right of the window.
 - Theme (General page): SquizzFrames now shares Squizzumables' theme -
   Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal. One choice
   covers both addons. Until you pick one, the accent stays class coloured,

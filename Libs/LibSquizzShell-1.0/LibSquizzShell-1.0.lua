@@ -627,17 +627,46 @@ function Window:BuildContent()
     body:SetPoint("BOTTOMRIGHT", -4, 4)
     self.body = body
 
-    -- "fill" pages: the whole body.
-    local fill = CreateFrame("Frame", nil, body)
+    -- The PREVIEW COLUMN down the right, for pages that give preview(column).
+    -- Each such page builds its preview ONCE into its own child of this
+    -- column; only the current page's is shown. While the column is up, the
+    -- page area beside it (`main`) stops short of it. Pages that pin their own
+    -- furniture walk up to `main` (page -> scrollChild -> scrollFrame -> main),
+    -- so anything they anchor there stops at the column too.
+    local col = CreateFrame("Frame", nil, body, "BackdropTemplate")
+    col:SetPoint("TOPRIGHT")
+    col:SetPoint("BOTTOMRIGHT")
+    col:SetWidth(self.opts.previewWidth or 250)
+    col:SetBackdrop({ bgFile = WHITE })
+    col:SetBackdropColor(RGBA("tabInactive"))
+    col:Hide()
+    local colTitle = Text(col, 12, "textBright")
+    colTitle:SetPoint("TOPLEFT", 10, -8)
+    colTitle:SetText("Preview")
+    local colSub = Text(col, 10, "textDim")
+    colSub:SetPoint("TOPLEFT", colTitle, "BOTTOMLEFT", 0, -2)
+    colSub:SetText("changes as you edit")
+    local colHost = CreateFrame("Frame", nil, col)
+    colHost:SetPoint("TOPLEFT", 0, -40)
+    colHost:SetPoint("BOTTOMRIGHT")
+    self.previewCol, self.previewHost = col, colHost
+
+    local main = CreateFrame("Frame", nil, body)
+    main:SetPoint("TOPLEFT")
+    main:SetPoint("BOTTOMRIGHT")
+    self.main = main
+
+    -- "fill" pages: the whole page area.
+    local fill = CreateFrame("Frame", nil, main)
     fill:SetAllPoints()
     fill:Hide()
     self.fillHost = fill
 
     -- "scroll" pages: one shared scroll frame.
-    local sf = CreateFrame("ScrollFrame", nil, body)
+    local sf = CreateFrame("ScrollFrame", nil, main)
     sf:SetPoint("TOPLEFT")
     sf:SetPoint("BOTTOMRIGHT", -14, 0)
-    local bar = CreateFrame("Slider", nil, body, "BackdropTemplate")
+    local bar = CreateFrame("Slider", nil, main, "BackdropTemplate")
     bar:SetPoint("TOPRIGHT", 0, 0)
     bar:SetPoint("BOTTOMRIGHT", 0, 0)
     bar:SetWidth(8)
@@ -744,6 +773,7 @@ function Window:ShowPage(id)
         end
     end
 
+    self:ApplyPreview(page)
     self.fillHost:SetShown(isFill)
     self.scrollFrame:SetShown(not isFill)
     self.scrollBar:SetShown(not isFill)
@@ -769,6 +799,38 @@ function Window:ShowPage(id)
     self:ScrollToTop()
     if page.onShow then page.onShow(page.frame) end
     if self.opts.onShowPage then self.opts.onShowPage(page.key, page.addon) end
+end
+
+-- Show `page`'s preview in the column (building it the first time), or hide
+-- the column for a page without one, and size the page area to match.
+function Window:ApplyPreview(page)
+    if self.shownPreview and self.shownPreview ~= page.previewFrame then
+        self.shownPreview:Hide()
+        self.shownPreview = nil
+    end
+    self.main:ClearAllPoints()
+    self.main:SetPoint("TOPLEFT", self.body, "TOPLEFT")
+    if not page.preview then
+        self.previewCol:Hide()
+        self.main:SetPoint("BOTTOMRIGHT", self.body, "BOTTOMRIGHT")
+        return
+    end
+    local w = self.opts.previewWidth or 250
+    self.main:SetPoint("BOTTOMRIGHT", self.body, "BOTTOMRIGHT", -(w + 6), 0)
+    self.previewCol:Show()
+    local pf = page.previewFrame
+    if not pf then
+        pf = CreateFrame("Frame", nil, self.previewHost)
+        pf:SetAllPoints(self.previewHost)
+        page.previewFrame = pf
+        page.preview(pf)
+    elseif pf:GetParent() ~= self.previewHost then
+        pf:SetParent(self.previewHost)
+        pf:ClearAllPoints()
+        pf:SetAllPoints(self.previewHost)
+    end
+    pf:Show()
+    self.shownPreview = pf
 end
 
 -- Build one page into `host` (hidden), registering its frame so the controls

@@ -633,36 +633,9 @@ local function BuildFurniture(frame)
     header:SetFrameLevel(level)
     W.StylizeFrame(header, W.palette.DARK_BG, {0, 0, 0, 0})
 
-    -- Preview pane. Anchored to scroll, which already stops short of the
-    -- scrollbar and (once inset) starts below the header. Mouse is left
-    -- DISABLED, so the wheel still reaches the scroll frame underneath and the
-    -- page scrolls with the cursor over the preview too.
-    local pane = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
-    pane:SetPoint("TOPLEFT", scroll, "TOPLEFT", FIELDS_WIDTH, 0)
-    pane:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
-    pane:SetFrameLevel(level)
-    -- Clipped: a wide frame or a long icon row at a large size can be wider
-    -- than the pane, and a mock spilling out over the settings column is worse
-    -- than one cut off at the edge.
-    pane:SetClipsChildren(true)
-    W.StylizeFrame(pane, W.palette.DARK_BG, {0, 0, 0, 0})
-
-    local caption = pane:CreateFontString(nil, "OVERLAY")
-    caption:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    caption:SetPoint("TOP", pane, "TOP", 0, -8)
-    caption:SetTextColor(W.C4(W.palette.GREY_TEXT))
-    caption:SetText(L["Preview (actual size)"] or "Preview (actual size)")
-
-    local hint = pane:CreateFontString(nil, "OVERLAY")
-    hint:SetFontObject("GameFontDisableSmall")
-    hint:SetPoint("CENTER", pane, "CENTER", 0, 0)
-    hint:SetText(L["Enable the Tank Tracker to preview it."]
-        or "Enable the Tank Tracker to preview it.")
-    hint:Hide()
-    previewHint = hint
-
-    local P = SquizzFrames.TankTrackerPreview
-    if P and P.Create then previewMock = P.Create(pane) end
+    -- The preview is no longer pinned here: since 2.0 it lives in the options
+    -- window's own preview column (Panel.BuildPreview below), and the page
+    -- area this header is anchored to stops short of it.
 
     -- Tied to the page's visibility: neither is one of OptionsFrame's
     -- contentFrames, so ShowPage does not know about them and they would
@@ -670,7 +643,6 @@ local function BuildFurniture(frame)
     -- restored on hide, or every other page inherits a dead band at the top.
     local function ShowFurniture(show)
         header:SetShown(show)
-        pane:SetShown(show)
         ApplyScrollInset(show and HEADER_HEIGHT or 0)
     end
     ShowFurniture(false)
@@ -744,4 +716,27 @@ function Panel.IndexAll()
     end
     activeTab = saved
     rebuildFields()
+end
+
+-- The 1:1 preview, built once into the options window's preview column (2.0)
+-- instead of a pane pinned on this page. TankTrackerPreview lays the mock out
+-- against its parent's TOP, so it gets a clipped holder of its own: a wide
+-- frame or a long icon row at a large size is cut off at the column's edge
+-- rather than spilling over the settings.
+function Panel.BuildPreview(column)
+    local holder = CreateFrame("Frame", nil, column)
+    holder:SetAllPoints(column)
+    holder:SetClipsChildren(true)
+
+    local hint = holder:CreateFontString(nil, "OVERLAY")
+    hint:SetFontObject("GameFontDisableSmall")
+    hint:SetPoint("CENTER", holder, "CENTER", 0, 0)
+    hint:SetText(L["Enable the Tank Tracker to preview it."]
+        or "Enable the Tank Tracker to preview it.")
+    hint:Hide()
+    previewHint = hint
+
+    local P = SquizzFrames.TankTrackerPreview
+    if P and P.Create then previewMock = P.Create(holder) end
+    RefreshPreview()
 end

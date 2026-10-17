@@ -167,6 +167,7 @@ local function CreateOptionsFrame()
                 -- section a control is in and how to reopen it.
                 select = function(scope) SquizzFrames.UnitFramesPanel.Select(scope) end,
                 indexAll = function() SquizzFrames.UnitFramesPanel.IndexAll() end,
+                preview = function(column) SquizzFrames.UnitFramesPanel.BuildPreview(column) end,
                 onResize = function()
                     -- The indicator sub-tab strip wraps to the width it had
                     -- when built, so re-measure once the drag has settled.
@@ -187,6 +188,7 @@ local function CreateOptionsFrame()
             Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker, {
                 select = function(scope) SquizzFrames.TankTrackerPanel.Select(scope) end,
                 indexAll = function() SquizzFrames.TankTrackerPanel.IndexAll() end,
+                preview = function(column) SquizzFrames.TankTrackerPanel.BuildPreview(column) end,
             }),
             Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
                 onShow = function(frame)

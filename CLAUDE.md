@@ -630,7 +630,12 @@ instead gives `search(add)`, asked on EVERY search, listing each indicator in
 both lists live (customs come and go); `setLayoutKey` clicks the Party/Raid
 toggle before `SelectIndicator`. Plus whatever `Shell:AddSearchEntry(addonId,
 {label, tip, page, path, onSelect})` adds -- step 3 of phase 3 fills that per
-page. The window keeps the global name `SquizzFramesOptionsFrame`
+page. Preview column: a page spec's `preview(column)` is built ONCE into the
+window's right-hand column (`opts.previewWidth`, 250) and shown only with that
+page; the page area (`win.main`, the parent of the scroll frame and fill host)
+stops short of it, so furniture a page pins by walking up to it (Unit Frames,
+Tank Tracker) stops at the column too. Unit Frames and Tank Tracker use it
+(`Panel.BuildPreview`). The window keeps the global name `SquizzFramesOptionsFrame`
 (GroupPreview anchors to it and hooks its OnHide) and
 `SquizzFrames.OptionsScrollToTop` still exists (Unit Frames, Tank Tracker).
 

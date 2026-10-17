@@ -39,10 +39,8 @@ local rebuildFields
 -- and the furniture cannot drift apart.
 local HEADER_HEIGHT = 34
 local SIDEBAR_WIDTH = 96
--- ...and a third on the right holding a 1:1 preview of the frame being
--- edited. Wide enough for a default 180px frame plus a portrait hanging off
--- its side, with room to breathe.
-local PREVIEW_WIDTH = 250
+-- The preview of the frame being edited is in the options window's own
+-- preview column since 2.0 (Panel.BuildPreview), not a third strip here.
 
 -- A hint's width: the fields column it sits in (15 in from the left, as
 -- every hint is placed, and 20 clear of the preview pane). A fixed 340 ran
@@ -2279,7 +2277,7 @@ local function BuildFields(frame)
     -- already starts in the right place. Only the two side strips, which are
     -- overlays rather than scroll-region changes, still need clearing.
     host:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH, 0)
-    host:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
+    host:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0) -- the preview is in the window's column now (2.0)
     frame.fieldsHost = host
 
     local cfg = GetConfig()
@@ -2443,41 +2441,16 @@ function Panel.Build(frame)
         sidebar:SetFrameLevel(level)
         W.StylizeFrame(sidebar, W.palette.DARK_BG, {0, 0, 0, 0})
 
-        -- Preview strip down the right, pinned like the other two so it stays
-        -- in view while the settings beside it scroll.
-        -- No -HEADER_HEIGHT offset: scroll's own top is already below the
-        -- header now, so the pane simply follows it.
-        local previewPane = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
-        previewPane:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
-        previewPane:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
-        previewPane:SetWidth(PREVIEW_WIDTH)
-        previewPane:SetFrameLevel(level)
-        W.StylizeFrame(previewPane, W.palette.DARK_BG, {0, 0, 0, 0})
+        -- The preview is no longer pinned here: since 2.0 it lives in the
+        -- options window's own preview column (Panel.BuildPreview below), and
+        -- the page area this furniture is anchored to stops short of it.
 
-        local caption = previewPane:CreateFontString(nil, "OVERLAY")
-        caption:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-        caption:SetPoint("TOP", previewPane, "TOP", 0, -8)
-        caption:SetTextColor(W.C4(W.palette.GREY_TEXT))
-        caption:SetText(L["Preview (actual size)"] or "Preview (actual size)")
-
-        local P = SquizzFrames.UnitFramePreview
-        if P and P.Create then
-            local mock = P.Create(previewPane)
-            -- Anchored well below the caption rather than centred: a cast bar
-            -- hangs off the bottom and an aura row off the top, and a centred
-            -- mock would push them out of the pane at larger sizes.
-            mock:SetPoint("TOP", previewPane, "TOP", 0, -70)
-            frame.previewFrame = mock
-            previewMock = mock
-        end
-
-        -- Tied to the page's visibility -- none of the three is one of
-        -- OptionsFrame's contentFrames, so ShowPage does not know about them
-        -- and they would otherwise sit on top of whatever page you switched to.
+        -- Tied to the page's visibility -- neither is part of the page frame,
+        -- so the window's page switching does not know about them and they
+        -- would otherwise sit on top of whatever page you switched to.
         local function ShowFurniture(show)
             header:SetShown(show)
             sidebar:SetShown(show)
-            previewPane:SetShown(show)
             -- Restored on hide: the ScrollFrame belongs to every page, and
             -- leaving it short would put a dead band at the top of Layout,
             -- Indicators and everything else.
@@ -2563,6 +2536,24 @@ end
 -- same as any other section rebuild; a no-op before Panel.Build has run.
 function Panel.Rebuild()
     if rebuildFields then rebuildFields() end
+end
+
+-- The 1:1 preview, built once into the options window's preview column
+-- (2.0) instead of a strip pinned on this page. Anchored near the top rather
+-- than centred: a cast bar hangs off the bottom and an aura row off the top,
+-- and a centred mock pushed them out of the column at larger sizes.
+function Panel.BuildPreview(column)
+    local P = SquizzFrames.UnitFramePreview
+    if not (P and P.Create) then return end
+    local note = column:CreateFontString(nil, "OVERLAY")
+    note:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+    note:SetPoint("TOP", column, "TOP", 0, 0)
+    note:SetTextColor(W.C4(W.palette.GREY_TEXT))
+    note:SetText(L["Actual size"] or "Actual size")
+    local mock = P.Create(column)
+    mock:SetPoint("TOP", column, "TOP", 0, -40)
+    previewMock = mock
+    RefreshPreview()
 end
 
 -- Search (2.0). Select: bring back the unit tab, section and sub-tab a search
