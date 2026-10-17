@@ -16,6 +16,11 @@ New:
 
 Fixed:
 
+- Blizzard's player cast bar could reappear alongside SquizzFrames' own
+  (Hide Blizzard Frames on, our player cast bar on). The game moves its cast
+  bar around on its own - when it applies your Edit Mode layout, for
+  example - and that undid the hiding. It is now put back out of sight each
+  time.
 - Turning an indicator on that was off when you last logged in or
   reloaded (Missing Buffs, for example) now shows it straight away, in the
   right place and size. It used to stay blank until a /reload.

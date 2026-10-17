@@ -291,20 +291,55 @@ end
 -- rather than having one each, so they get their own block below.
 local BLIZZARD_CASTBARS = {"PlayerCastingBarFrame", "CastingBarFrame"}
 
-function SquizzFrames:HideBlizzardCastBar()
-    if DeferIfInCombat("castbar") then return end
+local function ShouldHideBlizzardCastBar()
     local p = SquizzFrames.db and SquizzFrames.db.profile
     local uf = p and p.unitFrames
     local playerCast = uf and uf.frames and uf.frames.player and uf.frames.player.castBar
-    local hide = ShouldHideBlizzard() and uf and uf.enabled == true
-        and playerCast and playerCast.enabled == true
+    return (ShouldHideBlizzard() and uf and uf.enabled == true
+        and playerCast and playerCast.enabled == true) or false
+end
+
+-- Blizzard REPARENTS the player cast bar itself, which undoes a reparent-hide:
+-- Edit Mode's cast bar system does it whenever a layout is applied or "Lock to
+-- Player Frame" changes (PlayerFrame_AttachCastBar / SetParent(UIParent)), and
+-- EditModeSystemMixin:BreakFromFrameManager does it when the bar leaves its
+-- default spot (all read in Gethe/wow-ui-source live, 2026-10-17). Those run
+-- after our login-time hide, so the bar came back on screen beside ours (user
+-- report 2026-10-17). Hook SetParent and put it straight back. The parent
+-- Blizzard chose becomes the one we restore to, so turning ours off returns
+-- the bar to wherever Blizzard last wanted it. Installed once per frame; the
+-- setting is re-read on every fire, since a hook cannot be removed.
+local function GuardCastBarParent(frame)
+    if frame._sfParentGuard then return end
+    frame._sfParentGuard = true
+    hooksecurefunc(frame, "SetParent", function(self, parent)
+        if parent == hiddenParent then return end
+        if not ShouldHideBlizzardCastBar() then return end
+        self._sfOriginalParent = parent or UIParent
+        if InCombatLockdown() then
+            DeferIfInCombat("castbar")
+            return
+        end
+        self:Hide()
+        self:SetParent(hiddenParent)
+    end)
+end
+
+function SquizzFrames:HideBlizzardCastBar()
+    if DeferIfInCombat("castbar") then return end
+    local hide = ShouldHideBlizzardCastBar()
 
     local seen = {}
     for _, name in ipairs(BLIZZARD_CASTBARS) do
         local frame = _G[name]
         if frame and not seen[frame] then
             seen[frame] = true
-            if hide then HideFrame(frame) else ShowFrame(frame) end
+            if hide then
+                GuardCastBarParent(frame)
+                HideFrame(frame)
+            else
+                ShowFrame(frame)
+            end
         end
     end
 end
