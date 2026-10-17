@@ -406,11 +406,14 @@ function Window:BuildResults()
     end
 end
 
--- Search the addons this window shows. Label matches rank above tip matches.
+-- Search the addons this window shows. Label matches rank first, then matches
+-- on the section a control sits under (the Frame Opacity sliders are labelled
+-- "Party Frames", "Raid Frames"..., so "opacity" only matches their section --
+-- user report 2026-10-17), then tip matches.
 function Window:Search(query)
     query = (query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     if query == "" then return {} end
-    local strong, weak = {}, {}
+    local strong, mid, weak = {}, {}, {}
     for _, addonId in ipairs(self.opts.addons or {}) do
         local spec = lib.addons[addonId]
         if spec then
@@ -431,6 +434,8 @@ function Window:Search(query)
                     }
                     if e.label and e.label:lower():find(query, 1, true) then
                         strong[#strong + 1] = hit
+                    elseif e.path and e.path:lower():find(query, 1, true) then
+                        mid[#mid + 1] = hit
                     elseif e.tip and e.tip:lower():find(query, 1, true) then
                         weak[#weak + 1] = hit
                     end
@@ -438,6 +443,7 @@ function Window:Search(query)
             end
         end
     end
+    for _, m in ipairs(mid) do strong[#strong + 1] = m end
     for _, w in ipairs(weak) do strong[#strong + 1] = w end
     return strong
 end
