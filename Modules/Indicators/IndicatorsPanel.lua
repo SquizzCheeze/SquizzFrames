@@ -1610,6 +1610,10 @@ local function BuildPreviewCanvas(canvasFrame)
     previewBG = CreateFrame("Frame", nil, canvasFrame, "BackdropTemplate")
     previewBG:SetAllPoints(canvasFrame)
     W.StylizeFrame(previewBG, W.palette.DARK_BG, W.palette.DARK_BORDER)
+    -- Clipped (2.0): in the options window's 250px preview column a frame at
+    -- Scale 2+ is wider than the canvas, and it drew over the settings beside
+    -- it (user screenshot 2026-10-17). Zooming in now crops at the edge.
+    previewBG:SetClipsChildren(true)
 
     -- Preview button mockup (plain Frame, not secure). Mimics
     -- SquizzFramesUnitButtonTemplate structure so indicators can anchor to
@@ -2126,7 +2130,18 @@ SquizzFrames.IndicatorsPanel = {
     -- The Designer canvas, built into the options window's preview column
     -- (2.0). The window builds it before the page, so Build finds
     -- previewButton set and lays the list and settings out without it.
-    BuildPreview = function(column) BuildPreviewCanvas(column) end,
+    BuildPreview = function(column)
+        BuildPreviewCanvas(column)
+        -- Start at the largest whole Scale (up to the old default of 2) at
+        -- which the frame fits the column, rather than a fixed 2 that put a
+        -- wide party frame past both edges.
+        local colW = column:GetWidth() or 0
+        local frameW = select(1, GetRealButtonDimensions()) or 0
+        if previewButton and colW > 0 and frameW > 0 then
+            local fit = math.floor((colW - 20) / frameW)
+            previewButton:SetScale(math.max(1, math.min(DEFAULT_PREVIEW_SCALE, fit)))
+        end
+    end,
     SearchEntries = SearchEntries,
     Build = Build,
     Rebuild = BuildIndicatorList,
