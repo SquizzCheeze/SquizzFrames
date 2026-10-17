@@ -3,6 +3,9 @@
     <!-- First: the Edit Mode grid bridge, whose SnapTarget/SnapDelta helpers
          every mover below calls (at runtime, but defined up front). -->
     <Script file="Grid/SnapGrid.lua"/>
+    <!-- The 2.0 mover look (box, name, hover, select, arrow-key nudge), the
+         same as Squizzumables'. Every mover below calls it at runtime. -->
+    <Script file="Grid/EditMover.lua"/>
     <Include file="PartyFrames/UnitButton.xml"/>
     <Script file="PartyFrames/UnitButton.lua"/>
     <Script file="PartyFrames/PartyFrames.lua"/>

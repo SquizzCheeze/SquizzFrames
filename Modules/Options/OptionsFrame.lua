@@ -160,12 +160,15 @@ end
 -- left the frames draggable with no visible way to stop.
 -- PartyFrames:SetEditMode(false) is combat-safe (it defers its relayout).
 local function OnWindowHide()
+    -- Edit Mode first: since 2.0 it shows the mock grid itself, and leaving it
+    -- is what moves the real frames to where the grid was placed. Dropping
+    -- the grid first would skip that.
+    if SquizzFrames.editMode then
+        SetEditModeEnabled(false)
+    end
     local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
     if partyModule and partyModule.IsPreviewActive and partyModule:IsPreviewActive() then
         partyModule:SetPreviewMode(false)
-    end
-    if SquizzFrames.editMode then
-        SetEditModeEnabled(false)
     end
 end
 

@@ -23,6 +23,10 @@ New:
   Party and Raid lists, and opens it on the Indicators page.
   Unit Frames and Tank Tracker show their live preview in a column down
   the right of the window, and so does the Indicators Designer.
+- Edit Mode shows the party or raid frames as a full party or a full
+  raid, so you can place them without a group. A Party / Raid toggle
+  above them switches between the two, and they have the same box, name,
+  click-to-select and arrow-key nudging (Shift for 10px) as Squizzumables.
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on
   SquizzFrames' Edit Mode too, and closing it turns it off again (unless
   you had turned it on yourself). Untick Follow Blizzard's Edit Mode on

@@ -74,6 +74,12 @@ local function GetOrCreatePreviewButton(index)
     if btn then return btn end
     btn = CreateFrame("Button", "SquizzFramesPreviewButton" .. index, UIParent, "SquizzFramesUnitButtonTemplate")
     btn:Hide()
+    -- No mouse (2.0): the preview mover over the grid does the dragging, and
+    -- a mock button that took the mouse would sit over the real (invisible)
+    -- frame below it. This is what lets SetPreviewMode(false) work by alpha
+    -- alone when combat starts mid-edit: the mock cannot be Hide()n then
+    -- (the template is secure), but at alpha 0 with no mouse it is inert.
+    btn:EnableMouse(false)
     -- Mark these as PREVIEW buttons (Indicators.lua's I.IsPreviewButton).
     --
     -- Without it every AuraEngine-backed indicator took its LIVE path here and
@@ -516,6 +522,18 @@ local pendingPreview
 function PartyFrames:SetPreviewMode(enabled, previewRaid)
     previewActive = enabled
 
+    -- Turning off: do the part that is legal in combat RIGHT AWAY (2.0). The
+    -- real container is only ever faded to alpha 0 now, never hidden, so
+    -- restoring its alpha brings the real frames straight back even when this
+    -- runs at the start of a pull (Edit Mode shows this grid, and combat turns
+    -- Edit Mode off); the mock buttons go to alpha 0 and take no mouse. Their
+    -- actual Hide() still waits for combat to end, below.
+    if not enabled then
+        for _, button in pairs(previewButtons) do button:SetAlpha(0) end
+        if previewMover then previewMover:Hide() end
+        if PartyFrames.ApplyOpacity then PartyFrames.ApplyOpacity() end
+    end
+
     if InCombatLockdown() then
         pendingPreview = { enabled = enabled, previewRaid = previewRaid }
         if not previewRetryFrame then
@@ -535,6 +553,7 @@ function PartyFrames:SetPreviewMode(enabled, previewRaid)
     if not enabled then
         for _, button in pairs(previewButtons) do
             button:Hide()
+            button:SetAlpha(1)
         end
         if previewMover then previewMover:Hide() end
         local partyFrame = GetPartyFrame()
@@ -545,8 +564,11 @@ function PartyFrames:SetPreviewMode(enabled, previewRaid)
     if previewRaid == nil then previewRaid = IsInRaid() end
     previewIsRaidTab = previewRaid
 
+    -- Faded, not hidden (2.0): see the alpha-only turn-off at the top, and
+    -- ApplyOpacity, which keeps it at 0 while the preview is up.
     local partyFrame = GetPartyFrame()
-    if partyFrame then partyFrame:Hide() end
+    if partyFrame then partyFrame:SetAlpha(0) end
+    for _, button in pairs(previewButtons) do button:SetAlpha(1) end
 
     local prof = GetProfile()
     local layout = prof and prof.layout and (previewRaid and prof.layout.raid or prof.layout.main)
@@ -609,4 +631,100 @@ end
 function PartyFrames:RefreshPreviewMode()
     if not previewActive then return end
     self:SetPreviewMode(true, previewIsRaidTab)
+end
+
+-----------------------------------------------------------------------
+-- Edit Mode (2.0): the party/raid frames show as this full mock group, so
+-- placing them does not need a full group (user request 2026-10-17). The grid
+-- gets the shared mover look (SquizzFrames.EditMover), arrow-key nudges, and a
+-- Party / Raid toggle above it that swaps between a full party and a full
+-- raid. PartyFrames:SetEditMode calls SetEditPreview.
+-----------------------------------------------------------------------
+
+-- Move the previewed layout by dx, dy (UIParent units, as the drag writes).
+function PartyFrames:NudgePreview(dx, dy)
+    if not previewActive then return end
+    local prof = GetProfile()
+    local layout = prof and prof.layout and (previewIsRaidTab and prof.layout.raid or prof.layout.main)
+    if not layout then return end
+    layout.anchorX = (layout.anchorX or 0) + dx
+    layout.anchorY = (layout.anchorY or 0) + dy
+    LayoutPreviewButtons(previewCount, previewIsRaidTab)
+    self:RefreshPreviewMoverBounds()
+end
+
+function PartyFrames:IsPreviewRaid()
+    return previewIsRaidTab
+end
+
+local editToggle
+local function EditLabel()
+    return previewIsRaidTab and (L["Raid Frames"] or "Raid Frames") or (L["Party Frames"] or "Party Frames")
+end
+
+local function RefreshEditToggle()
+    if not editToggle then return end
+    local a = F.GetAccentColor()
+    for _, b in ipairs(editToggle.buttons) do
+        if b.isRaid == (previewIsRaidTab and true or false) then
+            b.bg:SetColorTexture(a.r, a.g, a.b, 0.55)
+        else
+            b.bg:SetColorTexture(0, 0, 0, 0.6)
+        end
+    end
+end
+
+local function GetEditToggle(mover)
+    if editToggle then return editToggle end
+    local t = CreateFrame("Frame", nil, mover)
+    t:SetSize(104, 18)
+    t:SetPoint("BOTTOMRIGHT", mover, "TOPRIGHT", 0, 3)
+    t:SetFrameStrata("HIGH")
+    t:SetFrameLevel(9001)
+    t.buttons = {}
+    for i, spec in ipairs({ { false, L["Party"] or "Party" }, { true, L["Raid"] or "Raid" } }) do
+        local b = CreateFrame("Button", nil, t)
+        b:SetSize(50, 18)
+        b:SetPoint("LEFT", t, "LEFT", (i - 1) * 54, 0)
+        b.bg = b:CreateTexture(nil, "BACKGROUND")
+        b.bg:SetAllPoints()
+        b.text = b:CreateFontString(nil, "OVERLAY")
+        b.text:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        b.text:SetPoint("CENTER")
+        b.text:SetText(spec[2])
+        b.isRaid = spec[1]
+        b:SetScript("OnClick", function(self)
+            if InCombatLockdown() or (previewIsRaidTab and true or false) == self.isRaid then return end
+            PartyFrames:SetPreviewMode(true, self.isRaid)
+            PartyFrames:SetEditPreview(true)
+        end)
+        t.buttons[i] = b
+    end
+    editToggle = t
+    return t
+end
+
+--- Show (or take away) the Edit Mode dressing on the mock grid.
+function PartyFrames:SetEditPreview(on)
+    local mover = previewMover
+    if not mover then return end
+    local EM = SquizzFrames.EditMover
+    -- The grid's own border and "Preview" caption give way to the shared box.
+    for _, tex in ipairs({ mover.borderTop, mover.borderBottom, mover.borderLeft, mover.borderRight }) do
+        tex:SetShown(not on)
+    end
+    mover.label:SetShown(not on)
+    local t = GetEditToggle(mover)
+    t:SetShown(on)
+    if on then
+        RefreshEditToggle()
+        if EM then
+            EM.Show(mover, EditLabel(), {
+                find = previewIsRaidTab and "Raid" or "Party",
+                nudge = function(dx, dy) PartyFrames:NudgePreview(dx, dy) end,
+            })
+        end
+    elseif EM then
+        EM.Hide(mover)
+    end
 end

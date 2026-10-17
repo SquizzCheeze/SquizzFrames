@@ -1591,6 +1591,14 @@ local relayoutWireQueued = false
 function PartyFrames.ApplyOpacity()
     if not partyFrame then return end
     local layout = GetActiveLayout()
+    -- While the mock grid is up (Edit Mode, 2.0) the real frames are faded
+    -- out rather than hidden -- see SetPreviewMode -- and every relayout
+    -- passes through here, so it has to keep them at 0.
+    if PartyFrames:IsPreviewActive() then
+        partyFrame:SetAlpha(0)
+        SyncAllStatusTextAlpha()
+        return
+    end
     partyFrame:SetAlpha((layout and layout.opacity) or 1)
     SyncAllStatusTextAlpha()
 end
@@ -2251,28 +2259,35 @@ function PartyFrames:SetEditMode(enabled)
         editFrame.borderRight:SetColorTexture(c[1], c[2], c[3], alpha)
     end
     if enabled then
-        -- Show border around buttons
-        ApplyColor(0.9)
-        editFrame.editLabel:SetTextColor(0.33, 0.77, 0.99, 1.0)
-        -- Show the non-secure mover frame so the user can drag. It sits on
-        -- top of the container and intercepts drag events before they reach
-        -- the secure unit buttons below.
-        if partyFrame.mover then
-            partyFrame.mover:SetAllPoints(partyFrame)
-            partyFrame.mover:Show()
-        end
-        -- Defer sizing by one frame tick so buttons have valid rects
-        C_Timer.After(0, function()
-            SizeEditFrameToButtons()
-            if editFrame then editFrame:Show() end
-            PartyFrames:RefreshEditModeToggle()
-        end)
+        -- 2.0: Edit Mode shows the party/raid frames as a FULL mock party or
+        -- raid (PartyPreview.lua's grid, at the real frames' position), so
+        -- placing them does not need a full group (user request 2026-10-17).
+        -- Its own mover drags it and saves the position; a Party / Raid
+        -- toggle above it swaps between the two layouts. The real container
+        -- is faded out underneath, never hidden, so combat can bring it back
+        -- at once (see SetPreviewMode). Not started in combat: the grid's
+        -- buttons are secure-template frames and could not be shown.
+        ApplyColor(0.0)
+        editFrame.editLabel:SetTextColor(0, 0, 0, 0)
+        editFrame:Hide()
+        if partyFrame.mover then partyFrame.mover:Hide() end
+        if InCombatLockdown() then return end
+        self:SetPreviewMode(true, GetEditLayoutKey() == "raid")
+        if self.SetEditPreview then self:SetEditPreview(true) end
     else
         -- Hide border and disable dragging
         ApplyColor(0.0)
         editFrame.editLabel:SetTextColor(0, 0, 0, 0)
         editFrame:Hide()
         if partyFrame.mover then partyFrame.mover:Hide() end
+        -- 2.0: take the mock grid away and put the real frames where it was
+        -- placed (the drag and the nudges saved to the layout). ApplyLayout
+        -- re-anchors the container, and defers itself in combat.
+        if self.SetEditPreview then self:SetEditPreview(false) end
+        if self:IsPreviewActive() then
+            self:SetPreviewMode(false)
+            ApplyLayout()
+        end
         -- Drop any edit-only mode override and snap back to the layout that
         -- matches the real group state. Without this, leaving edit mode while
         -- pointed at the other mode would strand the live frames on the wrong
