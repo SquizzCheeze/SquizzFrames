@@ -449,7 +449,25 @@ function Window:Search(query)
                     end
                 end
             end
-            for _, e in ipairs(lib.index[addonId] or {}) do
+            -- Pages whose searchable things change while the window is open
+            -- (Indicators: custom indicators come and go) give a search(add)
+            -- function, asked afresh on every search. Each entry: label, path,
+            -- tip, onSelect(win); the page itself is shown first.
+            local live = {}
+            for _, group in ipairs(spec.groups or {}) do
+                for _, page in ipairs(group.pages or {}) do
+                    if page.search then
+                        page.search(function(e)
+                            e.page = page.key
+                            live[#live + 1] = e
+                        end)
+                    end
+                end
+            end
+            local entries = {}
+            for _, e in ipairs(lib.index[addonId] or {}) do entries[#entries + 1] = e end
+            for _, e in ipairs(live) do entries[#entries + 1] = e end
+            for _, e in ipairs(entries) do
                 local page = spec.pageByKey[e.page]
                 if page then
                     local hit = {

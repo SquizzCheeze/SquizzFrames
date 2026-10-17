@@ -28,6 +28,7 @@ local settingsTitle      -- "Indicator Settings" / "Custom Indicators" label abo
 local customIndicatorsPane -- dedicated "Custom Indicators" manager view (Add Indicator + list), shown instead of settingsScroll
 local previewBG, previewButton -- preview canvas (top)
 local selectedName       -- currently selected indicatorName
+local setLayoutKey       -- switches the Party/Raid list like its toggle (set in Build)
 local listButtons = {}   -- row buttons in the left list
 local selectedButton     -- currently selected row button
 
@@ -1912,6 +1913,11 @@ local function Build(parentFrame, optionsFrame)
     MakeIndicatorToggleButton("main", "Party", 0)
     MakeIndicatorToggleButton("raid", "Raid", 95)
     RefreshIndicatorToggleVisual()
+    -- Search (2.0) switches lists exactly as a click on the toggle does.
+    setLayoutKey = function(key)
+        local b = toggleButtons[key]
+        if b and activeIndicatorLayoutKey ~= key then b:Click() end
+    end
 
     -- Full-group preview toggle. Opens a read-only window (pinned to the left
     -- of the options panel) showing a whole 5-man party or 20-man raid at the
@@ -2079,7 +2085,39 @@ local function Build(parentFrame, optionsFrame)
     parent.RebuildIndicators = BuildIndicatorList
 end
 
+-- Search (2.0): every indicator in the Party and Raid lists, read afresh on
+-- each search so custom indicators made or deleted meanwhile are right.
+-- Picking one switches to its list and selects it. Settings inside an
+-- indicator are not indexed: they only exist while that indicator is selected,
+-- and most labels (Size, Position, Frame Level) mean nothing without it.
+local LIST_LABELS = { main = "Party", raid = "Raid" }
+local function SearchEntries(add)
+    local db = SquizzFrames.db and SquizzFrames.db.profile
+    local layout = db and db.layout
+    if not layout then return end
+    local names = SquizzFrames.IndicatorDefaults and SquizzFrames.IndicatorDefaults.BUILT_IN_NAMES or {}
+    for _, key in ipairs({ "main", "raid" }) do
+        local list = layout[key == "raid" and "indicatorsRaid" or "indicators"]
+        for _, t in ipairs(list or {}) do
+            local id = t.indicatorName
+            local label = names[id] or t.name or id
+            if label and id then
+                local where = (t.type == "built-in") and GetIndicatorCategory(t) or "Custom"
+                add({
+                    label = label,
+                    path = LIST_LABELS[key] .. " > " .. where,
+                    onSelect = function()
+                        if setLayoutKey then setLayoutKey(key) end
+                        SelectIndicator(id)
+                    end,
+                })
+            end
+        end
+    end
+end
+
 SquizzFrames.IndicatorsPanel = {
+    SearchEntries = SearchEntries,
     Build = Build,
     Rebuild = BuildIndicatorList,
     SelectIndicator = SelectIndicator,

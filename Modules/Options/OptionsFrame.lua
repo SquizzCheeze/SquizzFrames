@@ -178,7 +178,9 @@ local function CreateOptionsFrame()
         } },
         { label = "On the frames", pages = {
             Page("indicators", "Indicators", "What draws on each party and raid frame", Pages.indicators,
-                { layout = "fill", autoIndex = false }),
+                { layout = "fill", autoIndex = false,
+                  -- Every indicator by name, read live (customs change).
+                  search = function(add) SquizzFrames.IndicatorsPanel.SearchEntries(add) end }),
             Page("nicknames", "Nicknames", "Names shown in place of players' own", Pages.nicknames),
         } },
         { label = "Tools", pages = {
