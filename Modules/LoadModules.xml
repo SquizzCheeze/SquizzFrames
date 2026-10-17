@@ -98,6 +98,7 @@
          so it can read SquizzFramesDB BEFORE Core's OnInitialize creates the
          profile tree. See hadSavedVariables in the file. -->
     <Script file="Welcome/Welcome.lua"/>
+    <Script file="Welcome/Setup.lua"/>
     <!-- Tank Tracker. Reads SquizzFrames.UnitFrameAuras (its anchor vocabulary)
          and SquizzFrames.AuraEngine at RUNTIME, never at load, so order is
          free; kept last simply because it is the newest module. -->

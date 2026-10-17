@@ -1235,6 +1235,9 @@ function F.SlashHandler(msg)
         else
             SquizzFrames:Print("Release notes are not available.")
         end
+    elseif cmd == "setup" then
+        -- First-run setup (Modules/Welcome/Setup.lua), any time.
+        if SquizzFrames.ShowSetup then SquizzFrames.ShowSetup() end
     elseif cmd == "debug" then
         -- Toggles the profile-migration narration (Core.lua's
         -- MigrationPrint). Persisted account-wide, because the interesting

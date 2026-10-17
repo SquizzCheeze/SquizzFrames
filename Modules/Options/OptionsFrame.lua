@@ -1138,79 +1138,14 @@ if Shell.RegisterOpener then
 end
 
 -----------------------------------------------------------------------
--- First-run welcome (shown once, ever)
------------------------------------------------------------------------
--- A brand-new user currently lands on fully default frames with no hint
--- that /sf exists or that a healer preset is one click away. This is a
--- single, dismissible prompt -- modelled on EllesmereUI's own one-shot
--- first-install popup -- gated on a flag in the ACCOUNT-WIDE store
--- (SquizzFramesDB) rather than the profile, so it can't reappear by
--- switching or resetting a profile.
-local firstRunFrame
-local function ShowFirstRunPopup()
-    if firstRunFrame then firstRunFrame:Show() return end
-
-    local dialog = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    -- 390 wide: the three buttons below are chained left-to-right and need
-    -- 150 + 110 + 70 plus gaps/margins. At the original 360 they overlapped
-    -- (each was anchored to a different corner, so nothing accounted for
-    -- their combined width).
-    dialog:SetSize(390, 200)
-    dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
-    dialog:SetFrameStrata("DIALOG")
-    dialog:SetClampedToScreen(true)
-    dialog:EnableMouse(true)
-    W.StylizeFrame(dialog, W.palette.DARK_BG, W.palette.POPUP_BORDER)
-
-    dialog.title = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    dialog.title:SetPoint("TOP", 0, -14)
-    dialog.title:SetText("Welcome to SquizzFrames")
-
-    dialog.desc = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    dialog.desc:SetPoint("TOP", dialog.title, "BOTTOM", 0, -10)
-    dialog.desc:SetWidth(dialog:GetWidth() - 40)
-    dialog.desc:SetJustifyH("LEFT")
-    dialog.desc:SetText("Your party frames are ready to go.\n\nType |cff33cc99/sf|r any time to open the options, where you can change layout, indicators, click-casting and profiles.\n\nHealing? The healer preset turns on the indicators most healers want.")
-
-    local presetBtn = W.CreateStyledButton(dialog, "Apply Healer Preset", "accent-hover", {150, 22}, function()
-        if SquizzFrames.ApplyHealerPreset then SquizzFrames.ApplyHealerPreset() end
-        dialog:Hide()
-    end)
-    presetBtn:SetPoint("BOTTOMLEFT", 15, 14)
-
-    -- Chained off each other rather than anchored to separate corners, so
-    -- they physically cannot overlap regardless of button/dialog width.
-    local openBtn = W.CreateStyledButton(dialog, "Open Options", nil, {110, 22}, function()
-        dialog:Hide()
-        ToggleOptions()
-    end)
-    openBtn:SetPoint("LEFT", presetBtn, "RIGHT", 8, 0)
-
-    local closeBtn = W.CreateStyledButton(dialog, "Close", nil, {70, 22}, function()
-        dialog:Hide()
-    end)
-    closeBtn:SetPoint("LEFT", openBtn, "RIGHT", 8, 0)
-
-    firstRunFrame = dialog
-    dialog:Show()
-end
-
-do
-    local firstRunOwner = F.NewMessageOwner()
-    firstRunOwner:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        -- Only ever once: unregister immediately so zoning doesn't re-check.
-        firstRunOwner:UnregisterEvent("PLAYER_ENTERING_WORLD")
-        local sv = _G["SquizzFramesDB"]
-        if not sv or sv.firstRunShown then return end
-        sv.firstRunShown = true
-        -- Slight delay so it lands after the frames themselves are up,
-        -- rather than competing with login UI churn.
-        C_Timer.After(3, ShowFirstRunPopup)
-    end)
-end
-
------------------------------------------------------------------------
 -- Public API
 -----------------------------------------------------------------------
 
 SquizzFrames.ToggleOptions = ToggleOptions
+-- For first-run setup (Modules/Welcome/Setup.lua): Edit Mode on/off, and
+-- the options window opened on one page.
+SquizzFrames.SetEditModeEnabled = SetEditModeEnabled
+function SquizzFrames.OpenOptionsPage(pageId)
+    CreateOptionsFrame()
+    if win then win:Open(pageId) end
+end

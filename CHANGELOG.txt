@@ -35,6 +35,10 @@ New:
   covers both, and picking one of its pages or settings switches to it in
   the same spot. Its Edit Mode button turns on Edit Mode for both addons
   at once. /sf and /sq still open each addon on its own.
+- First-run setup: pick your role, tick the extras you want (the healer
+  preset, the Tank Tracker, unit frames), place your frames and choose a
+  theme. A new install starts with it; anyone else can use Run Setup on
+  the update note, or /sf setup. It replaces the old welcome popup.
 - Settings now have tooltips: hover one for what it does. Search matches
   the tooltip text as well.
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on

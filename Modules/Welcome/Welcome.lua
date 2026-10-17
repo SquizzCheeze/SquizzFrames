@@ -287,6 +287,14 @@ local function BuildFrame()
             end)
         settingsBtn:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 18, 16)
 
+        -- 2.0: first-run setup again, for anyone updating (Setup.lua).
+        local setupBtn = W.CreateStyledButton(frame, "Run Setup", "accent-hover",
+            {110, 26}, function()
+                frame:Hide()
+                if SquizzFrames.ShowSetup then SquizzFrames.ShowSetup() end
+            end)
+        setupBtn:SetPoint("LEFT", settingsBtn, "RIGHT", 8, 0)
+
         local closeBtn = W.CreateStyledButton(frame, "Close", "accent-hover",
             {90, 26}, function() frame:Hide() end)
         closeBtn:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -18, 16)
@@ -376,6 +384,10 @@ local function CheckVersion()
         -- no equivalent key that stays absent.
         if SquizzFrames.hadSavedVariables then
             ShowUpdated(version, true)
+        elseif SquizzFrames.ShowSetup then
+            -- 2.0: a new install gets setup (Setup.lua) in place of the
+            -- greeting; it says the same things and lets them be acted on.
+            SquizzFrames.ShowSetup(true)
         else
             ShowFirstRun(true)
         end
@@ -397,3 +409,7 @@ end)
 -- /sf notes re-opens the current release notes on demand.
 Welcome.ShowReleaseNotes = function() ShowUpdated(CurrentVersion()) end
 Welcome.ShowFirstRun = ShowFirstRun
+-- The login notes queue, for Setup.lua's window: shown in turn with the other
+-- Squizz addons' notes, never drawn over one.
+Welcome.PresentNotes = PresentNotes
+Welcome.NotesHidden = OnNotesHidden
