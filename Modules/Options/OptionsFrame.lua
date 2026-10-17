@@ -160,6 +160,9 @@ end
 -- left the frames draggable with no visible way to stop.
 -- PartyFrames:SetEditMode(false) is combat-safe (it defers its relayout).
 local function OnWindowHide()
+    -- Handing over to the other addon's window (combined /squizz): this window
+    -- is only stepping aside, so Edit Mode and the preview stay as they are.
+    if Shell.handingOff then return end
     -- Edit Mode first: since 2.0 it shows the mock grid itself, and leaving it
     -- is what moves the real frames to where the grid was placed. Dropping
     -- the grid first would skip that.
@@ -250,7 +253,14 @@ local function CreateOptionsFrame()
         buttons = {
             { key = "editMode", label = L["Edit Mode"] or "Edit Mode", width = 90,
               tip = "Shows every SquizzFrames frame with a box you can drag. Closing this window leaves Edit Mode.",
-              onClick = function() SetEditModeEnabled(nil) end },
+              -- Combined (/squizz): switches every addon's Edit Mode at once.
+              onClick = function()
+                  if Shell.combined and Shell.ToggleCombinedEdit then
+                      Shell:ToggleCombinedEdit()
+                  else
+                      SetEditModeEnabled(nil)
+                  end
+              end },
         },
         onHide = OnWindowHide,
         onShowPage = OnShowPage,
@@ -1121,6 +1131,9 @@ if Shell.RegisterOpener then
             if show then win:Open(pageId) end
             return win
         end,
+        -- The combined window's one Edit Mode (lib:ToggleCombinedEdit).
+        editMode = function(on) SetEditModeEnabled(on and true or false) end,
+        isEditing = function() return SquizzFrames.editMode and true or false end,
     })
 end
 
