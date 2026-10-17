@@ -1349,6 +1349,16 @@ local function MakeMover(frame, globalName, getPos, defaultY)
     end)
     mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
+    -- For the arrow-key nudge (2.0, Grid/EditMover.lua): the same position the
+    -- drag saves.
+    mover._sfNudge = function(dx, dy)
+        local pos = getPos()
+        if not pos then return end
+        pos.anchorX = (pos.anchorX or 0) + dx
+        pos.anchorY = (pos.anchorY or defaultY) + dy
+        SquizzFrames:Fire("UnitFramesChanged")
+    end
+
     return mover
 end
 
@@ -1397,6 +1407,21 @@ local function ShowMover(mover, frame, draggable, text)
         mover._sfLabel:SetText(text .. " (attached)")
     end
     mover:Show()
+    -- 2.0: the shared mover look (Grid/EditMover.lua) in place of this tint
+    -- and label. An attached row gets its box and name but no nudge.
+    local EM = SquizzFrames.EditMover
+    if EM then
+        mover._sfTex:Hide()
+        mover._sfLabel:Hide()
+        EM.Show(mover, draggable and text or (text .. " (attached)"),
+            { nudge = draggable and mover._sfNudge or nil })
+    end
+end
+
+local function HideMover(mover)
+    if not mover then return end
+    mover:Hide()
+    if SquizzFrames.EditMover then SquizzFrames.EditMover.Hide(mover) end
 end
 
 function ResourceBar.SetEditMode(enabled)
@@ -1410,8 +1435,8 @@ function ResourceBar.SetEditMode(enabled)
 
     local cfg = GetConfig()
     if not (enabled and cfg and cfg.enabled) then
-        barMover:Hide()
-        if pointsMover then pointsMover:Hide() end
+        HideMover(barMover)
+        HideMover(pointsMover)
         return
     end
 
@@ -1422,14 +1447,14 @@ function ResourceBar.SetEditMode(enabled)
         ShowMover(barMover, bar, barMode == "free",
             detached and "Power Bar" or "Resources")
     else
-        barMover:Hide()
+        HideMover(barMover)
     end
 
     if pointsMover then
         if detached and pointsFrame:IsShown() then
             ShowMover(pointsMover, pointsFrame, pointsMode == "free", "Resource Points")
         else
-            pointsMover:Hide()
+            HideMover(pointsMover)
         end
     end
 end

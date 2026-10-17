@@ -766,6 +766,21 @@ function CastBar.CreateMover(bar, unit, getConfig, onMoved)
     end)
     mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
+    -- For the arrow-key nudge (2.0, Grid/EditMover.lua): the same position the
+    -- drag saves, and the same follow-up.
+    mover._sfNudge = function(dx, dy)
+        local cfg = getConfig()
+        if not cfg then return end
+        cfg.anchorX = (cfg.anchorX or 0) + dx
+        cfg.anchorY = (cfg.anchorY or -300) + dy
+        if onMoved then onMoved() end
+        -- A free bar's handle is placed by its own point, not SetAllPoints,
+        -- so it has to be moved too (as the drag moves it).
+        local s = bar:GetScale() or 1
+        mover:ClearAllPoints()
+        mover:SetPoint("CENTER", UIParent, "CENTER", cfg.anchorX / s, cfg.anchorY / s)
+    end
+
     bar._sfMover = mover
     return mover
 end
@@ -794,8 +809,10 @@ end
 function CastBar.SetEditMode(bar, enabled, cfg)
     local mover = bar and bar._sfMover
     if not mover then return end
+    local EM = SquizzFrames.EditMover
     if not (enabled and cfg and cfg.enabled) then
         mover:Hide()
+        if EM then EM.Hide(mover) end
         return
     end
 
@@ -820,6 +837,15 @@ function CastBar.SetEditMode(bar, enabled, cfg)
     end
 
     mover:Show()
+    -- 2.0: the shared mover look (Grid/EditMover.lua) in place of this tint
+    -- and label. An attached bar gets its box and name but no nudge.
+    if EM then
+        mover._sfTex:Hide()
+        mover._sfLabel:Hide()
+        local name = (bar._sfUnit or ""):gsub("^%l", string.upper) .. " Cast Bar"
+        EM.Show(mover, free and name or (name .. " (attached)"),
+            { nudge = free and mover._sfNudge or nil })
+    end
 end
 
 -----------------------------------------------------------------------
