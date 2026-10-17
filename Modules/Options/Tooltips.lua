@@ -139,6 +139,8 @@ local TIPS = {
     ["Mine Only"] = "Only shows the auras you cast.",
     ["Show Cooldown Swipe"] = "The clock-style sweep showing how much time is left on each icon.",
     ["Max Icons"] = "The most auras shown in the row.",
+    ["Only Show Overshields"] = "Hides the shield until it is bigger than the health that is missing, "
+        .. "the point at which more healing would be wasted.",
     ["Show All Types"] = "Shows every dispellable debuff type, not only the ones you can remove.",
     ["Pulse Overlay"] = "The dispel tint pulses while a dispellable debuff is up.",
     ["Animated Border"] = "A moving dashed border while a dispellable debuff is up.",
