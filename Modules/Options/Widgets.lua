@@ -2210,4 +2210,7 @@ SquizzFrames.Widgets = {
         HEADING = HEADING,
     },
     C4 = C4,
+    -- Tooltip + search registration for a control built outside this file
+    -- (the Indicators page's own sliders and dropdown rows).
+    IndexControl = IndexControl,
 }

@@ -36,7 +36,7 @@ New:
   the same spot. Its Edit Mode button turns on Edit Mode for both addons
   at once. /sf and /sq still open each addon on its own.
 - Settings now have tooltips: hover one for what it does. Search matches
-  the tooltip text as well. (Being filled in page by page.)
+  the tooltip text as well.
 - Opening Blizzard's Edit Mode (Esc > Edit Mode) now turns on
   SquizzFrames' Edit Mode too, and closing it turns it off again (unless
   you had turned it on yourself). Untick Follow Blizzard's Edit Mode on

@@ -492,6 +492,8 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
         UpdateFill()
     end
 
+    -- Tooltip by label (2.0, Modules/Options/Tooltips.lua).
+    if W.IndexControl then W.IndexControl(container, label) end
     return container
 end
 
@@ -552,6 +554,7 @@ local function LayoutDropdownRow(widget, labelText, ddWidth)
     local dd = SF_CreateDropdown(widget, ddWidth)
     dd:SetPoint("RIGHT", -6, 0)
     widget.ddText = CreateLabel(widget, labelText, "LEFT", 8, 0)
+    if W.IndexControl then W.IndexControl(widget, labelText) end -- tooltip by label (2.0)
     return dd
 end
 
