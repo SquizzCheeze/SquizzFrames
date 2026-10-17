@@ -633,6 +633,14 @@ function Window:BuildContent()
     -- page area beside it (`main`) stops short of it. Pages that pin their own
     -- furniture walk up to `main` (page -> scrollChild -> scrollFrame -> main),
     -- so anything they anchor there stops at the column too.
+    -- The body's own background, so the page area is as solid as the
+    -- sidebar whatever the window's backdrop does (the world showed through
+    -- behind the settings, user screenshot 2026-10-17).
+    local bodyBg = body:CreateTexture(nil, "BACKGROUND")
+    bodyBg:SetAllPoints()
+    local bgr, bgg, bgb, bga = RGBA("bg")
+    bodyBg:SetColorTexture(bgr, bgg, bgb, bga) -- the theme's own alpha: Dark Glass stays see-through
+
     local col = CreateFrame("Frame", nil, body, "BackdropTemplate")
     col:SetPoint("TOPRIGHT")
     col:SetPoint("BOTTOMRIGHT")
@@ -862,6 +870,11 @@ function Window:BuildAllPages()
             for _, page in ipairs(group.pages or {}) do
                 if not page.frame then
                     local host = page.layout == "fill" and self.fillHost or self.scrollChild
+                    -- At the width the page will really have: with its preview
+                    -- column up, if it has one. Built at full width, text sized
+                    -- from the host's width ran under the column and was cut
+                    -- off (Unit Frames' notes, user screenshot 2026-10-17).
+                    self:ApplyPreview(page)
                     if page.layout ~= "fill" then
                         local h = math.max(page.height or 400, self.scrollFrame:GetHeight())
                         self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
@@ -871,6 +884,17 @@ function Window:BuildAllPages()
                 end
             end
         end
+    end
+    -- Leave the column as the page actually on screen wants it (none yet on
+    -- first open: ShowPage sets it when the window opens).
+    if self.current then
+        self:ApplyPreview(self.current)
+    else
+        if self.shownPreview then self.shownPreview:Hide(); self.shownPreview = nil end
+        self.previewCol:Hide()
+        self.main:ClearAllPoints()
+        self.main:SetPoint("TOPLEFT", self.body, "TOPLEFT")
+        self.main:SetPoint("BOTTOMRIGHT", self.body, "BOTTOMRIGHT")
     end
 end
 

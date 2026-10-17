@@ -2464,13 +2464,26 @@ function Panel.Build(frame)
         header, sidebar = frame, frame
     end
 
-    -- Row 1: which unit. 66px + 3px gap fits seven across (boss AND arena)
-    -- inside the narrowest options window (header ~534px at 700 wide).
-    local x = 15
+    -- Row 1: which unit. The seven tabs share the header's width, up to 66px
+    -- each, re-fitted whenever the header resizes: since 2.0 the preview
+    -- column takes the right of the window, and fixed 66px tabs ran Arena into
+    -- it (user screenshot 2026-10-17).
+    local orderedUnitButtons = {}
+    local function LayoutUnitTabs()
+        local n = #orderedUnitButtons
+        if n == 0 then return end
+        local w = (header.GetWidth and header:GetWidth()) or 0
+        local bw = math.floor(math.max(40, math.min(66, (w - 15 - 3 * (n - 1)) / n)))
+        for i, b in ipairs(orderedUnitButtons) do
+            b:SetSize(bw, 22)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", header, "TOPLEFT", 15 + (i - 1) * (bw + 3), -6)
+        end
+    end
     for _, tab in ipairs(UNIT_TABS) do
         local btn = CreateFrame("Button", nil, header, "BackdropTemplate")
         btn:SetSize(66, 22)
-        btn:SetPoint("TOPLEFT", header, "TOPLEFT", x, -6)
+        orderedUnitButtons[#orderedUnitButtons + 1] = btn
         W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
         text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
@@ -2484,8 +2497,9 @@ function Panel.Build(frame)
             ScrollToTop()
         end)
         unitButtons[tab.key] = btn
-        x = x + 69
     end
+    LayoutUnitTabs()
+    if header ~= frame then header:HookScript("OnSizeChanged", LayoutUnitTabs) end
 
     -- Left sidebar: which section of the selected unit's settings. Stacked
     -- vertically and left-aligned, mirroring the options window's own main
