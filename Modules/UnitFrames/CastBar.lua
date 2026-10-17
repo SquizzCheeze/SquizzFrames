@@ -121,6 +121,30 @@ local VIEWER_TO_SQZ_GROUP = {
     BuffBarCooldownViewer = "Buff Bars",
 }
 
+-- A Squizzumables group we fell back from because it was not on screen yet.
+-- At login it is not: the groups are built by Squizzumables' first reconcile,
+-- a moment after ours, and until then Blizzard's viewer sits wherever it likes.
+-- The unit frames re-resolve on their 0.25s watcher, but the resource bar and
+-- cast bars anchor LIVE to whatever this returned, so they rode the viewer and
+-- only came right once Squizzumables moved it onto the group -- "loads in the
+-- wrong place, pops into place a couple of seconds later" (user screenshots
+-- 2026-10-17). So the group's OnShow re-runs the layout, and a group that does
+-- not exist yet asks for the anchor retry. Hooked once per frame.
+local hookedGroupShow = {}
+local matchResizeCallback
+
+local function WatchGroupAppear(g)
+    if type(g) ~= "table" then
+        CastBar.anchorRetryWanted = true
+        return
+    end
+    if hookedGroupShow[g] or not g.HookScript then return end
+    hookedGroupShow[g] = true
+    g:HookScript("OnShow", function()
+        if matchResizeCallback then matchResizeCallback() end
+    end)
+end
+
 function CastBar.ResolveTarget(key)
     if type(key) ~= "string" or key == "" then return nil end
     local f
@@ -144,6 +168,7 @@ function CastBar.ResolveTarget(key)
         if type(g) == "table" and g.IsShown and g:IsShown() then
             f = g
         else
+            if type(get) == "function" then WatchGroupAppear(g) end
             f = _G[key]
         end
     end
@@ -223,7 +248,6 @@ end
 -- exactly once each. WoW hooks cannot be removed, and HookScript is additive,
 -- so a second install would stack a duplicate handler forever.
 local hookedMatchFrames = {}
-local matchResizeCallback
 
 -- Called by UnitFrames.lua so a size change on a tracked frame re-runs the
 -- layout. Set once at module init.

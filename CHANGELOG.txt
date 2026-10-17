@@ -2,6 +2,16 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.0.1
+-----
+
+Fixed:
+
+- With Squizzumables, a resource bar or cast bar attached to a Blizzard
+  Cooldown Manager row no longer loads in the wrong place and jumps into
+  position a couple of seconds after login or /reload.
+
+
 V2.0 (2026-10-17)
 -----
 
