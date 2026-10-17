@@ -1622,7 +1622,13 @@ local function BuildPreviewCanvas(canvasFrame)
     local realW, realH, realPowerH = GetRealButtonDimensions()
     previewButton = CreateMockUnitButton(previewBG, "SquizzIndicatorsPreview", realW, realH, realPowerH)
     previewButton:SetPoint("CENTER", previewBG, "CENTER", 0, 0)
-    previewButton:SetScale(DEFAULT_PREVIEW_SCALE)
+    -- Start at the largest whole Scale (up to DEFAULT_PREVIEW_SCALE) at which
+    -- the frame fits the canvas: in the 250px preview column a fixed 2 put a
+    -- wide party frame past both edges. Before the Scale slider below is made,
+    -- since it reads the scale once, at creation.
+    local canvasW = canvasFrame:GetWidth() or 0
+    local fit = (canvasW > 0 and realW and realW > 0) and math.floor((canvasW - 20) / realW) or DEFAULT_PREVIEW_SCALE
+    previewButton:SetScale(math.max(1, math.min(DEFAULT_PREVIEW_SCALE, fit)))
 
     -- Scale slider (1-5). Bottom-left corner of the canvas.
     local scaleSlider = W.CreateStyledSlider(previewBG, 60, 1, 5, 1, "Scale",
@@ -2130,18 +2136,7 @@ SquizzFrames.IndicatorsPanel = {
     -- The Designer canvas, built into the options window's preview column
     -- (2.0). The window builds it before the page, so Build finds
     -- previewButton set and lays the list and settings out without it.
-    BuildPreview = function(column)
-        BuildPreviewCanvas(column)
-        -- Start at the largest whole Scale (up to the old default of 2) at
-        -- which the frame fits the column, rather than a fixed 2 that put a
-        -- wide party frame past both edges.
-        local colW = column:GetWidth() or 0
-        local frameW = select(1, GetRealButtonDimensions()) or 0
-        if previewButton and colW > 0 and frameW > 0 then
-            local fit = math.floor((colW - 20) / frameW)
-            previewButton:SetScale(math.max(1, math.min(DEFAULT_PREVIEW_SCALE, fit)))
-        end
-    end,
+    BuildPreview = function(column) BuildPreviewCanvas(column) end,
     SearchEntries = SearchEntries,
     Build = Build,
     Rebuild = BuildIndicatorList,
