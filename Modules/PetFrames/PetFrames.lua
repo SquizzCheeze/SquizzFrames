@@ -455,6 +455,20 @@ local function CreatePetContainer(frameName, moverName, getLayout, defaultY)
     -- Leaving edit mode mid-drag would otherwise strand the OnUpdate handler.
     mover:SetScript("OnHide", function(self) StopDrag(self) end)
 
+    -- For the arrow-key nudge and the box's name (2.0, Grid/EditMover.lua):
+    -- the same position the drag saves, applied the way the drag applies it.
+    container._sfMoverName = (moverName == "SquizzFramesPlayerPetMover") and "Your Pet" or "Pet Frames"
+    container._sfNudge = function(dx, dy)
+        local layoutDb = getLayout(GetProfile())
+        if not layoutDb then return end
+        layoutDb.anchorX = (layoutDb.anchorX or 0) + dx
+        layoutDb.anchorY = (layoutDb.anchorY or defaultY or -260) + dy
+        local frameScale = container:GetScale() or 1
+        container:ClearAllPoints()
+        container:SetPoint("CENTER", UIParent, "CENTER",
+            layoutDb.anchorX / frameScale, layoutDb.anchorY / frameScale)
+    end
+
     -- Edit mode border (visual only), simplified from PartyFrames.lua's
     -- editFrame -- that one shrink-wraps to the visible BUTTONS' rects
     -- (SizeEditFrameToButtons) because the container can be larger than its
@@ -870,17 +884,30 @@ local function SetContainerEditMode(container, enabled)
         editFrame.borderLeft:SetColorTexture(c[1], c[2], c[3], alpha)
         editFrame.borderRight:SetColorTexture(c[1], c[2], c[3], alpha)
     end
+    local EM = SquizzFrames.EditMover
     if enabled then
         ApplyColor(0.9)
         if container.mover then
             container.mover:SetAllPoints(container)
             container.mover:Show()
         end
-        editFrame:Show()
+        -- 2.0: the shared mover look (Grid/EditMover.lua) in place of this
+        -- accent border.
+        if EM and container.mover then
+            ApplyColor(0.0)
+            editFrame:Hide()
+            EM.Show(container.mover, container._sfMoverName or "Pet Frames",
+                { nudge = container._sfNudge })
+        else
+            editFrame:Show()
+        end
     else
         ApplyColor(0.0)
         editFrame:Hide()
-        if container.mover then container.mover:Hide() end
+        if container.mover then
+            container.mover:Hide()
+            if EM then EM.Hide(container.mover) end
+        end
     end
 end
 

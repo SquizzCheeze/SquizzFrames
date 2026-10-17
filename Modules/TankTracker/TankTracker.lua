@@ -829,11 +829,13 @@ function TankTracker.CreateMover()
     local tex = mover:CreateTexture(nil, "BACKGROUND")
     tex:SetAllPoints(mover)
     tex:SetColorTexture(0.99, 0.6, 0.2, 0.3)
+    mover._sfTex = tex
 
     local label = mover:CreateFontString(nil, "OVERLAY")
     label:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     label:SetPoint("CENTER")
     label:SetText("Tank Tracker")
+    mover._sfLabel = label
 
     -- Same drag maths as every other mover in the addon: cursor position in
     -- UIParent's space, saved as raw pixels from screen centre, divided by
@@ -905,8 +907,10 @@ end
 function TankTracker.SetEditMode(enabled)
     local m = mover or TankTracker.CreateMover()
     local cfg = GetConfig()
+    local EM = SquizzFrames.EditMover
     if not (enabled and cfg and cfg.enabled) then
         m:Hide()
+        if EM then EM.Hide(m) end
         return
     end
     local scale = cfg.scale or 1
@@ -916,6 +920,24 @@ function TankTracker.SetEditMode(enabled)
     m:SetPoint("CENTER", UIParent, "CENTER",
         (cfg.anchorX or 0) / scale, (cfg.anchorY or 0) / scale)
     m:Show()
+    -- 2.0: the shared mover look (Grid/EditMover.lua) in place of this tint
+    -- and label; the arrow keys save the same position the drag does.
+    if EM then
+        m._sfTex:Hide()
+        m._sfLabel:Hide()
+        EM.Show(m, "Tank Tracker", {
+            nudge = function(dx, dy)
+                local c = GetConfig()
+                if not c then return end
+                c.anchorX = (c.anchorX or 0) + dx
+                c.anchorY = (c.anchorY or 0) + dy
+                SquizzFrames:Fire("TankTrackerChanged")
+                local s = c.scale or 1
+                m:ClearAllPoints()
+                m:SetPoint("CENTER", UIParent, "CENTER", c.anchorX / s, c.anchorY / s)
+            end,
+        })
+    end
 end
 
 -----------------------------------------------------------------------
