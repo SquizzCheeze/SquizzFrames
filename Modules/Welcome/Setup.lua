@@ -57,7 +57,9 @@ local function IsOn(key)
 end
 
 local function Accent()
-    if F and F.GetAccentColor then return F.GetAccentColor() end
+    -- F.GetAccentColor returns a colour TABLE ({r, g, b, colorStr}).
+    local c = F and F.GetAccentColor and F.GetAccentColor()
+    if type(c) == "table" and c.r then return c.r, c.g, c.b end
     return 0.2, 0.8, 0.6
 end
 
@@ -243,7 +245,10 @@ end
 -- ----------------------------------------------------------------------------
 
 local function Build()
-    if frame then return frame end
+    -- Only a COMPLETE build counts: an error part-way must not leave a
+    -- half-built window that every later /sf setup trips over.
+    if frame and frame.built then return frame end
+    if frame then frame:Hide() end
 
     frame = CreateFrame("Frame", "SquizzFramesSetup", UIParent, "BackdropTemplate")
     frame:SetSize(WIDTH, HEIGHT)
@@ -310,6 +315,7 @@ local function Build()
     backBtn:SetPoint("RIGHT", nextBtn, "LEFT", -8, 0)
     frame.backBtn = backBtn
 
+    frame.built = true
     return frame
 end
 
