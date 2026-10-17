@@ -48,6 +48,18 @@ local GOOD_DIM = {0.1, 0.6, 0.1, 0.6}
 
 local function C4(t) return t[1], t[2], t[3], t[4] end
 
+-- Search (2.0): every labelled control registers itself with the options
+-- window's index as it is built, and every titled pane names the section the
+-- controls after it belong to. The shell works out which page owns the
+-- control, so widgets made anywhere else (popups, previews) are ignored.
+local Shell = LibStub and LibStub("LibSquizzShell-1.0", true)
+local function IndexControl(frame, label, tip)
+    if Shell and type(label) == "string" then Shell:IndexControl(frame, label, tip) end
+end
+local function IndexSection(frame, title)
+    if Shell and type(title) == "string" then Shell:IndexSection(frame, title) end
+end
+
 -- Refill the palette (and the accent) from the shared theme. Called at load
 -- and again by OptionsFrame right before the window is first built, because
 -- the theme's CHOICE is only settled in Core's OnInitialize, after this file
@@ -346,6 +358,7 @@ local function CreateStyledCheckbox(parent, label, getChecked, onValueChanged)
         self:SetHitRectInsets(0, -self.labelText:GetStringWidth() - 7, 0, 0)
     end
 
+    IndexControl(cb, label)
     return cb
 end
 
@@ -496,6 +509,7 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
 
     container.slider = slider
     container.editBox = editBox
+    IndexControl(container, label)
     return container
 end
 
@@ -688,6 +702,7 @@ local function CreateTitledPane(parent, text, yOffset)
     line:SetHeight(1)
     line:SetColorTexture(1, 1, 1, 0.08)
 
+    IndexSection(parent, text)
     return pane
 end
 
@@ -979,6 +994,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
     end
 
     container.dropdown = dd
+    IndexControl(container, label)
     return container
 end
 
@@ -1689,6 +1705,7 @@ local function CreateColorPicker(parent, label, getColor, setColor)
     container.UpdateSwatch = UpdateSwatch
     UpdateSwatch()
 
+    IndexControl(container, label)
     return container
 end
 

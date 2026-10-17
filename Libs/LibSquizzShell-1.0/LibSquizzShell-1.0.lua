@@ -163,6 +163,67 @@ function lib:AddSearchEntry(addonId, entry)
     list[#list + 1] = entry
 end
 
+-- Control index ------------------------------------------------------------------
+--
+-- An addon's widget factories call these as they build a control, so every
+-- setting on a page becomes searchable without being described a second time.
+-- The owning page is found by walking up the control's parents to a page
+-- frame, so it works whenever the control is made: the first build, and every
+-- rebuild after (a profile switch rebuilds whole pages). A label seen again in
+-- the same section re-points the existing entry at the new frame instead of
+-- adding a duplicate. A page registered with autoIndex = false is skipped:
+-- one that only builds the section on screen would index whichever section
+-- happened to be built, and its entries could point at the wrong one.
+
+lib.pageOfFrame = lib.pageOfFrame or setmetatable({}, { __mode = "k" })
+
+local function OwningPage(frame)
+    local f = frame
+    for _ = 1, 40 do
+        if not f then return nil end
+        local page = lib.pageOfFrame[f]
+        if page then return page end
+        f = f.GetParent and f:GetParent()
+    end
+end
+
+local function Clean(s)
+    if type(s) ~= "string" then return nil end
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if s == "" then return nil end
+    return s
+end
+
+--- A section title on a page: controls made after it are filed under it.
+function lib:IndexSection(frame, title)
+    local page = OwningPage(frame)
+    if page then page.lastSection = Clean(title) end
+end
+
+--- A control on a page: searchable by its label (and tip), and the result
+--- scrolls the page to it.
+function lib:IndexControl(frame, label, tip)
+    label = Clean(label)
+    if not label then return end
+    local page = OwningPage(frame)
+    if not page or page.autoIndex == false then return end
+    page.controls = page.controls or {}
+    local key = (page.lastSection or "") .. "\0" .. label
+    local e = page.controls[key]
+    if e then
+        e.frame = frame
+        return
+    end
+    e = { label = label, tip = Clean(tip), page = page.key, path = page.lastSection, frame = frame }
+    -- A frame later: the page was just shown and resized, and the scroll
+    -- range only catches up once the client has laid it out.
+    e.onSelect = function(win)
+        if win then C_Timer.After(0, function() win:RevealControl(e.frame) end) end
+    end
+    page.controls[key] = e
+    lib:AddSearchEntry(page.addon, e)
+end
+
 -- Window -----------------------------------------------------------------------
 
 local Window = {}
@@ -338,7 +399,7 @@ function Window:BuildResults()
             local e = r.entry
             if not e then return end
             self:ShowPage(e.addon .. ":" .. e.page)
-            if e.onSelect then e.onSelect() end
+            if e.onSelect then e.onSelect(self) end
         end)
         row:Hide()
         self.resultRows[i] = row
@@ -645,10 +706,7 @@ function Window:ShowPage(id)
     end
 
     if not page.frame then
-        local pf = CreateFrame("Frame", nil, host)
-        pf:SetAllPoints(host)
-        page.frame = pf
-        if page.build then page.build(pf) end
+        self:BuildPage(page, host)
     elseif page.frame:GetParent() ~= host then
         page.frame:SetParent(host)
         page.frame:ClearAllPoints()
@@ -663,6 +721,74 @@ function Window:ShowPage(id)
     self:ScrollToTop()
     if page.onShow then page.onShow(page.frame) end
     if self.opts.onShowPage then self.opts.onShowPage(page.key, page.addon) end
+end
+
+-- Build one page into `host` (hidden), registering its frame so the controls
+-- it makes can find their page (see IndexControl).
+function Window:BuildPage(page, host)
+    local pf = CreateFrame("Frame", nil, host)
+    pf:SetAllPoints(host)
+    page.frame = pf
+    lib.pageOfFrame[pf] = page
+    if page.build then page.build(pf) end
+end
+
+--- Build every page this window shows that has not been built yet, hidden,
+--- so search can find settings on pages nobody has opened. 1.x built every
+--- page on first open anyway, so this costs what it always did.
+function Window:BuildAllPages()
+    for _, addonId in ipairs(self.opts.addons or {}) do
+        local spec = lib.addons[addonId]
+        for _, group in ipairs(spec and spec.groups or {}) do
+            for _, page in ipairs(group.pages or {}) do
+                if not page.frame then
+                    local host = page.layout == "fill" and self.fillHost or self.scrollChild
+                    if page.layout ~= "fill" then
+                        local h = math.max(page.height or 400, self.scrollFrame:GetHeight())
+                        self.scrollChild:SetSize(math.max(1, self.scrollFrame:GetWidth()), h)
+                    end
+                    self:BuildPage(page, host)
+                    page.frame:Hide()
+                end
+            end
+        end
+    end
+end
+
+--- Scroll the current page so `frame` is near the top, and flash it.
+function Window:RevealControl(frame)
+    if not frame or not frame.GetTop then return end
+    local page = self.current
+    if page and page.layout ~= "fill" and self.scrollChild:GetTop() and frame:GetTop() then
+        local offset = self.scrollChild:GetTop() - frame:GetTop() - 24
+        local lo, hi = self.scrollBar:GetMinMaxValues()
+        self.scrollBar:SetValue(math.max(lo, math.min(hi, offset)))
+    end
+    if not self.flash then
+        local fl = CreateFrame("Frame", nil, self.frame)
+        local tex = fl:CreateTexture(nil, "OVERLAY")
+        tex:SetAllPoints()
+        fl.tex = tex
+        local ag = fl:CreateAnimationGroup()
+        local a = ag:CreateAnimation("Alpha")
+        a:SetFromAlpha(0.6)
+        a:SetToAlpha(0)
+        a:SetDuration(1.2)
+        ag:SetScript("OnFinished", function() fl:Hide() end)
+        fl.ag = ag
+        self.flash = fl
+    end
+    local fl = self.flash
+    local r, g, b = Accent()
+    fl.tex:SetColorTexture(r, g, b, 1)
+    fl:SetParent(frame)
+    fl:ClearAllPoints()
+    fl:SetPoint("TOPLEFT", frame, "TOPLEFT", -4, 4)
+    fl:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 4, -4)
+    fl:SetFrameLevel(frame:GetFrameLevel() + 10)
+    fl:Show()
+    fl.ag:Stop()
+    fl.ag:Play()
 end
 
 function Window:ScrollToTop()

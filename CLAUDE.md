@@ -614,7 +614,13 @@ show) and reparented into whichever window shows it, so the planned combined
 Pages are `layout = "scroll"` (shared scroll frame, at least `height` tall) or
 `"fill"` (whole content area, own scrolling -- Indicators). Optional `onShow`
 (Click Casting's list rebuild) and `onResize` (Unit Frames' strip re-wrap).
-Search covers page labels plus whatever `Shell:AddSearchEntry(addonId,
+Search covers page labels, every control Widgets.lua builds (checkbox, slider,
+dropdown, colour picker -- each calls `Shell:IndexControl`, and `CreateTitledPane`
+calls `Shell:IndexSection` to name the section; the owning page is found by
+walking parents, so rebuilds re-point entries instead of duplicating them;
+windows build every page hidden on first open so unvisited pages are found),
+except on pages registered `autoIndex = false` (Unit Frames, Tank Tracker,
+Indicators: they build one section at a time), plus whatever `Shell:AddSearchEntry(addonId,
 {label, tip, page, path, onSelect})` adds -- step 3 of phase 3 fills that per
 page. The window keeps the global name `SquizzFramesOptionsFrame`
 (GroupPreview anchors to it and hooks its OnHide) and

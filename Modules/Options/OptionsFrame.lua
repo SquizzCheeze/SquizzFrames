@@ -163,6 +163,7 @@ local function CreateOptionsFrame()
         { label = "Frames", pages = {
             Page("layout", "Party and Raid", "Size, growth and look of the group frames", Pages.layout),
             Page("unitFrames", "Unit Frames", "Player, target, focus, boss and arena frames", Pages.unitFrames, {
+                autoIndex = false,
                 onResize = function()
                     -- The indicator sub-tab strip wraps to the width it had
                     -- when built, so re-measure once the drag has settled.
@@ -174,11 +175,11 @@ local function CreateOptionsFrame()
         } },
         { label = "On the frames", pages = {
             Page("indicators", "Indicators", "What draws on each party and raid frame", Pages.indicators,
-                { layout = "fill" }),
+                { layout = "fill", autoIndex = false }),
             Page("nicknames", "Nicknames", "Names shown in place of players' own", Pages.nicknames),
         } },
         { label = "Tools", pages = {
-            Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker),
+            Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker, { autoIndex = false }),
             Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
                 onShow = function(frame)
                     if frame.RebuildClickCasting then frame:RebuildClickCasting() end
@@ -209,6 +210,10 @@ local function CreateOptionsFrame()
         onShowPage = OnShowPage,
     })
     optionsFrame = win.frame
+
+    -- Build every page now, hidden, so search finds settings on pages that
+    -- have not been opened yet (1.x built them all on first open too).
+    win:BuildAllPages()
 
     -- The Edit Mode button shows the live state, however it was changed.
     editModeRefreshers[#editModeRefreshers + 1] = function()
