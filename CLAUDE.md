@@ -584,7 +584,9 @@ and with its "Hide Blizzard's Cooldown Manager" option it sits at -10000.
 ### Theme (Libs/LibSquizzTheme-1.0) -- shared with Squizzumables, 2.0 phase 1
 
 Same arrangement as LibSquizzGrid below: **a byte-identical copy in each addon,
-change both and bump `MINOR`.** It holds Squizzumables' five presets and named
+change both and bump `MINOR`.** ⚠ Since 2026-10-18 there is a THIRD copy of
+this and of LibSquizzShell, in `AddOns\RoleRoulette\Libs` (it uses the shared
+window and theme): change all three. It holds Squizzumables' five presets and named
 palette, and ONE account-wide choice (user decision: one theme covers both
 addons). A library cannot own SavedVariables, so each addon attaches its SV
 ROOT (`LST:Attach(root, seed, priority)`) and the choice is written into every
