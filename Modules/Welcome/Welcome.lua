@@ -33,6 +33,15 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.0"] = {
+        "A new options window, shared with Squizzumables: the theme's colours, a search box that finds any setting, and live previews down the right.",
+        "One theme for both addons: Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal (General page).",
+        "Edit Mode shows a full party or raid so you can place the frames without a group, and every frame gets click-to-select and arrow-key nudging. Blizzard's Edit Mode turns it on too.",
+        "/squizz opens one window for SquizzFrames and Squizzumables together.",
+        "Hover any setting for a tooltip saying what it does.",
+        "The Status Icon no longer fades with out-of-range players.",
+        "First-run setup: pick your role, the extras you want, place your frames and choose a theme. Run Setup below, or /sf setup any time.",
+    },
     ["1.40"] = {
         "Fixed a \"LibSharedMedia: Attempt to register a file that doesn't exist\" error at login (seen with BigWigs installed).",
     },
