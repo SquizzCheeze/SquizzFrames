@@ -90,7 +90,7 @@ SquizzFrames/
     │   └── ClickCastingPanel.lua # Options UI
     └── Options/
         ├── Options.lua      # AceConfig fallback table (for /sf)
-        ├── OptionsFrame.lua # Custom options panel (tabbed: General, Layout, Appearance, Click Casting, Indicators)
+        ├── OptionsFrame.lua # Registers the pages with LibSquizzShell (the window itself, shared with Squizzumables) and builds General + Profiles; Edit Mode toggle state
         └── Widgets.lua      # Custom styled widgets (sliders, dropdowns, checkboxes, buttons)
 ```
 
@@ -600,6 +600,25 @@ accent once at build, so a pick shows after a /reload (the dropdown offers
 one). The palette's other colours are not used by our window yet -- that is
 phase 3, when the window is rebuilt on the shared shell. The old
 `appearance.general.accentColor` is now only a fallback for a missing library.
+
+### Options window (Libs/LibSquizzShell-1.0) -- 2.0 phase 3
+
+The window is a library meant to be shared with Squizzumables (a copy in each,
+change both + bump `MINOR`; Squizzumables only takes its copy when it moves
+onto it, at the end of phase 3). Addons and windows are separate:
+`Shell:RegisterAddon(id, {title, groups = {{label, pages = {...}}}})` registers
+pages; `Shell:CreateWindow({name, addons = {...}, buttons, onHide, onShowPage})`
+shows one or more addons. A page is built ONCE (`build(host)`, lazily, on first
+show) and reparented into whichever window shows it, so the planned combined
+`/squizz` window shares one copy of every page with each addon's own window.
+Pages are `layout = "scroll"` (shared scroll frame, at least `height` tall) or
+`"fill"` (whole content area, own scrolling -- Indicators). Optional `onShow`
+(Click Casting's list rebuild) and `onResize` (Unit Frames' strip re-wrap).
+Search covers page labels plus whatever `Shell:AddSearchEntry(addonId,
+{label, tip, page, path, onSelect})` adds -- step 3 of phase 3 fills that per
+page. The window keeps the global name `SquizzFramesOptionsFrame`
+(GroupPreview anchors to it and hooks its OnHide) and
+`SquizzFrames.OptionsScrollToTop` still exists (Unit Frames, Tank Tracker).
 
 ### Edit Mode grid and snapping (Libs/LibSquizzGrid-1.0, Modules/Grid/SnapGrid.lua)
 

@@ -31,6 +31,10 @@
     <!-- Our own: the theme (palette, presets, one account-wide choice), shared
          with Squizzumables the same way -->
     <Script file="LibSquizzTheme-1.0\LibSquizzTheme-1.0.lua"/>
+    <!-- Our own: the options window (title bar, search, grouped sidebar,
+         page hosting), drawn in the theme above. Squizzumables takes a copy
+         when it moves onto it. -->
+    <Script file="LibSquizzShell-1.0\LibSquizzShell-1.0.lua"/>
     <!-- Third-party libraries -->
     <Include file="LibSharedMedia-3.0\lib.xml"/>
     <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>

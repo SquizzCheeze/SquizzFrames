@@ -7,6 +7,13 @@ V2.0
 
 New:
 
+- A new options window, the same as Squizzumables': the theme's colours,
+  a search box in the title bar, and the pages in four groups - Frames
+  (Party and Raid, Unit Frames, Pet Frames), On the Frames (Indicators,
+  Nicknames), Tools (Tank Tracker, Click Casting) and General (General,
+  Profiles). Every page has its title at the top. The settings on each
+  page are unchanged for now; search finds pages by name, and finding
+  individual settings comes next.
 - Theme (General page): SquizzFrames now shares Squizzumables' theme -
   Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal. One choice
   covers both addons. For now it sets the options window's accent colour;

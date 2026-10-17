@@ -1,14 +1,15 @@
---[[ SquizzFrames OptionsFrame.lua - Custom Options Panel ]]
+--[[ SquizzFrames OptionsFrame.lua - the options window ]]
 --
--- Sidebar-navigation shell (app-style): a resizable window with a left-hand
--- section list (General / Layout / Appearance / Click Casting / Indicators).
+-- Since 2.0 the window itself is LibSquizzShell-1.0 (Libs/), shared with
+-- Squizzumables: title bar with search and Edit Mode, a sidebar in four
+-- groups, a page header, and page hosting. This file registers the pages
+-- (CreateOptionsFrame) and holds the builders for the ones still written
+-- here (General, Profiles); the rest live in their own *Panel.lua files and
+-- are only called from here.
 --
--- Simple pages (General/Layout/Appearance/Click Casting) render into a
--- shared scrolling content area. Indicators takes over the full content area
--- directly (IndicatorsPanel.lua manages its own internal preview/list/
--- settings layout and needs the real estate) -- it's a single page (list +
--- settings + a Built-in/Custom switch + a live preview, all in one place),
--- not split across sidebar sub-pages.
+-- Most pages are "scroll" pages placed in the shell's shared scroll frame at
+-- least pageHeights tall. Indicators is a "fill" page: IndicatorsPanel.lua
+-- manages its own list/settings/preview panes and needs the whole area.
 
 local SquizzFrames = _G["SquizzFrames"]
 if not SquizzFrames then return end
@@ -17,32 +18,10 @@ local F = SquizzFrames.F
 local L = SquizzFrames.L
 local W = SquizzFrames.Widgets
 
--- Frame references
-local optionsFrame
-local sidebarFrame
-local contentArea
-local scrollFrame, scrollBar, scrollChild -- shared scroll for simple pages
-local indicatorsHost -- full-area host frame for Indicators pages
-local contentFrames = {}   -- pageId -> content frame
-local currentPageId       -- currently shown pageId (functions can't hold fields)
+local optionsFrame -- the shell window's frame, "SquizzFramesOptionsFrame"
 
--- Sidebar navigation model.
--- Appearance was merged into Layout (layout and appearance settings go
--- hand in hand) -- see BuildLayoutFields' "Appearance" section.
-local NAV_ITEMS = {
-    {id = "general",      label = "General"},
-    {id = "layout",       label = "Layout"},
-    {id = "petFrames",    label = "Pet Frames"},
-    {id = "unitFrames",   label = "Unit Frames"},
-    {id = "clickCasting", label = "Click Casting"},
-    {id = "indicators",   label = "Indicators"},
-    {id = "tankTracker",  label = "Tank Tracker"},
-    {id = "nicknames",    label = "Nicknames"},
-    {id = "profiles",     label = "Profiles"},
-}
-
--- Fixed content heights per simple page (content can exceed; scrolls if
--- needed). Indicators pages manage their own layout and aren't part of this.
+-- Minimum content height per scroll page (content can exceed; the window
+-- scrolls). Indicators manages its own layout and isn't part of this.
 local pageHeights = {
     ["general"] = 665, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme (2.0)
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
@@ -53,8 +32,6 @@ local pageHeights = {
     ["nicknames"] = 780,
     ["profiles"] = 600,
 }
-
-local ShowPage -- forward declaration (sidebar row handlers close over this)
 
 -----------------------------------------------------------------------
 -- Profile accessors
@@ -106,32 +83,6 @@ local function SetEditModeEnabled(enabled)
     RefreshEditModeButtons()
 end
 
--- Applies the on/off look to a styled button used as an edit-mode toggle, and
--- registers it for future refreshes. Shared by the title-bar button and any
--- other surface that wants to show the same state.
-local function WireEditModeButton(btn)
-    local function Refresh()
-        if SquizzFrames.editMode then
-            local a = F.GetAccentColor()
-            btn:SetBackdropColor(a.r, a.g, a.b, 0.5)
-            btn.fontString:SetTextColor(1, 1, 1, 1)
-        else
-            btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
-            btn.fontString:SetTextColor(0.7, 0.7, 0.7, 1)
-        end
-    end
-    btn:SetScript("OnClick", function() SetEditModeEnabled(nil) end)
-    -- CreateStyledButton's own OnLeave restores its *normal* colour, which
-    -- wiped the lit "edit mode is on" backdrop the moment the cursor moved
-    -- off the button. Re-assert state instead. (This was already wrong on the
-    -- old General-page button; it just mattered less there than it does two
-    -- pixels from the close button, which you hover constantly.)
-    btn:SetScript("OnLeave", function() Refresh() end)
-    editModeRefreshers[#editModeRefreshers + 1] = Refresh
-    Refresh()
-    return Refresh
-end
-
 -- Keep the toggle's look correct when edit mode changes from OUTSIDE this file
 -- -- Lock Frames turning it off, or PartyFrames' combat auto-disable. Its own
 -- message owner so it can't collide with any other "EditModeChanged" listener
@@ -142,364 +93,133 @@ if F and F.NewMessageOwner then
 end
 
 -----------------------------------------------------------------------
--- Sidebar
+-- The window: LibSquizzShell-1.0 (2.0 phase 3)
 -----------------------------------------------------------------------
+-- The window, title bar, search, grouped sidebar and page hosting come from
+-- the shell shared with Squizzumables (Libs/LibSquizzShell-1.0). This file
+-- registers SquizzFrames' pages with it and keeps what is ours: the Edit
+-- Mode button's behaviour, the group-preview re-pointing and the page
+-- builders below. The pages themselves are unchanged; each is still built
+-- into the frame it is handed.
 
-local SIDEBAR_WIDTH = 150
-local ROW_HEIGHT = 24
--- Accent alpha for a hovered (unselected) nav row. Same value the Indicators
--- tab's header buttons use, for one consistent hover across the panel.
-local SIDEBAR_HOVER_ALPHA = 0.3
+local Shell = LibStub("LibSquizzShell-1.0")
+local win -- the shell window, made on first open
 
-local sidebarRows = {}       -- pageId -> row button
-
-local function HighlightRow(selectedId)
-    local accent = F.GetAccentColor()
-    for id, row in pairs(sidebarRows) do
-        if id == selectedId then
-            row.isSelected = true
-            row:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
-        else
-            -- isSelected must be cleared here too, not just set on the match:
-            -- CreateSidebarRow's OnEnter/OnLeave check it to decide whether to
-            -- preserve the selected color through a hover, and it was never
-            -- being set at all before, so every row silently reverted to the
-            -- default color the instant the mouse passed over ANY row.
-            row.isSelected = false
-            row:SetBackdropColor(0.115, 0.115, 0.115, 1)
-        end
+-- Keep the group preview pointed at the Party/Raid selection of whichever
+-- page you just landed on. The Layout and Indicators pages keep INDEPENDENT
+-- Party/Raid selections and share one preview window, so without this the
+-- preview could show a raid beside a page editing party. No-op while closed.
+local function OnShowPage(key)
+    local GroupPreview = SquizzFrames.GroupPreview
+    if not (GroupPreview and GroupPreview.SetRaidMode) then return end
+    if key == "layout" then
+        local LP = SquizzFrames.LayoutPanel
+        if LP and LP.IsRaidTab then GroupPreview.SetRaidMode(LP.IsRaidTab()) end
+    elseif key == "indicators" then
+        local IP = SquizzFrames.IndicatorsPanel
+        if IP and IP.IsRaidTab then GroupPreview.SetRaidMode(IP.IsRaidTab()) end
     end
 end
 
-local function LayoutSidebarRows()
-    local y = -6
-    for _, item in ipairs(NAV_ITEMS) do
-        local row = sidebarRows[item.id]
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", sidebarFrame, "TOPLEFT", 4, y)
-        row:SetPoint("TOPRIGHT", sidebarFrame, "TOPRIGHT", -4, y)
-        row:Show()
-        y = y - ROW_HEIGHT - 2
+-- Closing the panel drops any preview left showing and leaves edit mode.
+-- The group preview window handles itself (GroupPreview.lua hooks this same
+-- OnHide); this covers PartyFrames' older in-world preview. Edit mode: its
+-- only toggle is in this window's title bar, so staying in it after closing
+-- left the frames draggable with no visible way to stop.
+-- PartyFrames:SetEditMode(false) is combat-safe (it defers its relayout).
+local function OnWindowHide()
+    local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
+    if partyModule and partyModule.IsPreviewActive and partyModule:IsPreviewActive() then
+        partyModule:SetPreviewMode(false)
+    end
+    if SquizzFrames.editMode then
+        SetEditModeEnabled(false)
     end
 end
 
-local function CreateSidebarRow(parent, label, onClick)
-    local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    row:SetHeight(ROW_HEIGHT)
-    W.StylizeFrame(row, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+local DEFAULT_WIDTH, DEFAULT_HEIGHT = 900, 620
+local MIN_WIDTH, MIN_HEIGHT = 780, 500
+local MAX_WIDTH, MAX_HEIGHT = 1400, 1000
 
-    local text = row:CreateFontString(nil, "OVERLAY")
-    text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-    text:SetPoint("LEFT", 8, 0)
-    text:SetText(label)
-    row.fontString = text
-
-    row:SetScript("OnClick", onClick)
-    -- Hover is a faint wash of the accent colour (which follows the profile's
-    -- class-colour/custom choice), not the flat warm brown it used to be.
-    -- Resolved per hover, since the accent changes with the profile and with
-    -- the accent-colour setting -- a value captured at creation would go stale
-    -- on both. Well under the 0.55 the SELECTED row uses (see HighlightRow),
-    -- which is why hovering an unselected row can't be mistaken for selecting
-    -- it. Matches the Indicators tab's own row/button hovers.
-    row:SetScript("OnEnter", function(self)
-        if self.isSelected then return end
-        local a = F.GetAccentColor()
-        self:SetBackdropColor(a.r, a.g, a.b, SIDEBAR_HOVER_ALPHA)
-    end)
-    row:SetScript("OnLeave", function(self)
-        if self.isSelected then return end
-        self:SetBackdropColor(0.115, 0.115, 0.115, 1)
-    end)
-    return row
-end
-
-local function CreateSidebar()
-    sidebarFrame = CreateFrame("Frame", nil, optionsFrame, "BackdropTemplate")
-    sidebarFrame:SetPoint("TOPLEFT", optionsFrame, "TOPLEFT", 0, -26)
-    sidebarFrame:SetPoint("BOTTOMLEFT", optionsFrame, "BOTTOMLEFT", 0, 0)
-    sidebarFrame:SetWidth(SIDEBAR_WIDTH)
-    W.StylizeFrame(sidebarFrame, {0.08, 0.08, 0.08, 1}, {0, 0, 0, 1})
-
-    for _, item in ipairs(NAV_ITEMS) do
-        local row = CreateSidebarRow(sidebarFrame, item.label, function()
-            ShowPage(item.id)
-        end)
-        sidebarRows[item.id] = row
-    end
-
-    LayoutSidebarRows()
-end
-
------------------------------------------------------------------------
--- Create the main options frame
------------------------------------------------------------------------
-
-local DEFAULT_WIDTH, DEFAULT_HEIGHT = 820, 560
-local MIN_WIDTH, MIN_HEIGHT = 700, 480
-local MAX_WIDTH, MAX_HEIGHT = 1100, 800
+-- Page builders are declared further down; the registration below only
+-- runs on first open, by which time they all exist.
+local Pages = {}
 
 local function CreateOptionsFrame()
-    if optionsFrame then return optionsFrame end
+    if win then return win end
 
-    optionsFrame = CreateFrame("Frame", "SquizzFramesOptionsFrame", UIParent, "BackdropTemplate")
-    optionsFrame:SetSize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
-    optionsFrame:SetPoint("CENTER", 0, 0)
-    optionsFrame:SetFrameStrata("DIALOG")
-    optionsFrame:SetFrameLevel(520)
-    optionsFrame:SetClampedToScreen(true)
-    optionsFrame:SetMovable(true)
-    optionsFrame:SetResizable(true)
-    if optionsFrame.SetResizeBounds then
-        optionsFrame:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT, MAX_WIDTH, MAX_HEIGHT)
-    else
-        -- Fallback for API surfaces without SetResizeBounds.
-        optionsFrame:SetMinResize(MIN_WIDTH, MIN_HEIGHT)
-        optionsFrame:SetMaxResize(MAX_WIDTH, MAX_HEIGHT)
+    local function Page(key, label, subtitle, build, extra)
+        local p = { key = key, label = label, subtitle = subtitle, build = build,
+                    layout = "scroll", height = pageHeights[key] }
+        for k, v in pairs(extra or {}) do p[k] = v end
+        return p
     end
-    optionsFrame:EnableMouse(true)
-    optionsFrame:SetToplevel(true)
-    optionsFrame:Hide()
 
-    -- Closing the panel should always drop any preview left showing.
-    --
-    -- The group preview window handles itself (GroupPreview.lua hooks this
-    -- same OnHide). This remains only for PartyFrames' older in-world preview,
-    -- which the Layout tab no longer opens -- it's unreachable from this panel
-    -- now, but the API is still public, so dropping it here stays correct if
-    -- anything else ever turns it on.
-    optionsFrame:SetScript("OnHide", function()
-        local partyModule = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
-        if partyModule and partyModule.IsPreviewActive and partyModule:IsPreviewActive() then
-            partyModule:SetPreviewMode(false)
-        end
-        -- Leave edit mode with the panel. Its only toggle is in this window's
-        -- title bar, so staying in edit mode after closing left the frames
-        -- draggable with no visible way to stop -- you had to reopen the panel
-        -- purely to click the button again. PartyFrames:SetEditMode(false) is
-        -- combat-safe (it defers its relayout to PLAYER_REGEN_ENABLED), so
-        -- this needs no lockdown guard of its own.
-        if SquizzFrames.editMode then
-            SetEditModeEnabled(false)
-        end
-    end)
+    Shell:RegisterAddon("SquizzFrames", { title = "SquizzFrames", groups = {
+        { label = "Frames", pages = {
+            Page("layout", "Party and Raid", "Size, growth and look of the group frames", Pages.layout),
+            Page("unitFrames", "Unit Frames", "Player, target, focus, boss and arena frames", Pages.unitFrames, {
+                onResize = function()
+                    -- The indicator sub-tab strip wraps to the width it had
+                    -- when built, so re-measure once the drag has settled.
+                    local UFP = SquizzFrames.UnitFramesPanel
+                    if UFP and UFP.Rebuild then UFP.Rebuild() end
+                end,
+            }),
+            Page("petFrames", "Pet Frames", "Party, raid and your own pet", Pages.petFrames),
+        } },
+        { label = "On the frames", pages = {
+            Page("indicators", "Indicators", "What draws on each party and raid frame", Pages.indicators,
+                { layout = "fill" }),
+            Page("nicknames", "Nicknames", "Names shown in place of players' own", Pages.nicknames),
+        } },
+        { label = "Tools", pages = {
+            Page("tankTracker", "Tank Tracker", "Each tank's debuffs and defensives", Pages.tankTracker),
+            Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
+                onShow = function(frame)
+                    if frame.RebuildClickCasting then frame:RebuildClickCasting() end
+                end,
+            }),
+        } },
+        { label = "General", pages = {
+            Page("general", "General", "Theme, Blizzard frames, behaviour and opacity", Pages.general),
+            Page("profiles", "Profiles", "Profiles, spec switching, import and export", Pages.profiles),
+        } },
+    } })
 
-    W.StylizeFrame(optionsFrame, {0.1, 0.1, 0.1, 0.9}, {0, 0, 0, 1})
+    win = Shell:CreateWindow({
+        name = "SquizzFramesOptionsFrame",
+        addons = { "SquizzFrames" },
+        title = "SQUIZZFRAMES",
+        width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT,
+        minWidth = MIN_WIDTH, minHeight = MIN_HEIGHT,
+        maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT,
+        level = 520,
+        combat = "fade",
+        buttons = {
+            { key = "editMode", label = L["Edit Mode"] or "Edit Mode", width = 90,
+              tip = "Shows every SquizzFrames frame with a box you can drag. Closing this window leaves Edit Mode.",
+              onClick = function() SetEditModeEnabled(nil) end },
+        },
+        onHide = OnWindowHide,
+        onShowPage = OnShowPage,
+    })
+    optionsFrame = win.frame
 
-    -- Title bar
-    local titleBar = CreateFrame("Frame", nil, optionsFrame)
-    titleBar:SetPoint("TOPLEFT", 0, 0)
-    titleBar:SetPoint("TOPRIGHT", 0, 0)
-    titleBar:SetHeight(26)
-    titleBar:EnableMouse(true)
-    titleBar:RegisterForDrag("LeftButton")
-    titleBar:SetScript("OnDragStart", function() optionsFrame:StartMoving() end)
-    titleBar:SetScript("OnDragStop", function() optionsFrame:StopMovingOrSizing() end)
+    -- The Edit Mode button shows the live state, however it was changed.
+    editModeRefreshers[#editModeRefreshers + 1] = function()
+        local b = win.buttons.editMode
+        if b then b:SetActive(SquizzFrames.editMode) end
+    end
+    RefreshEditModeButtons()
 
-    local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
-    titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.115, 0.115, 0.115, 1)
-
-    local titleText = titleBar:CreateFontString(nil, "OVERLAY")
-    titleText:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
-    titleText:SetPoint("LEFT", 10, 0)
-    titleText:SetTextColor(1, 1, 1, 1)
-    titleText:SetText("SquizzFrames")
-
-    local accent = F.GetAccentColor()
-    local accentLine = titleBar:CreateTexture(nil, "BACKGROUND")
-    accentLine:SetPoint("BOTTOMLEFT", 0, 0)
-    accentLine:SetPoint("BOTTOMRIGHT", 0, 0)
-    accentLine:SetHeight(1)
-    accentLine:SetColorTexture(accent.r, accent.g, accent.b, 0.5)
-
-    -- Both title-bar buttons are vertically centred in the 26px bar and inset
-    -- from the right edge. Anchored at TOPRIGHT 0,0 the close button sat hard
-    -- against the window's own border and corner with all its slack below it,
-    -- which read as misaligned next to the Edit Mode button beside it.
-    local closeBtn = W.CreateStyledButton(titleBar, "X", "red", {20, 20}, function()
-        optionsFrame:Hide()
-    end)
-    closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -4, 0)
-
-    -- Edit Mode toggle, left of the close button: reachable from every tab
-    -- (see SetEditModeEnabled's header comment for why it moved here off the
-    -- General page). The callback is installed by WireEditModeButton.
-    local editBtn = W.CreateStyledButton(titleBar, L["Edit Mode"] or "Edit Mode",
-        "accent-hover", {76, 20}, nil)
-    editBtn:SetPoint("RIGHT", closeBtn, "LEFT", -6, 0)
-    editBtn.fontString:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-    WireEditModeButton(editBtn)
-
-    -- Resize grip (bottom-right corner)
-    local resizeGrip = CreateFrame("Button", nil, optionsFrame)
-    resizeGrip:SetSize(16, 16)
-    resizeGrip:SetPoint("BOTTOMRIGHT", -2, 2)
-    resizeGrip:SetNormalTexture([[Interface\ChatFrame\UI-ChatIM-SizeGrabber-Up]])
-    resizeGrip:SetHighlightTexture([[Interface\ChatFrame\UI-ChatIM-SizeGrabber-Highlight]])
-    resizeGrip:SetPushedTexture([[Interface\ChatFrame\UI-ChatIM-SizeGrabber-Down]])
-    resizeGrip:SetScript("OnMouseDown", function()
-        optionsFrame:StartSizing("BOTTOMRIGHT")
-    end)
-    resizeGrip:SetScript("OnMouseUp", function()
-        optionsFrame:StopMovingOrSizing()
-        if scrollFrame and currentPageId then ShowPage(currentPageId) end
-        -- Unit Frames' indicator sub-tab strip wraps to however many columns
-        -- its pane currently fits, computed from the strip's width at build
-        -- time -- ShowPage above only resizes scrollChild, so the strip needs
-        -- its own re-measure once the drag has actually settled.
-        if currentPageId == "unitFrames" then
-            local UFP = SquizzFrames.UnitFramesPanel
-            if UFP and UFP.Rebuild then UFP.Rebuild() end
-        end
-    end)
-
-    -- Sidebar (left)
-    CreateSidebar()
-
-    -- Content area (right of sidebar)
-    contentArea = CreateFrame("Frame", nil, optionsFrame)
-    contentArea:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 4, 0)
-    contentArea:SetPoint("BOTTOMRIGHT", optionsFrame, "BOTTOMRIGHT", -4, 4)
-
-    -- Shared scroll area for simple pages (General/Layout/Appearance/Click Casting)
-    scrollFrame = CreateFrame("ScrollFrame", nil, contentArea)
-    scrollFrame:SetPoint("TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -16, 4)
-
-    scrollBar = CreateFrame("Slider", nil, contentArea, "BackdropTemplate")
-    scrollBar:SetPoint("TOPRIGHT", contentArea, "TOPRIGHT", -2, -4)
-    scrollBar:SetPoint("BOTTOMRIGHT", contentArea, "BOTTOMRIGHT", -2, 4)
-    scrollBar:SetWidth(12)
-    scrollBar:SetOrientation("VERTICAL")
-    scrollBar:SetMinMaxValues(0, 0)
-    scrollBar:SetValueStep(20)
-    scrollBar:SetValue(0)
-    scrollBar:SetObeyStepOnDrag(true)
-    W.StylizeFrame(scrollBar, {0.1, 0.1, 0.1, 0.8}, {0, 0, 0, 1})
-
-    local scrollThumb = scrollBar:CreateTexture(nil, "OVERLAY")
-    scrollThumb:SetSize(10, 30)
-    scrollThumb:SetColorTexture(accent.r, accent.g, accent.b, 0.7)
-    scrollBar:SetThumbTexture(scrollThumb)
-
-    scrollChild = CreateFrame("Frame")
-    scrollFrame:SetScrollChild(scrollChild)
-
-    scrollFrame:SetScript("OnScrollRangeChanged", function(_, _, yrange)
-        scrollBar:SetMinMaxValues(0, yrange)
-    end)
-    scrollBar:SetScript("OnValueChanged", function(_, value)
-        scrollFrame:SetVerticalScroll(value)
-    end)
-    scrollFrame:SetScript("OnMouseWheel", function(_, delta)
-        local current = scrollBar:GetValue()
-        local minVal, maxVal = scrollBar:GetMinMaxValues()
-        local newVal = math.max(minVal, math.min(maxVal, current - delta * 30))
-        scrollBar:SetValue(newVal)
-    end)
-
-    -- Reset the shared scroll area to the top.
-    --
-    -- MUST go through the SCROLLBAR. scrollFrame:SetVerticalScroll(0) on its
-    -- own moves the view but leaves scrollBar holding the old value, and the
-    -- wheel handler above derives its next position from exactly that -- so
-    -- the first wheel tick after a "reset" snaps straight back to where you
-    -- were. Setting the bar fires OnValueChanged, which moves the frame too.
-    --
-    -- Exposed because the Unit Frames page resets scroll when you switch
-    -- section, and it has no access to these locals.
+    -- Reset the shared scroll area to the top. The Unit Frames and Tank
+    -- Tracker pages call this when you switch section.
     function SquizzFrames.OptionsScrollToTop()
-        if scrollBar then scrollBar:SetValue(0) end
-        if scrollFrame then scrollFrame:SetVerticalScroll(0) end
+        win:ScrollToTop()
     end
 
-    -- Full-area host for Indicators pages (no shared scroll wrapper --
-    -- IndicatorsPanel.lua manages its own list/settings/preview panes).
-    indicatorsHost = CreateFrame("Frame", nil, contentArea)
-    indicatorsHost:SetAllPoints(contentArea)
-    indicatorsHost:Hide()
-
-    -- Show page function. "indicators" is a single page that manages its own
-    -- preview/list/settings layout internally (IndicatorsPanel.lua), so it
-    -- skips the shared scroll wrapper the simple pages use, same as before.
-    ShowPage = function(navId)
-        if not navId then return end
-        currentPageId = navId
-
-        for _, frame in pairs(contentFrames) do
-            if frame then frame:Hide() end
-        end
-
-        local isIndicatorsPage = (navId == "indicators")
-
-        scrollFrame:SetShown(not isIndicatorsPage)
-        scrollBar:SetShown(not isIndicatorsPage)
-        indicatorsHost:SetShown(isIndicatorsPage)
-
-        local selected = contentFrames[navId]
-        if selected then selected:Show() end
-
-        HighlightRow(navId)
-
-        -- The group preview window is shared by the Layout and Indicators
-        -- pages, which keep INDEPENDENT Party/Raid selections. Without this,
-        -- opening it from Layout/Raid and then navigating to an Indicators
-        -- page sitting on Party would leave the window showing a raid while
-        -- the page beside it edits party -- so re-point it at whichever page
-        -- you just landed on. No-op while the window is closed.
-        local GroupPreview = SquizzFrames.GroupPreview
-        if GroupPreview and GroupPreview.SetRaidMode then
-            if navId == "layout" then
-                local LP = SquizzFrames.LayoutPanel
-                if LP and LP.IsRaidTab then
-                    GroupPreview.SetRaidMode(LP.IsRaidTab())
-                end
-            elseif navId == "indicators" then
-                local IP = SquizzFrames.IndicatorsPanel
-                if IP and IP.IsRaidTab then
-                    GroupPreview.SetRaidMode(IP.IsRaidTab())
-                end
-            end
-        end
-
-        if not isIndicatorsPage then
-            -- At least the page's natural/minimum content height
-            -- (pageHeights), but never smaller than the actual visible
-            -- viewport -- growing the window (resizeGrip's OnMouseUp
-            -- already re-calls ShowPage) used to leave scrollChild pinned
-            -- to the fixed pageHeights value regardless of how much bigger
-            -- the window got, so pages with bottom-anchored content (e.g.
-            -- Click Casting's button bar/keybind list, both anchored to
-            -- this frame's own bottom edge) just left dead space below
-            -- them instead of the list/buttons actually growing into it.
-            local height = math.max(pageHeights[navId] or 400, scrollFrame:GetHeight())
-            scrollChild:SetSize(scrollFrame:GetWidth(), height)
-            scrollFrame:SetVerticalScroll(0)
-            scrollBar:SetValue(0)
-        end
-
-        if selected and selected.RebuildClickCasting then
-            selected:RebuildClickCasting()
-        end
-    end
-
-    optionsFrame.ShowPage = ShowPage
-
-    -- Combat protection
-    optionsFrame:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_REGEN_DISABLED" then
-            self:SetAlpha(0.5)
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            self:SetAlpha(1)
-        end
-    end)
-    optionsFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    optionsFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-
-    optionsFrame.titleBar = titleBar
-
-    return optionsFrame
+    return win
 end
 
 -----------------------------------------------------------------------
@@ -685,11 +405,7 @@ local function BuildGeneralFields(frame)
     -- SetEditModeEnabled's header comment. Nothing replaces it on this page.
 end
 
-local function CreateGeneralPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["general"] = frame
+function Pages.general(frame)
 
     BuildGeneralFields(frame)
 
@@ -713,11 +429,7 @@ end
 -- one, either of which stops the WHOLE options panel loading. A separate file
 -- gets its own budget; see CLAUDE.md's "OptionsFrame.lua is at TWO Lua
 -- ceilings".
-local function CreateLayoutPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["layout"] = frame
+function Pages.layout(frame)
 
     if SquizzFrames.LayoutPanel and SquizzFrames.LayoutPanel.Build then
         SquizzFrames.LayoutPanel.Build(frame)
@@ -1213,11 +925,7 @@ SquizzFrames:RegisterMessage("SpecProfileNeeded", function(_, specID, specName, 
     ShowSpecProfileDialog(specID, specName, situation)
 end)
 
-local function CreateProfilesPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["profiles"] = frame
+function Pages.profiles(frame)
 
     BuildProfilesFields(frame)
 
@@ -1237,11 +945,7 @@ end
 -- ceilings, either of which stops the WHOLE options panel loading. A separate
 -- file gets its own budget; see CLAUDE.md's "OptionsFrame.lua is at TWO Lua
 -- ceilings".
-local function CreatePetFramesPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["petFrames"] = frame
+function Pages.petFrames(frame)
 
     if SquizzFrames.PetFramesPanel and SquizzFrames.PetFramesPanel.Build then
         SquizzFrames.PetFramesPanel.Build(frame)
@@ -1256,11 +960,7 @@ end
 -- Click Casting Page
 -----------------------------------------------------------------------
 
-local function CreateClickCastingPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["clickCasting"] = frame
+function Pages.clickCasting(frame)
 
     if SquizzFrames.ClickCastingPanel and SquizzFrames.ClickCastingPanel.Build then
         SquizzFrames.ClickCastingPanel.Build(frame)
@@ -1275,11 +975,7 @@ end
 -- Indicators page: preview + list + settings, all built by IndicatorsPanel.lua
 -----------------------------------------------------------------------
 
-local function CreateIndicatorsPage()
-    local frame = CreateFrame("Frame", nil, indicatorsHost)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["indicators"] = frame
+function Pages.indicators(frame)
 
     if SquizzFrames.IndicatorsPanel and SquizzFrames.IndicatorsPanel.Build then
         SquizzFrames.IndicatorsPanel.Build(frame, optionsFrame)
@@ -1298,11 +994,7 @@ end
 -- Unit Frames Page
 -----------------------------------------------------------------------
 
-local function CreateUnitFramesPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["unitFrames"] = frame
+function Pages.unitFrames(frame)
 
     if SquizzFrames.UnitFramesPanel and SquizzFrames.UnitFramesPanel.Build then
         SquizzFrames.UnitFramesPanel.Build(frame)
@@ -1313,11 +1005,7 @@ local function CreateUnitFramesPage()
     end
 end
 
-local function CreateTankTrackerPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["tankTracker"] = frame
+function Pages.tankTracker(frame)
 
     if SquizzFrames.TankTrackerPanel and SquizzFrames.TankTrackerPanel.Build then
         SquizzFrames.TankTrackerPanel.Build(frame)
@@ -1328,11 +1016,7 @@ local function CreateTankTrackerPage()
     end
 end
 
-local function CreateNicknamesPage()
-    local frame = CreateFrame("Frame", nil, scrollChild)
-    frame:SetAllPoints()
-    frame:Hide()
-    contentFrames["nicknames"] = frame
+function Pages.nicknames(frame)
 
     if SquizzFrames.NicknamesPanel and SquizzFrames.NicknamesPanel.Build then
         SquizzFrames.NicknamesPanel.Build(frame)
@@ -1352,28 +1036,9 @@ end
 -----------------------------------------------------------------------
 -- Toggle / Open
 -----------------------------------------------------------------------
-
 local function ToggleOptions()
-    if not optionsFrame then
-        CreateOptionsFrame()
-        CreateGeneralPage()
-        CreateLayoutPage()
-        CreatePetFramesPage()
-        CreateUnitFramesPage()
-        CreateClickCastingPage()
-        CreateIndicatorsPage()
-        CreateTankTrackerPage()
-        CreateNicknamesPage()
-        CreateProfilesPage()
-    end
-
-    if optionsFrame:IsShown() then
-        optionsFrame:Hide()
-    else
-        optionsFrame:Show()
-        optionsFrame:Raise()
-        ShowPage("general")
-    end
+    CreateOptionsFrame()
+    win:Toggle()
 end
 
 -----------------------------------------------------------------------
