@@ -633,14 +633,6 @@ function Window:BuildContent()
     -- page area beside it (`main`) stops short of it. Pages that pin their own
     -- furniture walk up to `main` (page -> scrollChild -> scrollFrame -> main),
     -- so anything they anchor there stops at the column too.
-    -- The body's own background, so the page area is as solid as the
-    -- sidebar whatever the window's backdrop does (the world showed through
-    -- behind the settings, user screenshot 2026-10-17).
-    local bodyBg = body:CreateTexture(nil, "BACKGROUND")
-    bodyBg:SetAllPoints()
-    local bgr, bgg, bgb, bga = RGBA("bg")
-    bodyBg:SetColorTexture(bgr, bgg, bgb, bga) -- the theme's own alpha: Dark Glass stays see-through
-
     local col = CreateFrame("Frame", nil, body, "BackdropTemplate")
     col:SetPoint("TOPRIGHT")
     col:SetPoint("BOTTOMRIGHT")
