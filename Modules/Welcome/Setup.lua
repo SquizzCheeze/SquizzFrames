@@ -249,6 +249,10 @@ local function Build()
     -- half-built window that every later /sf setup trips over.
     if frame and frame.built then return frame end
     if frame then frame:Hide() end
+    -- The shared controls take the theme's colours from this refresh, which
+    -- otherwise only runs when the options window is first built; setup can
+    -- open before that, and its toggles would keep a colour from load time.
+    if SquizzFrames.Widgets_RefreshPalette then SquizzFrames.Widgets_RefreshPalette() end
 
     frame = CreateFrame("Frame", "SquizzFramesSetup", UIParent, "BackdropTemplate")
     frame:SetSize(WIDTH, HEIGHT)
