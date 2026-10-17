@@ -620,7 +620,7 @@ local function BuildFurniture(frame)
     header:SetPoint("TOPRIGHT", contentArea, "TOPRIGHT", -16, hy)
     header:SetHeight(HEADER_HEIGHT)
     header:SetFrameLevel(level)
-    W.StylizeFrame(header, {0.06, 0.06, 0.06, 1}, {0, 0, 0, 0})
+    W.StylizeFrame(header, W.palette.DARK_BG, {0, 0, 0, 0})
 
     -- Preview pane. Anchored to scroll, which already stops short of the
     -- scrollbar and (once inset) starts below the header. Mouse is left
@@ -634,12 +634,12 @@ local function BuildFurniture(frame)
     -- than the pane, and a mock spilling out over the settings column is worse
     -- than one cut off at the edge.
     pane:SetClipsChildren(true)
-    W.StylizeFrame(pane, {0.06, 0.06, 0.06, 1}, {0, 0, 0, 0})
+    W.StylizeFrame(pane, W.palette.DARK_BG, {0, 0, 0, 0})
 
     local caption = pane:CreateFontString(nil, "OVERLAY")
     caption:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     caption:SetPoint("TOP", pane, "TOP", 0, -8)
-    caption:SetTextColor(0.7, 0.7, 0.7, 1)
+    caption:SetTextColor(W.C4(W.palette.GREY_TEXT))
     caption:SetText(L["Preview (actual size)"] or "Preview (actual size)")
 
     local hint = pane:CreateFontString(nil, "OVERLAY")
@@ -680,7 +680,7 @@ function Panel.Build(frame)
             if key == activeTab then
                 btn:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
             else
-                btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+                btn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             end
         end
     end
@@ -690,7 +690,7 @@ function Panel.Build(frame)
         local btn = CreateFrame("Button", nil, tabHost, "BackdropTemplate")
         btn:SetSize(90, 22)
         btn:SetPoint("TOPLEFT", tabHost, "TOPLEFT", x, -6)
-        W.StylizeFrame(btn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+        W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
         text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         text:SetPoint("CENTER")

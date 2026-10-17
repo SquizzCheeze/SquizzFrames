@@ -353,7 +353,7 @@ local function UpdateRowVisual(btn)
         if icon then icon:SetAlpha(0.85) end
         if btn.SetBackdropColor then btn:SetBackdropColor(a.r, a.g, a.b, 0.3) end
     elseif btn.enabled then
-        if text then text:SetTextColor(1, 1, 1, 1) end
+        if text then text:SetTextColor(W.C4(W.palette.TEXT)) end
         if icon then icon:SetAlpha(0.55) end
         if btn.SetBackdropColor then btn:SetBackdropColor(unpack(ROW_BG_NORMAL)) end
     else
@@ -421,7 +421,7 @@ local function CreateCategoryHeaderRow(scrollChild, category, y)
     headerText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     headerText:SetPoint("LEFT", swatch, "RIGHT", 5, 0)
     headerText:SetWordWrap(false)
-    headerText:SetTextColor(0.85, 0.83, 0.78, 1)
+    headerText:SetTextColor(W.C4(W.palette.HEADING))
     headerText:SetText(category:upper())
 
     local divider = header:CreateTexture(nil, "BACKGROUND")
@@ -1413,7 +1413,7 @@ local function ShowCreatePopup()
     dialog:SetFrameLevel(parent:GetFrameLevel() + 300)
     dialog:SetClampedToScreen(true)
     dialog:EnableKeyboard(true)
-    W.StylizeFrame(dialog, {0.1, 0.1, 0.1, 0.95}, {0.3, 0.7, 1, 0.8})
+    W.StylizeFrame(dialog, W.palette.DARK_BG, W.palette.POPUP_BORDER)
 
     dialog.title = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.title:SetPoint("TOP", 0, -10)
@@ -1608,7 +1608,7 @@ end
 local function BuildPreviewCanvas(canvasFrame)
     previewBG = CreateFrame("Frame", nil, canvasFrame, "BackdropTemplate")
     previewBG:SetAllPoints(canvasFrame)
-    W.StylizeFrame(previewBG, {0.1, 0.1, 0.1, 0.77}, {0, 0, 0, 1})
+    W.StylizeFrame(previewBG, W.palette.DARK_BG, W.palette.DARK_BORDER)
 
     -- Preview button mockup (plain Frame, not secure). Mimics
     -- SquizzFramesUnitButtonTemplate structure so indicators can anchor to
@@ -1754,7 +1754,7 @@ local function RefreshCustomIndicatorsPane()
         local tile = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
         tile:SetSize(TILE_W, TILE_H)
         tile:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", col * (TILE_W + TILE_GAP), -gridRow * (TILE_H + TILE_GAP))
-        W.StylizeFrame(tile, {0.08, 0.08, 0.08, 0.85}, {0.3, 0.3, 0.3, 0.6})
+        W.StylizeFrame(tile, W.palette.PANEL_BG, W.palette.DARK_BORDER)
 
         local icon = tile:CreateTexture(nil, "ARTWORK")
         icon:SetSize(36, 36)
@@ -1784,7 +1784,7 @@ local function RefreshCustomIndicatorsPane()
 
         tile:SetScript("OnClick", function() SelectIndicator(t.indicatorName) end)
         tile:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(accent.r, accent.g, accent.b, 1) end)
-        tile:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.6) end)
+        tile:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(W.C4(W.palette.DARK_BORDER)) end)
 
         customListRows[i] = tile
     end
@@ -1853,7 +1853,7 @@ local function Build(parentFrame, optionsFrame)
             if key == activeIndicatorLayoutKey then
                 btn:SetBackdropColor(accent and accent.r or 0.6, accent and accent.g or 0.4, accent and accent.b or 1, 0.55)
             else
-                btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+                btn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             end
         end
     end
@@ -1861,7 +1861,7 @@ local function Build(parentFrame, optionsFrame)
         local btn = CreateFrame("Button", nil, toggleHeader, "BackdropTemplate")
         btn:SetSize(90, 22)
         btn:SetPoint("TOPLEFT", toggleHeader, "TOPLEFT", xOff, 0)
-        W.StylizeFrame(btn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+        W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
         text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         text:SetPoint("CENTER")
@@ -1920,7 +1920,7 @@ local function Build(parentFrame, optionsFrame)
     local groupPreviewBtn = CreateFrame("Button", nil, toggleHeader, "BackdropTemplate")
     groupPreviewBtn:SetSize(150, 22)
     groupPreviewBtn:SetPoint("TOPRIGHT", toggleHeader, "TOPRIGHT", 0, 0)
-    W.StylizeFrame(groupPreviewBtn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+    W.StylizeFrame(groupPreviewBtn, W.palette.PANEL_BG, {0, 0, 0, 0})
     local gpText = groupPreviewBtn:CreateFontString(nil, "OVERLAY")
     gpText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     gpText:SetPoint("CENTER")
@@ -1940,7 +1940,7 @@ local function Build(parentFrame, optionsFrame)
                 accent and accent.g or 0.4, accent and accent.b or 1, 0.55)
             gpText:SetText(L["Hide Group Preview"] or "Hide Group Preview")
         else
-            groupPreviewBtn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+            groupPreviewBtn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             gpText:SetText(L["Show Group Preview"] or "Show Group Preview")
         end
     end
@@ -1998,7 +1998,7 @@ local function Build(parentFrame, optionsFrame)
     listPane:SetPoint("TOPLEFT", bottomSection, "TOPLEFT", 0, 0)
     listPane:SetPoint("BOTTOMLEFT", bottomSection, "BOTTOMLEFT", 0, 0)
     listPane:SetWidth(136)
-    W.StylizeFrame(listPane, {0.1, 0.1, 0.1, 0.95}, {0, 0, 0, 1})
+    W.StylizeFrame(listPane, W.palette.DARK_BG, W.palette.DARK_BORDER)
 
     -- Scroll frame for the list rows — created directly on listPane with
     -- explicit insets, matching ClickCasting's pattern (no nested container).
@@ -2016,7 +2016,7 @@ local function Build(parentFrame, optionsFrame)
     settingsPane = CreateFrame("Frame", nil, bottomSection, "BackdropTemplate")
     settingsPane:SetPoint("TOPLEFT", listPane, "TOPRIGHT", 5, 0)
     settingsPane:SetPoint("BOTTOMRIGHT", bottomSection, "BOTTOMRIGHT", 0, 0)
-    W.StylizeFrame(settingsPane, {0.1, 0.1, 0.1, 0.95}, {0, 0, 0, 1})
+    W.StylizeFrame(settingsPane, W.palette.DARK_BG, W.palette.DARK_BORDER)
 
     settingsTitle = settingsPane:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     settingsTitle:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 6, -5)

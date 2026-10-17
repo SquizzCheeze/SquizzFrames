@@ -15,6 +15,11 @@ if not W then return end
 
 local F = SquizzFrames.F
 
+-- The themed palette from Options/Widgets.lua (2.0), shared by reference and
+-- filled from LibSquizzTheme-1.0 before the window is built.
+local PAL = W.palette
+local C4 = W.C4
+
 -----------------------------------------------------------------------
 -- Compat wrappers: late-binding widget API → SquizzFrames widget API
 -----------------------------------------------------------------------
@@ -106,7 +111,7 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
     dd.text:SetPoint("RIGHT", -20, 0)  -- widened when a preview icon is shown (see UpdateText)
     dd.text:SetJustifyH("LEFT")
     dd.text:SetWordWrap(false)
-    dd.text:SetTextColor(1, 1, 1, 1)
+    dd.text:SetTextColor(C4(PAL.TEXT))
 
     -- Preview icon in the dropdown button itself (on the right side)
     dd.previewIcon = dd:CreateTexture(nil, "ARTWORK")
@@ -133,8 +138,8 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    dd:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
-    dd:SetBackdropBorderColor(0, 0, 0, 1)
+    dd:SetBackdropColor(C4(PAL.PANEL_BG))
+    dd:SetBackdropBorderColor(C4(PAL.DARK_BORDER))
 
     dd.items = {}
     dd._selectedValue = nil
@@ -226,8 +231,8 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
             edgeSize = 1,
             insets = { left = 1, right = 1, top = 1, bottom = 1 },
         })
-        popup:SetBackdropColor(0.12, 0.12, 0.12, 1)
-        popup:SetBackdropBorderColor(0, 0, 0, 1)
+        popup:SetBackdropColor(C4(PAL.POPUP_BG))
+        popup:SetBackdropBorderColor(C4(PAL.DARK_BORDER))
 
         -- Rows parent to a scroll frame's content child when scrolling is
         -- needed (CreateScrollFrame reserves 18px on the right for its
@@ -246,7 +251,7 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
             row:SetSize(rowWidth, itemH)
             row:SetPoint("TOPLEFT", 2, -(i - 1) * itemH - 2)
             row:SetBackdrop({ bgFile = [[Interface\Buttons\WHITE8X8]] })
-            row:SetBackdropColor(0.12, 0.12, 0.12, 1)
+            row:SetBackdropColor(C4(PAL.POPUP_BG))
             row:EnableMouse(true)
 
             -- Icon in dropdown row (only text-only rows reclaim its space --
@@ -294,7 +299,7 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
                 local a = F.GetAccentColor()
                 row:SetBackdropColor(a.r * 0.4, a.g * 0.4, a.b * 0.4, 1)
             end)
-            row:SetScript("OnLeave", function() row:SetBackdropColor(0.12, 0.12, 0.12, 1) end)
+            row:SetScript("OnLeave", function() row:SetBackdropColor(C4(PAL.POPUP_BG)) end)
         end
 
         closer = CreateFrame("Button", nil, UIParent)
@@ -312,7 +317,7 @@ local function SF_CreateDropdown(parent, width, previewLSMType)
         local a = F.GetAccentColor()
         dd:SetBackdropBorderColor(a.r, a.g, a.b, 0.6)
     end)
-    dd:SetScript("OnLeave", function() dd:SetBackdropBorderColor(0, 0, 0, 1) end)
+    dd:SetScript("OnLeave", function() dd:SetBackdropBorderColor(C4(PAL.DARK_BORDER)) end)
 
     function dd:SetItems(items) self.items = items; UpdateText() end
     function dd:SetSelectedValue(val) self._selectedValue = val; UpdateText() end
@@ -343,7 +348,7 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
     local title = container:CreateFontString(nil, "OVERLAY")
     title:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     title:SetPoint("TOPLEFT", 10, 0)
-    title:SetTextColor(1, 1, 1, 1)
+    title:SetTextColor(C4(PAL.TEXT))
     title:SetText(label or "")
 
     local slider = CreateFrame("Slider", nil, container, "BackdropTemplate")
@@ -370,8 +375,8 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    slider:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-    slider:SetBackdropBorderColor(0, 0, 0, 1)
+    slider:SetBackdropColor(C4(PAL.PANEL_BG))
+    slider:SetBackdropBorderColor(C4(PAL.DARK_BORDER))
 
     -- Accent fill from the left edge up to the current value.
     local fill = slider:CreateTexture(nil, "ARTWORK")
@@ -392,13 +397,13 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
     local lowText = slider:CreateFontString(nil, "OVERLAY")
     lowText:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
     lowText:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, -4)
-    lowText:SetTextColor(0.6, 0.58, 0.54, 1)
+    lowText:SetTextColor(C4(PAL.GREY_TEXT))
     lowText:SetText(tostring(_min))
 
     local highText = slider:CreateFontString(nil, "OVERLAY")
     highText:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
     highText:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, -4)
-    highText:SetTextColor(0.6, 0.58, 0.54, 1)
+    highText:SetTextColor(C4(PAL.GREY_TEXT))
     highText:SetText(tostring(_max))
 
     -- Current value editbox -- click it to type an exact number.
@@ -418,10 +423,10 @@ local function SF_CreateSlider(label, parent, min, max, width, step)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    editBox:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-    editBox:SetBackdropBorderColor(0, 0, 0, 1)
+    editBox:SetBackdropColor(C4(PAL.PANEL_BG))
+    editBox:SetBackdropBorderColor(C4(PAL.DARK_BORDER))
     editBox:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    editBox:SetTextColor(1, 1, 1, 1)
+    editBox:SetTextColor(C4(PAL.TEXT))
 
     local function UpdateFill()
         local sliderW = slider:GetWidth() or sliderWidth
@@ -530,7 +535,7 @@ local function CreateLabel(parent, text, anchor, offX, offY)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     fs:SetFont(FONT_TEMPLATE, 11, "OUTLINE")
     fs:SetPoint(anchor or "TOPLEFT", offX or 0, offY or 0)
-    fs:SetTextColor(0.7, 0.7, 0.7, 1)
+    fs:SetTextColor(C4(PAL.GREY_TEXT))
     fs:SetText(text or "")
     return fs
 end

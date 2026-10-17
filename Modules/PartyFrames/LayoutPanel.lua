@@ -1066,7 +1066,7 @@ local function BuildLayoutFields(frame)
         local roleOrderLabel = fieldsHost:CreateFontString(nil, "OVERLAY")
         roleOrderLabel:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         roleOrderLabel:SetPoint("TOPLEFT", 30, yOffset)
-        roleOrderLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        roleOrderLabel:SetTextColor(W.C4(W.palette.GREY_TEXT))
         roleOrderLabel:SetText(L["Role Priority (top = first)"] or "Role Priority (top = first)")
         yOffset = yOffset - 20
 
@@ -1214,7 +1214,7 @@ function Panel.Build(frame)
             if key == activeLayoutKey then
                 btn:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
             else
-                btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+                btn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             end
         end
     end
@@ -1223,7 +1223,7 @@ function Panel.Build(frame)
         local btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
         btn:SetSize(90, 22)
         btn:SetPoint("TOPLEFT", frame, "TOPLEFT", xOff, -6)
-        W.StylizeFrame(btn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+        W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
         text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         text:SetPoint("CENTER")
@@ -1264,7 +1264,7 @@ function Panel.Build(frame)
     local previewBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
     previewBtn:SetSize(110, 22)
     previewBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -15, -6)
-    W.StylizeFrame(previewBtn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+    W.StylizeFrame(previewBtn, W.palette.PANEL_BG, {0, 0, 0, 0})
     local previewText = previewBtn:CreateFontString(nil, "OVERLAY")
     previewText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     previewText:SetPoint("CENTER")
@@ -1278,7 +1278,7 @@ function Panel.Build(frame)
             previewBtn:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
             previewText:SetText(L["Hide Preview"] or "Hide Preview")
         else
-            previewBtn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+            previewBtn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             previewText:SetText(L["Show Preview"] or "Show Preview")
         end
     end

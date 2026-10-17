@@ -1307,7 +1307,7 @@ local function CreateSetting_ExpiringColor(parent)
         widget = SF_CreateFrame("SFIndicatorSettings_ExpiringColor", parent, 300, 96)
         settingWidgets["expiringColor"] = widget
         widget.title = CreateLabel(widget, "Expiring Color", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
 
         local _enabled, _threshold = false, 5
@@ -2038,7 +2038,7 @@ local function CreateSetting_Tips(parent, text)
     widget.text = widget:CreateFontString(nil, "OVERLAY")
     widget.text:SetFont(FONT_TEMPLATE, 10, "OUTLINE")
     widget.text:SetPoint("TOPLEFT", 5, -5)
-    widget.text:SetTextColor(0.7, 0.7, 0.7, 1)
+    widget.text:SetTextColor(W.C4(W.palette.GREY_TEXT))
     widget.text:SetText(text or "")
     function widget:SetFunc() end
     function widget:SetDBValue() end

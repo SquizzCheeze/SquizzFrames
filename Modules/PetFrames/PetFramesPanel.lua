@@ -398,7 +398,7 @@ local function BuildPetFrameFields(frame)
         note:SetPoint("TOPLEFT", 15, yOffset)
         note:SetWidth(340)
         note:SetJustifyH("LEFT")
-        note:SetTextColor(0.7, 0.7, 0.7, 1)
+        note:SetTextColor(W.C4(W.palette.GREY_TEXT))
         note:SetText(L["Your own pet, on its own frame, in every group state. While this is on your pet is removed from the Party and Raid pet layouts so it can't appear twice."]
             or "Your own pet, on its own frame, in every group state. While this is on your pet is removed from the Party and Raid pet layouts so it can't appear twice.")
         yOffset = yOffset - 40
@@ -522,7 +522,7 @@ local function BuildPetFrameFields(frame)
         local playerLabel = fieldsHost:CreateFontString(nil, "OVERLAY")
         playerLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
         playerLabel:SetPoint("TOPLEFT", 15, yOffset)
-        playerLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        playerLabel:SetTextColor(W.C4(W.palette.GREY_TEXT))
         playerLabel:SetText(L["Drag your pet frame in Edit Mode to position it."]
             or "Drag your pet frame in Edit Mode to position it.")
         yOffset = yOffset - 25
@@ -555,7 +555,7 @@ local function BuildPetFrameFields(frame)
         local floatingLabel = fieldsHost:CreateFontString(nil, "OVERLAY")
         floatingLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
         floatingLabel:SetPoint("TOPLEFT", 15, yOffset)
-        floatingLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        floatingLabel:SetTextColor(W.C4(W.palette.GREY_TEXT))
         floatingLabel:SetText(L["Drag the floating pet group in Edit Mode to position it."]
             or "Drag the floating pet group in Edit Mode to position it.")
         yOffset = yOffset - 25
@@ -591,7 +591,7 @@ function Panel.Build(frame)
             if key == activePetLayoutKey then
                 btn:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
             else
-                btn:SetBackdropColor(0.115, 0.115, 0.115, 1)
+                btn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
             end
         end
     end
@@ -600,7 +600,7 @@ function Panel.Build(frame)
         local btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
         btn:SetSize(90, 22)
         btn:SetPoint("TOPLEFT", frame, "TOPLEFT", xOff, -6)
-        W.StylizeFrame(btn, {0.115, 0.115, 0.115, 1}, {0, 0, 0, 0})
+        W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
         local text = btn:CreateFontString(nil, "OVERLAY")
         text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         text:SetPoint("CENTER")

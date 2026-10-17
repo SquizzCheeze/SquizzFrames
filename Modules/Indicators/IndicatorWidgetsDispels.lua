@@ -38,7 +38,7 @@ local function CreateSetting_DispelFilters(parent)
             prev = cb
         end
         widget.title = CreateLabel(widget, "Dispel Filters", "TOPLEFT", 5, -8)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
         function widget:SetFunc(func) widget.func = func end
         function widget:SetDBValue() end
@@ -83,7 +83,7 @@ local function CreateSetting_DispelTypeColors(parent)
         widget = SF_CreateFrame("SFIndicatorSettings_DispelTypeColors", parent, 300, 190)
         settingWidgets["dispelTypeColors"] = widget
         widget.title = CreateLabel(widget, "Dispel Types", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
 
         widget._enabled = {}
@@ -148,7 +148,7 @@ local function CreateSetting_DispelTypeToggles(parent)
         widget = SF_CreateFrame("SFIndicatorSettings_DispelTypes", parent, 300, 110)
         settingWidgets["dispelTypes"] = widget
         widget.title = CreateLabel(widget, "Dispel Types", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
 
         widget._enabled = {}

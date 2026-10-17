@@ -35,7 +35,7 @@ local function CreateSetting_Auras(parent, index, showHealerButton, singleSpellM
         widget = SF_CreateFrame("SFIndicatorSettings_Auras", parent, 300,108)
         settingWidgets[key] = widget
         widget.title = CreateLabel(widget, "Spell List", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
         widget.spellList = W.CreateAuraSpellList(widget, "debuff",
             function() return widget._auras or {} end,
@@ -68,7 +68,7 @@ local function CreateSetting_DebuffBlacklist(parent)
         widget = SF_CreateFrame("SFIndicatorSettings_DebuffBlacklist", parent, 300, 240)
         settingWidgets["debuffBlacklist"] = widget
         widget.title = CreateLabel(widget, "Debuff Blacklist", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
 
         local scrollFrame = W.CreateScrollFrame(widget)
@@ -88,7 +88,7 @@ local function CreateSetting_DebuffBlacklist(parent)
         popup:SetSize(170, 74)
         popup:SetPoint("BOTTOM", 0, 4)
         popup:SetFrameStrata("DIALOG")
-        W.StylizeFrame(popup, {0.08, 0.08, 0.08, 0.98}, {0.4, 0.4, 0.4, 0.9})
+        W.StylizeFrame(popup, W.palette.POPUP_BG, W.palette.POPUP_BORDER)
         popup:Hide()
         popup.label = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         popup.label:SetPoint("TOP", 0, -8)
@@ -141,7 +141,7 @@ local function CreateSetting_DebuffBlacklist(parent)
                 idx = idx + 1
                 local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
                 row:SetHeight(20)
-                W.StylizeFrame(row, {0.08, 0.08, 0.08, 0.8}, {0.3, 0.3, 0.3, 0.5})
+                W.StylizeFrame(row, W.palette.PANEL_BG, W.palette.DARK_BORDER)
                 if idx == 1 then
                     row:SetPoint("TOPLEFT", 0, 0)
                 else
@@ -277,7 +277,7 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
         widget = SF_CreateFrame("SFIndicatorSettings_" .. cacheKey, parent, 300, 280)
         settingWidgets[cacheKey] = widget
         widget.title = CreateLabel(widget, customTitle or "Built-in Spells", "TOPLEFT", 5, -5)
-        widget.title:SetTextColor(0.3, 0.7, 1, 1)
+        widget.title:SetTextColor(W.C4(W.palette.HEADING))
         widget.title:SetFont(FONT_TEMPLATE, 12, "OUTLINE")
 
         widget.cb = SF_CreateCheckButton(widget, "Use Default Spells")
@@ -380,7 +380,7 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                         idx = idx + 1
                         local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
                         row:SetHeight(20)
-                        W.StylizeFrame(row, {0.08, 0.08, 0.08, 0.8}, {0.3, 0.3, 0.3, 0.5})
+                        W.StylizeFrame(row, W.palette.PANEL_BG, W.palette.DARK_BORDER)
                         row:SetPoint("TOPLEFT", rows[idx - 1], "BOTTOMLEFT", 0, -1)
                         row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
 

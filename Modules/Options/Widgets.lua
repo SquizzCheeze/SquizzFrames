@@ -25,11 +25,56 @@ local function InitAccentColor()
     end
 end
 
--- Color definitions
-local DARK_BG = {0.1, 0.1, 0.1, 0.9}
-local DARK_BORDER = {0, 0, 0, 1}
-local PANEL_BG = {0.115, 0.115, 0.115, 1}
-local GREY_TEXT = {0.7, 0.7, 0.7, 1}
+-- Color definitions. Since 2.0 these are filled from the shared theme
+-- (LibSquizzTheme-1.0) by SquizzFrames.Widgets_RefreshPalette, IN PLACE, so every widget below
+-- that reads them gets the theme's colour for its role. The literals here are
+-- only the 1.x look, used if the theme library is missing. Colours read when a
+-- widget is made, so a preset change shows after a reload (only the accent is
+-- re-read live elsewhere).
+local DARK_BG = {0.1, 0.1, 0.1, 0.9}        -- overlays and wide panels
+local DARK_BORDER = {0, 0, 0, 1}            -- every control's border
+local PANEL_BG = {0.115, 0.115, 0.115, 1}   -- a control's own background
+local GREY_TEXT = {0.7, 0.7, 0.7, 1}        -- secondary text
+local TEXT = {1, 1, 1, 1}                   -- labels and values
+local HOVER_BG = {0.23, 0.23, 0.23, 1}      -- a hovered control
+local POPUP_BG = {0.08, 0.08, 0.08, 0.98}   -- dropdown lists, menus, popups
+local POPUP_BORDER = {0.4, 0.4, 0.4, 0.9}
+local LIGHT_BG = {0.18, 0.18, 0.18, 1}      -- a cell inside a popup
+local HEADING = {0.75, 0.73, 0.68, 1}       -- section titles (the accent, once themed)
+local DANGER = {0.6, 0.1, 0.1, 1}
+local DANGER_DIM = {0.6, 0.1, 0.1, 0.6}
+local GOOD = {0.1, 0.6, 0.1, 1}
+local GOOD_DIM = {0.1, 0.6, 0.1, 0.6}
+
+local function C4(t) return t[1], t[2], t[3], t[4] end
+
+-- Refill the palette (and the accent) from the shared theme. Called at load
+-- and again by OptionsFrame right before the window is first built, because
+-- the theme's CHOICE is only settled in Core's OnInitialize, after this file
+-- has loaded -- a load-time read alone gave every player the default accent.
+function SquizzFrames.Widgets_RefreshPalette()
+    InitAccentColor()
+    local LST = LibStub and LibStub("LibSquizzTheme-1.0", true)
+    if not LST then return end
+    local function Fill(dst, key, alpha)
+        local r, g, b, a = LST:RGBA(key)
+        dst[1], dst[2], dst[3], dst[4] = r, g, b, alpha or a
+    end
+    Fill(DARK_BG, "bg")
+    Fill(DARK_BORDER, "border")
+    Fill(PANEL_BG, "control")
+    Fill(GREY_TEXT, "textDim")
+    Fill(TEXT, "text")
+    Fill(HOVER_BG, "controlHi")
+    Fill(POPUP_BG, "bg", 0.98)
+    Fill(POPUP_BORDER, "border")
+    Fill(LIGHT_BG, "controlHi")
+    Fill(DANGER, "danger")
+    Fill(DANGER_DIM, "dangerDim")
+    Fill(GOOD, "good")
+    Fill(GOOD_DIM, "good", 0.6)
+    HEADING[1], HEADING[2], HEADING[3], HEADING[4] = accentColor.r, accentColor.g, accentColor.b, 1
+end
 
 -- How far a slider's mouse hit rect is grown past its 4px visual track.
 -- Asymmetric on purpose: above the track there's only the (mouse-blind) label
@@ -78,26 +123,26 @@ local function CreateStyledButton(parent, text, style, size, onClick)
     -- Resolve colors based on style
     local normalColor, hoverColor
     if style == "accent-hover" then
-        normalColor = {0.115, 0.115, 0.115, 1}
+        normalColor = PANEL_BG
         hoverColor = {accentColor.r, accentColor.g, accentColor.b, 0.6}
     elseif style == "accent" then
         normalColor = {accentColor.r, accentColor.g, accentColor.b, 0.3}
         hoverColor = {accentColor.r, accentColor.g, accentColor.b, 0.6}
     elseif style == "red" then
-        normalColor = {0.6, 0.1, 0.1, 0.6}
-        hoverColor = {0.6, 0.1, 0.1, 1}
+        normalColor = DANGER_DIM
+        hoverColor = DANGER
     elseif style == "red-hover" then
-        normalColor = {0.115, 0.115, 0.115, 1}
-        hoverColor = {0.6, 0.1, 0.1, 1}
+        normalColor = PANEL_BG
+        hoverColor = DANGER
     elseif style == "green" then
-        normalColor = {0.1, 0.6, 0.1, 0.6}
-        hoverColor = {0.1, 0.6, 0.1, 1}
+        normalColor = GOOD_DIM
+        hoverColor = GOOD
     elseif style == "green-hover" then
-        normalColor = {0.115, 0.115, 0.115, 1}
-        hoverColor = {0.1, 0.6, 0.1, 1}
+        normalColor = PANEL_BG
+        hoverColor = GOOD
     else
-        normalColor = {0.115, 0.115, 0.115, 1}
-        hoverColor = {0.23, 0.23, 0.23, 1}
+        normalColor = PANEL_BG
+        hoverColor = HOVER_BG
     end
 
     b.color = normalColor
@@ -111,18 +156,18 @@ local function CreateStyledButton(parent, text, style, size, onClick)
         insets = {left = 1, right = 1, top = 1, bottom = 1},
     })
     b:SetBackdropColor(normalColor[1], normalColor[2], normalColor[3], normalColor[4] or 1)
-    b:SetBackdropBorderColor(0, 0, 0, 1)
+    b:SetBackdropBorderColor(C4(DARK_BORDER))
 
     -- Inner background texture
     b.bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
     b.bg:SetAllPoints()
-    b.bg:SetColorTexture(0.115, 0.115, 0.115, 1)
+    b.bg:SetColorTexture(C4(PANEL_BG))
 
     -- Font
     local font = b:CreateFontString(nil, "OVERLAY")
     font:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
     font:SetPoint("CENTER")
-    font:SetTextColor(1, 1, 1, 1)
+    font:SetTextColor(C4(TEXT))
     b.fontString = font
 
     -- Hover behavior
@@ -180,7 +225,7 @@ local function CreateStyledCheckbox(parent, label, getChecked, onValueChanged)
         insets = {left = 1, right = 1, top = 1, bottom = 1},
     })
     cb:SetBackdropColor(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
-    cb:SetBackdropBorderColor(0, 0, 0, 1)
+    cb:SetBackdropBorderColor(C4(DARK_BORDER))
 
     -- Knob (square, per the Dense Tactical direction -- no rounded corners)
     local knob = cb:CreateTexture(nil, "ARTWORK")
@@ -193,7 +238,7 @@ local function CreateStyledCheckbox(parent, label, getChecked, onValueChanged)
     local labelText = cb:CreateFontString(nil, "OVERLAY")
     labelText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     labelText:SetPoint("LEFT", cb, "RIGHT", 7, 0)
-    labelText:SetTextColor(1, 1, 1, 1)
+    labelText:SetTextColor(C4(TEXT))
     labelText:SetText(label or "")
     cb.labelText = labelText
 
@@ -272,13 +317,13 @@ local function CreateStyledCheckbox(parent, label, getChecked, onValueChanged)
         self:SetBackdropBorderColor(accentColor.r, accentColor.g, accentColor.b, 0.6)
     end)
     cb:SetScript("OnLeave", function(self)
-        self:SetBackdropBorderColor(0, 0, 0, 1)
+        self:SetBackdropBorderColor(C4(DARK_BORDER))
     end)
 
     -- Enable/Disable handling
     cb:SetScript("OnEnable", function(self)
         disabled = false
-        self.labelText:SetTextColor(1, 1, 1, 1)
+        self.labelText:SetTextColor(C4(TEXT))
         SetVisualState(self:GetChecked(), false)
     end)
     cb:SetScript("OnDisable", function(self)
@@ -319,7 +364,7 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
     local title = container:CreateFontString(nil, "OVERLAY")
     title:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     title:SetPoint("TOPLEFT", 10, 0)
-    title:SetTextColor(1, 1, 1, 1)
+    title:SetTextColor(C4(TEXT))
     title:SetText(label or "")
 
     -- The slider (thin track)
@@ -348,7 +393,7 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
         insets = {left = 0, right = 0, top = 0, bottom = 0},
     })
     slider:SetBackdropColor(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
-    slider:SetBackdropBorderColor(0, 0, 0, 1)
+    slider:SetBackdropBorderColor(C4(DARK_BORDER))
 
     -- Accent fill from the left edge up to the current value.
     local fill = slider:CreateTexture(nil, "ARTWORK")
@@ -395,10 +440,10 @@ local function CreateStyledSlider(parent, width, low, high, step, label, getValu
         insets = {left = 1, right = 1, top = 1, bottom = 1},
     })
     editBox:SetBackdropColor(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
-    editBox:SetBackdropBorderColor(0, 0, 0, 1)
+    editBox:SetBackdropBorderColor(C4(DARK_BORDER))
 
     editBox:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    editBox:SetTextColor(1, 1, 1, 1)
+    editBox:SetTextColor(C4(TEXT))
 
     local function UpdateFill(value)
         local frac = (high > low) and ((value - low) / (high - low)) or 0
@@ -498,7 +543,7 @@ local function CreateCompactSlider(parent, width, height, low, high, step)
         insets = {left = 0, right = 0, top = 0, bottom = 0},
     })
     slider:SetBackdropColor(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
-    slider:SetBackdropBorderColor(0, 0, 0, 1)
+    slider:SetBackdropBorderColor(C4(DARK_BORDER))
 
     local fill = slider:CreateTexture(nil, "ARTWORK")
     fill:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.85)
@@ -545,13 +590,13 @@ local function CreateStyledSwitch(parent, width, height, leftText, rightText, ge
     local leftFS = switch:CreateFontString(nil, "OVERLAY")
     leftFS:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     leftFS:SetPoint("LEFT", 8, 0)
-    leftFS:SetTextColor(1, 1, 1, 1)
+    leftFS:SetTextColor(C4(TEXT))
     leftFS:SetText(leftText or "")
 
     -- Right text
     local rightFS = switch:CreateFontString(nil, "OVERLAY")
     rightFS:SetPoint("RIGHT", -8, 0)
-    rightFS:SetTextColor(1, 1, 1, 1)
+    rightFS:SetTextColor(C4(TEXT))
     rightFS:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     rightFS:SetText(rightText or "")
 
@@ -631,7 +676,7 @@ local function CreateTitledPane(parent, text, yOffset)
     pane.title = pane:CreateFontString(nil, "OVERLAY")
     pane.title:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     pane.title:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
-    pane.title:SetTextColor(0.75, 0.73, 0.68, 1)
+    pane.title:SetTextColor(C4(HEADING))
     pane.title:SetText((text or ""):upper())
 
     -- Hairline divider (neutral, not accent -- the swatch alone carries the
@@ -700,7 +745,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
         local title = container:CreateFontString(nil, "OVERLAY")
         title:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         title:SetPoint("TOPLEFT", 10, 0)
-        title:SetTextColor(1, 1, 1, 1)
+        title:SetTextColor(C4(TEXT))
         title:SetText(label)
     end
 
@@ -718,7 +763,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
     dd.text:SetPoint("RIGHT", -16, 0)
     dd.text:SetJustifyH("LEFT")
     dd.text:SetWordWrap(false)
-    dd.text:SetTextColor(1, 1, 1, 1)
+    dd.text:SetTextColor(C4(TEXT))
 
     -- Arrow indicator (accent-colored, Dense Tactical: dropdowns signal via
     -- the same accent language as toggles/section swatches). Plain ASCII "v",
@@ -809,7 +854,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
         local visibleCount = needsScroll and MAX_VISIBLE_ITEMS or numItems
         popup:SetSize(width, visibleCount * itemHeight + 4)
 
-        StylizeFrame(popup, {0.12, 0.12, 0.12, 1}, {0, 0, 0, 1})
+        StylizeFrame(popup, POPUP_BG, POPUP_BORDER)
 
         -- Rows parent to a scroll frame's content child when scrolling is
         -- needed (CreateScrollFrame reserves 18px on the right for its
@@ -858,7 +903,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
             local rowText = row:CreateFontString(nil, "OVERLAY")
             rowText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
             rowText:SetPoint("LEFT", 6, 0)
-            rowText:SetTextColor(1, 1, 1, 1)
+            rowText:SetTextColor(C4(TEXT))
             rowText:SetText(item.text)
 
             -- Font preview: the row's own label wears the face it selects.
@@ -911,7 +956,7 @@ local function CreateStyledDropdown(parent, width, height, label, items, getValu
         dd:SetBackdropBorderColor(accentColor.r, accentColor.g, accentColor.b, 0.6)
     end)
     dd:SetScript("OnLeave", function()
-        dd:SetBackdropBorderColor(0, 0, 0, 1)
+        dd:SetBackdropBorderColor(C4(DARK_BORDER))
     end)
 
     -- Update dropdown items and refresh display text
@@ -945,7 +990,6 @@ end
 -- SquizzFrames' existing styled widgets. They're self-contained — no
 -- dependency on Cell internals.
 
-local LIGHT_BG = {0.18, 0.18, 0.18, 1}
 local ROW_H = 28
 local GRID_PADDING = 6
 
@@ -1018,7 +1062,7 @@ function CreateScrollFrame(parent)
     bar:SetObeyStepOnDrag(true)
     bar:SetValue(0)
     bar:SetFrameLevel(sf:GetFrameLevel() + 5)
-    StylizeFrame(bar, {0.08, 0.08, 0.08, 0.9}, {0, 0, 0, 1})
+    StylizeFrame(bar, POPUP_BG, DARK_BORDER)
     -- A vertical slider's mouse region is only as wide as the bar itself;
     -- widen the hit rect so the thin track is still easy to grab (same fix as
     -- CreateStyledSlider's).
@@ -1229,7 +1273,7 @@ local function CreatePopupEditBox(parent)
     box:SetTextInsets(6, 6, 0, 0)
     StylizeFrame(box, DARK_BG, {0.6, 0.4, 0.1, 1})
     -- White text for readability.
-    box:SetTextColor(1, 1, 1, 1)
+    box:SetTextColor(C4(TEXT))
 
     local _origText = ""
     local _onEnter, _onChange
@@ -1296,7 +1340,7 @@ local function CreateMenu(anchor, items, width)
     menu:SetFrameLevel(100)
     -- Keep a tall menu on screen rather than letting it run off the bottom.
     menu:SetClampedToScreen(true)
-    StylizeFrame(menu, {0.08, 0.08, 0.08, 1}, {0, 0, 0, 1})
+    StylizeFrame(menu, POPUP_BG, POPUP_BORDER)
 
     local rows = {}
     for i, it in ipairs(items) do
@@ -1320,7 +1364,7 @@ local function CreateMenu(anchor, items, width)
             row.text:SetText(it.text or "")
             local hl = row:CreateTexture(nil, "BACKGROUND")
             hl:SetAllPoints()
-            hl:SetColorTexture(0.3, 0.2, 0.1, 0.5)
+            hl:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.3)
             hl:Hide()
             row:SetScript("OnEnter", function() hl:Show() end)
             row:SetScript("OnLeave", function() hl:Hide() end)
@@ -1418,7 +1462,7 @@ local function _NewGridCell(parent, width, labelText, onClick)
 
     local hl = cell:CreateTexture(nil, "BACKGROUND")
     hl:SetAllPoints()
-    hl:SetColorTexture(0.3, 0.2, 0.1, 0.5)
+    hl:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.3)
     hl:Hide()
     cell:SetScript("OnEnter", function() cell.isSelected = true; hl:Show() end)
     cell:SetScript("OnLeave", function() cell.isSelected = false; hl:Hide() end)
@@ -1454,7 +1498,7 @@ local function CreateBindingRow(parent, width, onRightClick, onDragReorder, onKe
 
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetColorTexture(0.14, 0.14, 0.14, 0.6)
+    bg:SetColorTexture(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], 0.6)
     row.bg = bg
 
     row.keyGrid = _NewGridCell(row, cellW, "", onKeyClick)
@@ -1497,12 +1541,12 @@ local function CreateBindingRow(parent, width, onRightClick, onDragReorder, onKe
     function row:SetChanged(changed)
         row.changed = changed
         if changed then
-            row.bg:SetColorTexture(0.25, 0.18, 0.05, 0.9)
+            row.bg:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.35)
         else
-            row.bg:SetColorTexture(0.14, 0.14, 0.14, 0.6)
+            row.bg:SetColorTexture(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], 0.6)
         end
     end
-    function row:Highlight() row.bg:SetColorTexture(0.22, 0.22, 0.1, 0.9) end
+    function row:Highlight() row.bg:SetColorTexture(accentColor.r, accentColor.g, accentColor.b, 0.25) end
     function row:Unhighlight() row:SetChanged(row.changed) end
 
     return row
@@ -1676,7 +1720,7 @@ local function CreateIndicatorList(parent, onClickItem)
         for i, item in ipairs(items) do
             local row = CreateFrame("Button", nil, scrollFrame.scrollChild, "BackdropTemplate")
             row:SetSize(container:GetWidth() - 20, 20)
-            StylizeFrame(row, {0.1, 0.1, 0.1, 0.6}, {0.3, 0.3, 0.3, 0.5})
+            StylizeFrame(row, PANEL_BG, DARK_BORDER)
             if i == 1 then
                 row:SetPoint("TOPLEFT", 0, 0)
             else
@@ -1770,7 +1814,7 @@ local function CreateAuraSpellList(parent, auraType, getAuras, setAuras, showHea
     popup:SetSize(170, 74)
     popup:SetPoint("BOTTOM", 0, 4)
     popup:SetFrameStrata("DIALOG")
-    StylizeFrame(popup, {0.08, 0.08, 0.08, 0.98}, {0.4, 0.4, 0.4, 0.9})
+    StylizeFrame(popup, POPUP_BG, POPUP_BORDER)
     popup:Hide()
     popup.label = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     popup.label:SetPoint("TOP", 0, -8)
@@ -1826,7 +1870,7 @@ local function CreateAuraSpellList(parent, auraType, getAuras, setAuras, showHea
         menuPopup:SetFrameStrata("TOOLTIP")
         menuPopup:SetFrameLevel(100)
         menuPopup:Hide()
-        StylizeFrame(menuPopup, {0.08, 0.08, 0.08, 0.98}, {0.4, 0.4, 0.4, 0.9})
+        StylizeFrame(menuPopup, POPUP_BG, POPUP_BORDER)
         tinsert(UISpecialFrames, menuPopupName) -- Escape closes it
 
         -- Full-screen invisible catcher just below the popup -- closes it
@@ -1989,7 +2033,7 @@ local function CreateAuraSpellList(parent, auraType, getAuras, setAuras, showHea
         for i, id in ipairs(auras) do
             local row = CreateFrame("Frame", nil, scrollFrame.scrollChild, "BackdropTemplate")
             row:SetHeight(20)
-            StylizeFrame(row, {0.08, 0.08, 0.08, 0.8}, {0.3, 0.3, 0.3, 0.5})
+            StylizeFrame(row, PANEL_BG, DARK_BORDER)
             if i == 1 then
                 row:SetPoint("TOPLEFT", 0, 0)
             else
@@ -2053,7 +2097,7 @@ end
 local function CreatePreviewButton(parent)
     local container = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     container:SetSize(110, 80)
-    StylizeFrame(container, {0.05, 0.05, 0.05, 0.9}, {0.4, 0.4, 0.4, 0.8})
+    StylizeFrame(container, DARK_BG, POPUP_BORDER)
 
     -- Title
     container.title = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2109,4 +2153,14 @@ SquizzFrames.Widgets = {
     CreateIndicatorList = CreateIndicatorList,
     CreateAuraSpellList = CreateAuraSpellList,
     CreatePreviewButton = CreatePreviewButton,
+    -- The themed palette (see SquizzFrames.Widgets_RefreshPalette above), shared by reference so
+    -- the indicator settings' own controls (IndicatorWidgetsBase.lua) colour
+    -- themselves from the same values. Read the fields when a widget is made.
+    palette = {
+        DARK_BG = DARK_BG, DARK_BORDER = DARK_BORDER, PANEL_BG = PANEL_BG,
+        GREY_TEXT = GREY_TEXT, TEXT = TEXT, HOVER_BG = HOVER_BG,
+        POPUP_BG = POPUP_BG, POPUP_BORDER = POPUP_BORDER, LIGHT_BG = LIGHT_BG,
+        HEADING = HEADING,
+    },
+    C4 = C4,
 }

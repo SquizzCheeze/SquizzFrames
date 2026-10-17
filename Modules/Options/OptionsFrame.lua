@@ -148,6 +148,10 @@ local Pages = {}
 local function CreateOptionsFrame()
     if win then return win end
 
+    -- The theme's choice is settled by now (Core's OnInitialize); fill the
+    -- controls' palette and accent from it before any page is built.
+    if SquizzFrames.Widgets_RefreshPalette then SquizzFrames.Widgets_RefreshPalette() end
+
     local function Page(key, label, subtitle, build, extra)
         local p = { key = key, label = label, subtitle = subtitle, build = build,
                     layout = "scroll", height = pageHeights[key] }
@@ -346,7 +350,7 @@ local function BuildGeneralFields(frame)
         themeNote:SetPoint("RIGHT", fieldsHost, "RIGHT", -20, 0)
         themeNote:SetJustifyH("LEFT")
         themeNote:SetText(L["ThemeNote"]
-            or "One theme covers SquizzFrames and Squizzumables. For now it sets this window's accent colour; the rest of the look follows in a later update.")
+            or "One theme covers SquizzFrames and Squizzumables: this window, its controls and its accent colour.")
         yOffset = yOffset - 40
     end
 
@@ -769,7 +773,7 @@ local function BuildProfilesFields(frame)
                 local head = fieldsHost:CreateFontString(nil, "OVERLAY")
                 head:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
                 head:SetPoint("TOPLEFT", 130 + (i - 1) * 125, yOffset)
-                head:SetTextColor(0.7, 0.7, 0.7, 1)
+                head:SetTextColor(W.C4(W.palette.GREY_TEXT))
                 head:SetText(col.label)
             end
             yOffset = yOffset - 20
@@ -836,7 +840,7 @@ local function ShowSpecProfileDialog(specID, specName, situation)
         dialog:SetFrameStrata("DIALOG")
         dialog:SetClampedToScreen(true)
         dialog:EnableMouse(true)
-        W.StylizeFrame(dialog, {0.1, 0.1, 0.1, 0.95}, {0.3, 0.7, 1, 0.8})
+        W.StylizeFrame(dialog, W.palette.DARK_BG, W.palette.POPUP_BORDER)
 
         dialog.title = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         dialog.title:SetPoint("TOP", 0, -10)
@@ -1064,7 +1068,7 @@ local function ShowFirstRunPopup()
     dialog:SetFrameStrata("DIALOG")
     dialog:SetClampedToScreen(true)
     dialog:EnableMouse(true)
-    W.StylizeFrame(dialog, {0.1, 0.1, 0.1, 0.95}, {0.3, 0.7, 1, 0.8})
+    W.StylizeFrame(dialog, W.palette.DARK_BG, W.palette.POPUP_BORDER)
 
     dialog.title = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     dialog.title:SetPoint("TOP", 0, -14)
