@@ -44,7 +44,7 @@ local NAV_ITEMS = {
 -- Fixed content heights per simple page (content can exceed; scrolls if
 -- needed). Indicators pages manage their own layout and aren't part of this.
 local pageHeights = {
-    ["general"] = 540, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity
+    ["general"] = 665, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme (2.0)
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
     ["petFrames"] = 1090, -- +490 for the Name Text section
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
@@ -589,6 +589,46 @@ local function BuildGeneralFields(frame)
     frame.fieldsHost = fieldsHost
 
     local yOffset = -10
+
+    -- Section: Theme. Shared with Squizzumables (LibSquizzTheme-1.0, 2.0): one
+    -- account-wide choice, so picking here changes both addons. Our window
+    -- reads its accent once, when built, so the change shows here after a
+    -- reload; Squizzumables repaints its own accent live.
+    local LST = LibStub and LibStub("LibSquizzTheme-1.0", true)
+    if LST then
+        W.CreateTitledPane(fieldsHost, L["Theme"] or "Theme", yOffset)
+        yOffset = yOffset - 35
+        local themeItems = {}
+        for _, key in ipairs(LST.ORDER) do
+            themeItems[#themeItems + 1] = {value = key, text = LST.PRESETS[key].name}
+        end
+        local ddTheme = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Preset"] or "Preset", themeItems,
+            function() return LST:PresetKey() end,
+            function(key)
+                if key == LST:PresetKey() then return end
+                LST:SetPreset(key)
+                if not StaticPopupDialogs["SQUIZZFRAMES_THEME_RELOAD"] then
+                    StaticPopupDialogs["SQUIZZFRAMES_THEME_RELOAD"] = {
+                        text = "Theme set to %s for SquizzFrames and Squizzumables.\n\nReload now to see it in this window?",
+                        button1 = RELOADUI or "Reload", button2 = CANCEL or "Later",
+                        OnAccept = function() ReloadUI() end,
+                        timeout = 0, whileDead = true, hideOnEscape = true,
+                    }
+                end
+                StaticPopup_Show("SQUIZZFRAMES_THEME_RELOAD", LST.PRESETS[key].name)
+            end)
+        ddTheme:SetPoint("TOPLEFT", 15, yOffset)
+        yOffset = yOffset - 50
+
+        local themeNote = fieldsHost:CreateFontString(nil, "OVERLAY")
+        themeNote:SetFontObject("GameFontDisableSmall")
+        themeNote:SetPoint("TOPLEFT", 32, yOffset)
+        themeNote:SetPoint("RIGHT", fieldsHost, "RIGHT", -20, 0)
+        themeNote:SetJustifyH("LEFT")
+        themeNote:SetText(L["ThemeNote"]
+            or "One theme covers SquizzFrames and Squizzumables. For now it sets this window's accent colour; the rest of the look follows in a later update.")
+        yOffset = yOffset - 40
+    end
 
     -- Section: Blizzard Frames
     W.CreateTitledPane(fieldsHost, L["Blizzard Frames"] or "Blizzard Frames", yOffset)

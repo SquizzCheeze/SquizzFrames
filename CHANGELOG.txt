@@ -5,6 +5,15 @@ SquizzFrames - Changelog
 V2.0
 -----
 
+New:
+
+- Theme (General page): SquizzFrames now shares Squizzumables' theme -
+  Squizz Gold, Dark Glass, Class Colour, Rainbow or Minimal. One choice
+  covers both addons. For now it sets the options window's accent colour;
+  the rest of the look follows in a later update. Your accent stays class
+  coloured unless you use Squizzumables, in which case it takes the theme
+  you already picked there.
+
 Fixed:
 
 - Turning an indicator on that was off when you last logged in or

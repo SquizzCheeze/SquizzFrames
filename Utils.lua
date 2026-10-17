@@ -737,7 +737,18 @@ function F.ResolveClickCastItem(action)
     return best
 end
 
+-- The accent follows the theme shared with Squizzumables (LibSquizzTheme-1.0,
+-- 2.0): Squizz Gold, Dark Glass and Minimal have a fixed accent, Class Colour
+-- is the player's class colour, Rainbow is the cycle's colour at the moment of
+-- asking (our widgets read it once, when built). The old per-profile
+-- accentColor below is only the fallback for a missing library.
 function F.GetAccentColor()
+    local LST = LibStub and LibStub("LibSquizzTheme-1.0", true)
+    if LST then
+        if LST:AccentMode() == "class" then return F.GetClassColor("player") end
+        local r, g, b = LST:AccentRGB()
+        return {r = r, g = g, b = b, colorStr = string.format("ff%02x%02x%02x", r * 255, g * 255, b * 255)}
+    end
     local prof = SquizzFrames.db and SquizzFrames.db.profile
     if prof and prof.appearance and prof.appearance.general and prof.appearance.general.accentColor then
         local ac = prof.appearance.general.accentColor

@@ -25,7 +25,7 @@ SquizzFrames/
 ├── Core.lua                 # Addon bootstrap, Ace3 lifecycle, DB, module registry
 ├── Utils.lua                # Shared helpers (colors, numbers, spells, click-cast spells, SquizzFrames.IS_121 build-gate flag)
 ├── SquizzFrames.toc         # Load order: Libs → Core → Utils → Defaults → Media → HideBlizzard → Options → Modules → Compat
-├── Libs/                    # Embedded libraries (Ace3, LibSharedMedia, LibCustomGlow, LibDeflate, LibSerialize, LibRangeCheck) + our own LibSquizzGrid-1.0 (Edit Mode grid/snapping, a copy shared with Squizzumables)
+├── Libs/                    # Embedded libraries (Ace3, LibSharedMedia, LibCustomGlow, LibDeflate, LibSerialize, LibRangeCheck) + our own LibSquizzGrid-1.0 (Edit Mode grid/snapping) and LibSquizzTheme-1.0 (the theme), each a copy shared with Squizzumables
 ├── Media/                   # Fonts, textures, icons, flipbooks
 ├── Defaults/                # Layout, Appearance, Indicator, ClickCasting defaults (DB-side data)
 ├── Locales/                 # enUS.lua (AceLocale-3.0)
@@ -581,6 +581,26 @@ and with its "Hide Blizzard's Cooldown Manager" option it sits at -10000.
   frame on Utility + Utility under the player cast bar would have the watcher chasing its own
   movement down the screen. `UsableAttachTarget` refuses it.
 
+### Theme (Libs/LibSquizzTheme-1.0) -- shared with Squizzumables, 2.0 phase 1
+
+Same arrangement as LibSquizzGrid below: **a byte-identical copy in each addon,
+change both and bump `MINOR`.** It holds Squizzumables' five presets and named
+palette, and ONE account-wide choice (user decision: one theme covers both
+addons). A library cannot own SavedVariables, so each addon attaches its SV
+ROOT (`LST:Attach(root, seed, priority)`) and the choice is written into every
+attached root as `sharedTheme = {preset, at, seed}`: a real pick (`at` > 0)
+beats any seed and the newest pick wins; with no pick, the highest seed wins.
+Our seed is `class_colour` at priority 1 (`Core.lua`, right after
+`ProfileStore:Init`) -- the 1.x accent had no control, so every profile was on
+`class_color`; Squizzumables seeds its profile's choice at priority 2, so with
+both installed its look carries over. What reads it here so far:
+`F.GetAccentColor` (`Utils.lua`; every accent read in our UI goes through it)
+and the Theme dropdown at the top of the General page. Our window reads the
+accent once at build, so a pick shows after a /reload (the dropdown offers
+one). The palette's other colours are not used by our window yet -- that is
+phase 3, when the window is rebuilt on the shared shell. The old
+`appearance.general.accentColor` is now only a fallback for a missing library.
+
 ### Edit Mode grid and snapping (Libs/LibSquizzGrid-1.0, Modules/Grid/SnapGrid.lua)
 
 A LibStub library shared with Squizzumables: **a copy lives in each addon and
@@ -967,6 +987,7 @@ re-inventing something already half-built.
 | LibSerialize | Table serialization |
 | LibRangeCheck-3.0 | Unit range checking (out-of-range alpha) |
 | LibSquizzGrid-1.0 | **Our own**, shared with Squizzumables: Edit Mode grid + snapping. Change both copies identically and bump `MINOR` (see *Edit Mode grid and snapping*) |
+| LibSquizzTheme-1.0 | **Our own**, shared with Squizzumables: palette, presets and the one account-wide theme choice. Change both copies identically and bump `MINOR` (see *Theme*) |
 
 ---
 

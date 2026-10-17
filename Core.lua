@@ -1386,6 +1386,16 @@ function SquizzFrames:OnInitialize()
     -- totally different one the moment it logged in).
     self.db = SquizzFrames.ProfileStore:Init()
 
+    -- Join the theme shared with Squizzumables (LibSquizzTheme-1.0, 2.0). The
+    -- choice is account-wide, stored on the SV root. Our seed is class colour:
+    -- the 1.x accent had no control and every profile was on class_color, so
+    -- that is the look nobody should lose. Squizzumables seeds at a higher
+    -- priority, so with both installed its existing choice carries over.
+    local LST = LibStub and LibStub("LibSquizzTheme-1.0", true)
+    if LST and SquizzFramesDB then
+        LST:Attach(SquizzFramesDB, function() return "class_colour" end, 1)
+    end
+
     -- Ensure layout.indicators/indicatorsRaid exist in the loaded profile
     -- (migrates old profiles) -- see EnsureIndicatorLists' comment.
     if self.db and self.db.profile then
