@@ -240,6 +240,7 @@ local function CreateOptionsFrame()
                 -- One sub-tab at a time, like the Tank Tracker.
                 select = function(scope) SquizzFrames.PartyCooldownsPanel.Select(scope) end,
                 indexAll = function() SquizzFrames.PartyCooldownsPanel.IndexAll() end,
+                preview = function(column) SquizzFrames.PartyCooldownsPanel.BuildPreview(column) end,
             }),
             Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
                 onShow = function(frame)

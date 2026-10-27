@@ -21,7 +21,8 @@ New:
   game, with a charge count. Party members' 2-charge spells darken with a
   number only when no charge is left, and show a thin bar along the
   bottom while recharging. Potions: everyone's combat potion, plus your
-  own healing potion and Healthstone. Every spell can be switched on or off on its
+  own healing potion and Healthstone. Optional tooltips on the icons, and
+  a live preview on the options page. Every spell can be switched on or off on its
   own (grouped by class, with All On / All Off). /sfcdcheck compares
   your own cooldown lengths with your tooltips.
 

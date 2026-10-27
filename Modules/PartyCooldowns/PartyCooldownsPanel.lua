@@ -164,6 +164,11 @@ local function BuildLayout(host, y)
     local cbGlow = W.CreateStyledCheckbox(host, L["Highlight While Active"] or "Highlight While Active",
         get("glow"), set("glow"))
     cbGlow:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
+    local cbTips = W.CreateStyledCheckbox(host, L["Tooltips on Hover"] or "Tooltips on Hover",
+        get("tooltips"), set("tooltips"))
+    cbTips:SetPoint("TOPLEFT", 15, y)
     y = y - 40
 
     W.CreateTitledPane(host, L["Countdown"] or "Countdown", y)
@@ -403,6 +408,126 @@ function Panel.Build(frame)
         local M = Mod()
         if M and M.IsTestMode() then M.SetTestMode(false) end
     end)
+end
+
+------------------------------------------------------------------------
+-- Preview (the options window's right-hand column): a mock party frame at
+-- the real frames' size with icons placed by the module's own Place, so
+-- every Layout setting shows as you change it. Plain values only: the
+-- shades and numbers are fixed samples, not timers.
+------------------------------------------------------------------------
+local SAMPLE_LEFT = { 0, 0.62, 0.3, 0, 0.85, 0.12, 0.45, 0, 0.7, 0.2, 0, 0.55 }
+local preview
+
+local function SampleSpells()
+    local DATA = SquizzFrames.PartyCooldownsData
+    local _, class = UnitClass("player")
+    local list, potion = {}, nil
+    for _, def in ipairs(DATA and DATA.spells or {}) do
+        if def.class == class and not def.ownOnly then list[#list + 1] = def end
+        if def.class == "ANY" and not def.ownOnly then potion = def end
+    end
+    if potion then list[#list + 1] = potion end
+    return list
+end
+
+local function PartyFrameSize()
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local main = p and p.layout and p.layout.main
+    return (main and main.width) or 100, (main and main.height) or 40
+end
+
+function Panel.RefreshPreview()
+    local M = Mod()
+    if not (preview and M) then return end
+    local w, h = PartyFrameSize()
+    preview.mock:SetSize(w, h)
+    -- Room for the icons on whichever side they hang.
+    local side = M.Get("side")
+    preview.mock:ClearAllPoints()
+    local dx = (side == "LEFT" and 50) or (side == "RIGHT" and -50) or 0
+    local dy = (side == "TOP" and -40) or (side == "BOTTOM" and 40) or 0
+    preview.mock:SetPoint("CENTER", preview.holder, "CENTER", dx, dy)
+
+    local samples = SampleSpells()
+    local n = math.min(M.Get("perRow") * M.Get("rows"), 12)
+    if #samples == 0 then n = 0 end
+    local size, shade = M.Get("size"), M.Get("shade")
+    local showNums, numSize = M.Get("showNumbers"), M.Get("numberSize")
+    for i = 1, math.max(n, #preview.icons) do
+        local ic = preview.icons[i]
+        if i <= n then
+            if not ic then
+                ic = CreateFrame("Frame", nil, preview.holder)
+                ic.tex = ic:CreateTexture(nil, "ARTWORK")
+                ic.tex:SetAllPoints()
+                ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                ic.shade = ic:CreateTexture(nil, "OVERLAY")
+                ic.shade:SetPoint("TOPLEFT")
+                ic.shade:SetPoint("TOPRIGHT")
+                ic.num = ic:CreateFontString(nil, "OVERLAY")
+                ic.num:SetPoint("CENTER")
+                ic.border = {}
+                local function edge(p1, p2, horizontal)
+                    local b = ic:CreateTexture(nil, "OVERLAY", nil, 2)
+                    b:SetColorTexture(0, 0, 0, 1)
+                    b:SetPoint(p1)
+                    b:SetPoint(p2)
+                    if horizontal then b:SetHeight(1) else b:SetWidth(1) end
+                    ic.border[#ic.border + 1] = b
+                end
+                edge("TOPLEFT", "TOPRIGHT", true)
+                edge("BOTTOMLEFT", "BOTTOMRIGHT", true)
+                edge("TOPLEFT", "BOTTOMLEFT", false)
+                edge("TOPRIGHT", "BOTTOMRIGHT", false)
+                preview.icons[i] = ic
+            end
+            local def = samples[(i - 1) % #samples + 1]
+            local tex = (def.items and C_Item.GetItemIconByID(def.items[1])) or C_Spell.GetSpellTexture(def.key)
+            ic.tex:SetTexture(tex)
+            ic:SetSize(size, size)
+            local left = SAMPLE_LEFT[(i - 1) % #SAMPLE_LEFT + 1]
+            ic.shade:SetColorTexture(0, 0, 0, shade)
+            ic.shade:SetHeight(math.max(0.01, size * left))
+            ic.shade:SetShown(left > 0)
+            ic.num:SetFont("Fonts\\FRIZQT__.TTF", numSize, "OUTLINE")
+            local secs = math.floor(left * def.cd + 0.5)
+            ic.num:SetText(secs >= 60 and string.format("%dm", math.ceil(secs / 60)) or (secs > 0 and tostring(secs) or ""))
+            ic.num:SetShown(showNums)
+            for _, b in ipairs(ic.border) do b:SetShown(M.Get("showBorder")) end
+            M.Place(ic, preview.mock, i - 1, n)
+            ic:Show()
+        elseif ic then
+            ic:Hide()
+        end
+    end
+end
+
+function Panel.BuildPreview(column)
+    local holder = CreateFrame("Frame", nil, column)
+    holder:SetAllPoints(column)
+    holder:SetClipsChildren(true)
+
+    -- A plain stand-in for one party frame: dark body, green health.
+    local mock = CreateFrame("Frame", nil, holder)
+    local bg = mock:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.08, 0.08, 0.08, 1)
+    local hp = mock:CreateTexture(nil, "ARTWORK")
+    hp:SetPoint("TOPLEFT", 1, -1)
+    hp:SetPoint("BOTTOMRIGHT", -1, 1)
+    hp:SetColorTexture(0.2, 0.75, 0.3, 0.9)
+    local name = mock:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    name:SetPoint("CENTER")
+    name:SetText(UnitName("player") or "Player")
+
+    preview = { holder = holder, mock = mock, icons = {} }
+    Panel.RefreshPreview()
+
+    if F and F.NewMessageOwner then
+        F.NewMessageOwner():RegisterMessage("PartyCooldownsChanged", Panel.RefreshPreview)
+        F.NewMessageOwner():RegisterMessage("ProfileChanged", Panel.RefreshPreview)
+    end
 end
 
 -- Search: reopen the tab a result was indexed under, and build each tab

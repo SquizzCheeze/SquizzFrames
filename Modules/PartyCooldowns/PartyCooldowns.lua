@@ -4,7 +4,8 @@
     never in a raid (user decision 2026-10-27).
 
     How a cooldown is seen at all, when a party member's casts are secret in
-    instances (measured with /sfcdprobe, 2026-10-27):
+    instances (measured in game with a probe, 2026-10-27; removed before 2.1,
+    see git history for /sfcdprobe):
 
       SENSOR  One hidden AuraContainer per (unit, cooldown), one group,
               filtered to the buff the cooldown leaves, maxFrameCount 1 and a
@@ -93,6 +94,7 @@ local DEFAULTS = {
     showBorder = true,
     glow = true,          -- gold edge while the buff is up
     shade = 0.7,          -- darkness of the cooldown shade
+    tooltips = false,     -- hover an icon for the spell and whose it is
     showNumbers = true,   -- countdown text (stage 2)
     numberSize = 12,
 }
@@ -422,7 +424,7 @@ PC.EffectiveCD = EffectiveCD
 -- A timer, sized for the cooldown and charges this member actually has.
 --
 -- The engine-side select hands numbers back as 8-bit values clamped to 0..1
--- (measured with /sfcdprobe precision, 2026-10-27: 1.5 came back 1, 1/65536
+-- (measured with the since-removed /sfcdprobe, 2026-10-27: 1.5 came back 1, 1/65536
 -- came back 0). So a time is stored as one of 254 steps of u seconds, and a
 -- slot's epoch can only cover 254 * u seconds before it must be reset.
 --
@@ -523,8 +525,39 @@ local function Edges(parent, layer, thickness, r, g, b, a)
     return list
 end
 
+-- Hover tooltip (opt-in): the spell or item, then whose cooldown it is and
+-- how long. The name can be secret in combat, so it goes straight to the
+-- tooltip without being looked at.
+local function ShowTooltip(f)
+    local t = f.tracker
+    if not t then return end
+    GameTooltip:SetOwner(f, "ANCHOR_RIGHT")
+    pcall(function()
+        if t.item then
+            GameTooltip:SetItemByID(t.item)
+        else
+            GameTooltip:SetSpellByID(t.ownID or t.def.key)
+        end
+    end)
+    if f.token then
+        local ok, name = pcall(UnitName, f.token)
+        if ok and name then GameTooltip:AddLine(name, 1, 1, 1) end
+    end
+    local cd = math.floor(t.cd + 0.5)
+    local text = cd >= 60 and string.format("%d:%02d cooldown", math.floor(cd / 60), cd % 60)
+        or string.format("%ds cooldown", cd)
+    if (t.charges or 1) > 1 then text = text .. string.format(", %d charges", t.charges) end
+    GameTooltip:AddLine(text, 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
 local function NewIcon(row)
     local f = CreateFrame("Frame", nil, row)
+    f:EnableMouse(false)
+    f:SetScript("OnEnter", ShowTooltip)
+    f:SetScript("OnLeave", function(self)
+        if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetAllPoints()
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -701,6 +734,11 @@ local function StyleIcon(f, t)
     f:SetSize(size, size)
     local tex = t.item and C_Item.GetItemIconByID(t.item)
     f.icon:SetTexture(tex or C_Spell.GetSpellTexture(t.def.key))
+    -- Tooltips: hover only. Clicks still pass through, so an icon can never
+    -- swallow a click meant for the party frame or the world behind it.
+    local tips = PC.Get("tooltips") and true or false
+    f:EnableMouse(tips)
+    if tips then f:SetMouseClickEnabled(false) end
     local shade = PC.Get("shade")
     for k = 1, 2 do
         f.bars[k]:SetStatusBarColor(0, 0, 0, shade)
@@ -828,6 +866,10 @@ local function Place(f, button, i, n)
     end
 end
 
+-- The options preview places its mock icons with this same function, so it
+-- cannot drift from what the real frames do.
+PC.Place = Place
+
 ------------------------------------------------------------------------
 -- Rebuild: members -> trackers -> icons
 ------------------------------------------------------------------------
@@ -932,6 +974,7 @@ function PC:Rebuild()
             local f = row.icons[i] or NewIcon(row)
             row.icons[i] = f
             f.tracker = t
+            f.token = token
             StyleIcon(f, t)
             Place(f, button, i - 1, shown)
             f:Show()
@@ -1131,46 +1174,6 @@ local function KnowsSpell(id)
     if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return false end
     local ok, v = pcall(C_SpellBook.IsSpellKnown, id)
     return ok and v and true or false
-end
-
--- /sfpcddebug: what the first visible icon's number window really looks
--- like. Everything is pcall'd and secret-safe: in combat the drive value is
--- secret and prints as such.
-SLASH_SQUIZZPCDDEBUG1 = "/sfpcddebug"
-SlashCmdList["SQUIZZPCDDEBUG"] = function()
-    local P = "|cff33cc99[SquizzFrames]|r "
-    local function show(v)
-        if v == nil then return "nil" end
-        if IsSecret(v) then return "secret" end
-        if type(v) == "number" then return string.format("%.2f", v) end
-        return tostring(v)
-    end
-    local ok, err = pcall(function()
-        for _, token in ipairs(TOKENS) do
-            local row = rows[token]
-            local f = row and row:IsShown() and row.icons[1]
-            if f and f:IsShown() then
-                local m = Metrics(PC.Get("numberSize"))
-                print(P .. string.format("%s first icon %s: secs %s, line %s step %s, test %s",
-                    token, show(f.tracker and f.tracker.def.key), show(f.numSecs), show(m.one), show(m.step), show(testMode)))
-                for k = 1, 2 do
-                    local n = f.nums[k]
-                    local w, h = n.clip:GetSize()
-                    local mn, mx = n.drive:GetMinMaxValues()
-                    local fill = n.drive:GetStatusBarTexture()
-                    print(string.format("   slot %d: window %sx%s shown %s alpha %s | drive %s..%s value %s, %sx%s, fill h %s | strip h %s lines %s, %s",
-                        k, show(w), show(h), show(n.clip:IsShown()), show(n.clip:GetAlpha()),
-                        show(mn), show(mx), show(n.drive:GetValue()), show(n.drive:GetWidth()), show(n.drive:GetHeight()),
-                        show(fill and fill:GetHeight()), show(n.strip:GetStringHeight()),
-                        show(n.strip.GetNumLines and n.strip:GetNumLines()), show(n.strip:IsVisible() and "visible" or "not visible")))
-                end
-                print("--- end")
-                return
-            end
-        end
-        print(P .. "no icon on screen (enable Party Cooldowns, or tick Show Test Icons)")
-    end)
-    if not ok then print(P .. "debug failed: " .. tostring(err)) end
 end
 
 SLASH_SQUIZZCDCHECK1 = "/sfcdcheck"

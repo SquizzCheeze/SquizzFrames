@@ -106,10 +106,9 @@
     <Script file="TankTracker/TankTrackerPreview.lua"/>
     <Script file="TankTracker/TankTrackerPanel.lua"/>
     <!-- Party cooldowns. Data before the engine, which reads it at RUNTIME;
-         the panel is a shell over the engine. CDProbe is the dev harness
-         that measured the technique (/sfcdprobe). -->
+         the panel is a shell over the engine. The dev harness that measured
+         the technique (/sfcdprobe) was removed before 2.1; see git history. -->
     <Script file="PartyCooldowns/PartyCooldownsData.lua"/>
     <Script file="PartyCooldowns/PartyCooldowns.lua"/>
     <Script file="PartyCooldowns/PartyCooldownsPanel.lua"/>
-    <Script file="PartyCooldowns/CDProbe.lua"/>
 </Ui>
