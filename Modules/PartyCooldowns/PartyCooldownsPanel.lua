@@ -437,11 +437,26 @@ local function PartyFrameSize()
     return (main and main.width) or 100, (main and main.height) or 40
 end
 
+-- Colour the mock's health bar exactly as the party frames would: through
+-- the party module's own UpdateHealth, which has a fake-button path for the
+-- Layout page's mock grid (texture, gradient, class or custom colour). A
+-- copy of those rules here would be wrong the first time they change.
+local function PaintMock()
+    local PF = SquizzFrames:GetModule("PartyFrames", true)
+    local update = PF and PF.buttons and PF.buttons.UpdateHealth
+    if not update then return end
+    local _, class = UnitClass("player")
+    local fake = preview.fake
+    fake._sfFakeClass = class
+    pcall(update, fake)
+end
+
 function Panel.RefreshPreview()
     local M = Mod()
     if not (preview and M) then return end
     local w, h = PartyFrameSize()
     preview.mock:SetSize(w, h)
+    PaintMock()
     -- Room for the icons on whichever side they hang.
     local side = M.Get("side")
     preview.mock:ClearAllPoints()
@@ -508,26 +523,38 @@ function Panel.BuildPreview(column)
     holder:SetAllPoints(column)
     holder:SetClipsChildren(true)
 
-    -- A plain stand-in for one party frame: dark body, green health.
+    -- A stand-in for one party frame (your own): dark body, and a health bar
+    -- painted by the party frames' own code (PaintMock).
     local mock = CreateFrame("Frame", nil, holder)
     local bg = mock:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetColorTexture(0.08, 0.08, 0.08, 1)
-    local hp = mock:CreateTexture(nil, "ARTWORK")
+    local hp = CreateFrame("StatusBar", nil, mock)
     hp:SetPoint("TOPLEFT", 1, -1)
     hp:SetPoint("BOTTOMRIGHT", -1, 1)
-    hp:SetColorTexture(0.2, 0.75, 0.3, 0.9)
-    local name = mock:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hp:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    local name = hp:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     name:SetPoint("CENTER")
     name:SetText(UnitName("player") or "Player")
 
-    preview = { holder = holder, mock = mock, icons = {} }
+    -- The fields UpdateHealth's fake-button path reads (see PartyButtons.lua).
+    local fake = {
+        unit = "player", healthBar = hp, nameText = name,
+        _sfFakeName = UnitName("player") or "Player",
+        _sfFakeHealth = 100, _sfFakeHealthMax = 100,
+    }
+
+    preview = { holder = holder, mock = mock, icons = {}, fake = fake }
     Panel.RefreshPreview()
 
     if F and F.NewMessageOwner then
         F.NewMessageOwner():RegisterMessage("PartyCooldownsChanged", Panel.RefreshPreview)
         F.NewMessageOwner():RegisterMessage("ProfileChanged", Panel.RefreshPreview)
+        -- The party frames' own look (colour mode, texture, size) changed.
+        F.NewMessageOwner():RegisterMessage("LayoutChanged", Panel.RefreshPreview)
     end
+    -- And whenever the page comes back, in case it changed while away.
+    column:HookScript("OnShow", Panel.RefreshPreview)
 end
 
 -- Search: reopen the tab a result was indexed under, and build each tab
