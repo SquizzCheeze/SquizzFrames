@@ -3,6 +3,11 @@
     A pure shell over PartyCooldowns.Get / .Set -- every control reads and
     writes through the module, which owns the defaults and fires
     "PartyCooldownsChanged". Nothing here touches the icons directly.
+
+    Three sub-tabs on a pinned strip, the Tank Tracker page's arrangement:
+      General   on/off, test icons, which categories
+      Layout    where the icons sit, how they look, the countdown
+      Spells    one checkbox per spell, grouped by class
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
@@ -10,11 +15,25 @@ if not SquizzFrames then return end
 
 local L = SquizzFrames.L or {}
 local W = SquizzFrames.Widgets
+local F = SquizzFrames.F
 
 local Panel = {}
 SquizzFrames.PartyCooldownsPanel = Panel
 
 local NOTE_WIDTH = 420
+local HEADER_HEIGHT = 34
+
+local TABS = {
+    {key = "general", label = L["General"] or "General"},
+    {key = "layout",  label = L["Layout"] or "Layout"},
+    {key = "spells",  label = L["Spells"] or "Spells"},
+}
+local activeTab = "general"
+local rebuildFields
+-- False when the scroll-frame chain was not what we expected and the tab
+-- strip had to be built on the page itself, where it scrolls and the fields
+-- must start below it.
+local headerPinned = false
 
 local SIDE_ITEMS = {
     {value = "BOTTOM", text = L["Below"] or "Below"},
@@ -34,6 +53,10 @@ local function Mod() return SquizzFrames.PartyCooldowns end
 local function get(key) return function() local M = Mod(); return M and M.Get(key) end end
 local function set(key) return function(v) local M = Mod(); if M then M.Set(key, v) end end end
 
+local function ScrollToTop()
+    if SquizzFrames.OptionsScrollToTop then SquizzFrames.OptionsScrollToTop() end
+end
+
 local function Note(host, y, text)
     local fs = host:CreateFontString(nil, "OVERLAY")
     fs:SetFontObject("GameFontDisableSmall")
@@ -44,100 +67,10 @@ local function Note(host, y, text)
     return y - math.ceil(fs:GetStringHeight() or 24) - 12
 end
 
--- Spells (stage 4): one checkbox per tracked spell, grouped by class, two
--- columns. Unticking hides that cooldown on every frame.
-local COLUMN_X = { 15, 255 }
-local ROW_H = 26
-local CAT_TAG = {
-    external = L["external"] or "external",
-    group = L["group"] or "group",
-}
-
-local function ClassOrder()
-    local order = {}
-    if CLASS_SORT_ORDER then
-        for _, c in ipairs(CLASS_SORT_ORDER) do order[#order + 1] = c end
-    else
-        order = { "WARRIOR", "DEATHKNIGHT", "PALADIN", "MONK", "PRIEST", "SHAMAN", "DRUID",
-                  "ROGUE", "MAGE", "WARLOCK", "HUNTER", "DEMONHUNTER", "EVOKER" }
-    end
-    return order
-end
-
-function Panel.BuildSpellList(frame, host, y)
-    local M = Mod()
-    local DATA = SquizzFrames.PartyCooldownsData
-    if not (M and DATA) then return y end
-
-    W.CreateTitledPane(host, L["Spells"] or "Spells", y)
-    y = y - 35
-
-    local allOn = W.CreateStyledButton(host, L["All On"] or "All On", "accent-hover", {80, 22}, function()
-        M.SetAllSpellsEnabled(true)
-        Panel.Build(frame)
-    end)
-    allOn:SetPoint("TOPLEFT", 15, y)
-    local allOff = W.CreateStyledButton(host, L["All Off"] or "All Off", "accent-hover", {80, 22}, function()
-        M.SetAllSpellsEnabled(false)
-        Panel.Build(frame)
-    end)
-    allOff:SetPoint("LEFT", allOn, "RIGHT", 8, 0)
-    y = y - 34
-
-    local byClass = {}
-    for _, def in ipairs(DATA.spells) do
-        byClass[def.class] = byClass[def.class] or {}
-        table.insert(byClass[def.class], def)
-    end
-
-    for _, class in ipairs(ClassOrder()) do
-        local list = byClass[class]
-        if list then
-            local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-            local name = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class]) or class
-            local header = host:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            header:SetPoint("TOPLEFT", 15, y)
-            header:SetText(color and ("|c" .. color.colorStr .. name .. "|r") or name)
-            y = y - 24
-
-            for i, def in ipairs(list) do
-                local col = (i - 1) % 2 + 1
-                local icon = C_Spell.GetSpellTexture(def.key)
-                local label = (C_Spell.GetSpellName(def.key) or tostring(def.key))
-                if CAT_TAG[def.cat] then
-                    label = label .. " |cff888888(" .. CAT_TAG[def.cat] .. ")|r"
-                end
-                if icon then label = "|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t " .. label end
-                local key = def.key
-                local cb = W.CreateStyledCheckbox(host, label,
-                    function() return M.IsSpellEnabled(key) end,
-                    function(v) M.SetSpellEnabled(key, v) end)
-                cb:SetPoint("TOPLEFT", COLUMN_X[col], y)
-                if col == 2 or i == #list then y = y - ROW_H end
-            end
-            y = y - 8
-        end
-    end
-    return y
-end
-
-function Panel.Build(frame)
-    if frame.fieldsHost then
-        frame.fieldsHost:Hide()
-        frame.fieldsHost:SetParent(nil)
-    end
-    local host = CreateFrame("Frame", nil, frame)
-    host:SetAllPoints()
-    frame.fieldsHost = host
-
-    if not Mod() then
-        local msg = host:CreateFontString(nil, "OVERLAY", "GameFontRed")
-        msg:SetPoint("TOPLEFT", 15, -20)
-        msg:SetText("Party Cooldowns module not loaded.")
-        return
-    end
-
-    local y = -10
+------------------------------------------------------------------------
+-- General
+------------------------------------------------------------------------
+local function BuildGeneral(host, y)
     W.CreateTitledPane(host, L["Party Cooldowns"] or "Party Cooldowns", y)
     y = y - 35
 
@@ -168,8 +101,14 @@ function Panel.Build(frame)
         cb:SetPoint("TOPLEFT", 15, y)
         y = y - 30
     end
-    y = y - 10
+    y = y - 4
+    return Note(host, y, "Individual spells can be switched off on the Spells tab.")
+end
 
+------------------------------------------------------------------------
+-- Layout
+------------------------------------------------------------------------
+local function BuildLayout(host, y)
     W.CreateTitledPane(host, L["Position"] or "Position", y)
     y = y - 35
 
@@ -231,17 +170,246 @@ function Panel.Build(frame)
     local sNum = W.CreateStyledSlider(host, 200, 8, 24, 1, L["Number Size"] or "Number Size",
         get("numberSize"), set("numberSize"))
     sNum:SetPoint("TOPLEFT", 15, y - 20)
-    y = y - 75
+    return y - 75
+end
 
-    y = Panel.BuildSpellList(frame, host, y)
+------------------------------------------------------------------------
+-- Spells: one checkbox per tracked spell, grouped by class, two columns.
+-- Unticking hides that cooldown on every frame.
+------------------------------------------------------------------------
+local COLUMN_X = { 15, 255 }
+local ROW_H = 26
+local CAT_TAG = {
+    external = L["external"] or "external",
+    group = L["group"] or "group",
+}
+
+local function ClassOrder()
+    local order = {}
+    if CLASS_SORT_ORDER then
+        for _, c in ipairs(CLASS_SORT_ORDER) do order[#order + 1] = c end
+    else
+        order = { "WARRIOR", "DEATHKNIGHT", "PALADIN", "MONK", "PRIEST", "SHAMAN", "DRUID",
+                  "ROGUE", "MAGE", "WARLOCK", "HUNTER", "DEMONHUNTER", "EVOKER" }
+    end
+    return order
+end
+
+local function BuildSpells(host, y)
+    local M = Mod()
+    local DATA = SquizzFrames.PartyCooldownsData
+    if not (M and DATA) then return y end
+
+    W.CreateTitledPane(host, L["Spells"] or "Spells", y)
+    y = y - 35
+
+    local allOn = W.CreateStyledButton(host, L["All On"] or "All On", "accent-hover", {80, 22}, function()
+        M.SetAllSpellsEnabled(true)
+        if rebuildFields then rebuildFields() end
+    end)
+    allOn:SetPoint("TOPLEFT", 15, y)
+    local allOff = W.CreateStyledButton(host, L["All Off"] or "All Off", "accent-hover", {80, 22}, function()
+        M.SetAllSpellsEnabled(false)
+        if rebuildFields then rebuildFields() end
+    end)
+    allOff:SetPoint("LEFT", allOn, "RIGHT", 8, 0)
+    y = y - 34
+
+    local byClass = {}
+    for _, def in ipairs(DATA.spells) do
+        byClass[def.class] = byClass[def.class] or {}
+        table.insert(byClass[def.class], def)
+    end
+
+    for _, class in ipairs(ClassOrder()) do
+        local list = byClass[class]
+        if list then
+            local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+            local name = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class]) or class
+            local header = host:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            header:SetPoint("TOPLEFT", 15, y)
+            header:SetText(color and ("|c" .. color.colorStr .. name .. "|r") or name)
+            y = y - 24
+
+            for i, def in ipairs(list) do
+                local col = (i - 1) % 2 + 1
+                local icon = C_Spell.GetSpellTexture(def.key)
+                local label = (C_Spell.GetSpellName(def.key) or tostring(def.key))
+                if CAT_TAG[def.cat] then
+                    label = label .. " |cff888888(" .. CAT_TAG[def.cat] .. ")|r"
+                end
+                if icon then label = "|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t " .. label end
+                local key = def.key
+                local cb = W.CreateStyledCheckbox(host, label,
+                    function() return M.IsSpellEnabled(key) end,
+                    function(v) M.SetSpellEnabled(key, v) end)
+                cb:SetPoint("TOPLEFT", COLUMN_X[col], y)
+                if col == 2 or i == #list then y = y - ROW_H end
+            end
+            y = y - 8
+        end
+    end
+    return y
+end
+
+------------------------------------------------------------------------
+-- The selected tab's fields
+------------------------------------------------------------------------
+local function BuildFields(frame)
+    if frame.fieldsHost then
+        frame.fieldsHost:Hide()
+        frame.fieldsHost:SetParent(nil)
+    end
+    local host = CreateFrame("Frame", nil, frame)
+    host:SetAllPoints()
+    frame.fieldsHost = host
+
+    if not Mod() then
+        local msg = host:CreateFontString(nil, "OVERLAY", "GameFontRed")
+        msg:SetPoint("TOPLEFT", 15, -20)
+        msg:SetText("Party Cooldowns module not loaded.")
+        return
+    end
+
+    local y = headerPinned and -10 or -(HEADER_HEIGHT + 10)
+
+    -- Search: only the tab on screen is built, so tell the options window
+    -- which one this is; Panel.Select brings it back for a result.
+    local Shell = LibStub and LibStub("LibSquizzShell-1.0", true)
+    if Shell then
+        local label = activeTab
+        for _, tab in ipairs(TABS) do
+            if tab.key == activeTab then label = tab.label end
+        end
+        Shell:SetIndexScope(frame, activeTab, label, { tab = activeTab })
+    end
+
+    if activeTab == "layout" then
+        BuildLayout(host, y)
+    elseif activeTab == "spells" then
+        BuildSpells(host, y)
+    else
+        BuildGeneral(host, y)
+    end
+end
+
+-- Pinned tab strip: parented up the chain to the scroll frame's own parent
+-- (page -> scrollChild -> scrollFrame -> contentArea) so it does NOT scroll,
+-- and the shared scroll frame is inset while this page is up -- the same
+-- walk TankTrackerPanel makes, for the same reasons (see its comments).
+-- Returns the frame the tab buttons belong on.
+local function BuildFurniture(frame)
+    local scrollChild = frame:GetParent()
+    local scroll = scrollChild and scrollChild:GetParent()
+    local contentArea = scroll and scroll:GetParent()
+    if not (scroll and contentArea) then return frame end
+    headerPinned = true
+
+    local level = (contentArea:GetFrameLevel() or 1) + 50
+
+    local originalPoints = {}
+    for i = 1, scroll:GetNumPoints() do
+        originalPoints[i] = { scroll:GetPoint(i) }
+    end
+    local function ApplyScrollInset(inset)
+        scroll:ClearAllPoints()
+        for _, pt in ipairs(originalPoints) do
+            local point, rel, relPoint, px, py = unpack(pt)
+            if point == "TOPLEFT" or point == "TOPRIGHT" or point == "TOP" then
+                py = (py or 0) - inset
+            end
+            scroll:SetPoint(point, rel, relPoint, px, py)
+        end
+    end
+
+    local header = CreateFrame("Frame", nil, contentArea, "BackdropTemplate")
+    local firstPoint = originalPoints[1]
+    local hx = (firstPoint and firstPoint[4]) or 0
+    local hy = (firstPoint and firstPoint[5]) or 0
+    header:SetPoint("TOPLEFT", contentArea, "TOPLEFT", hx, hy)
+    header:SetPoint("TOPRIGHT", contentArea, "TOPRIGHT", -16, hy)
+    header:SetHeight(HEADER_HEIGHT)
+    header:SetFrameLevel(level)
+    W.StylizeFrame(header, W.palette.DARK_BG, {0, 0, 0, 0})
+
+    local function ShowFurniture(show)
+        header:SetShown(show)
+        ApplyScrollInset(show and HEADER_HEIGHT or 0)
+    end
+    ShowFurniture(false)
+    frame:HookScript("OnShow", function() ShowFurniture(true) end)
+    frame:HookScript("OnHide", function() ShowFurniture(false) end)
+    if frame:IsShown() then ShowFurniture(true) end
+
+    return header
+end
+
+function Panel.Build(frame)
+    local tabHost = BuildFurniture(frame)
+
+    local tabButtons = {}
+    local function RefreshTabVisual()
+        local accent = F.GetAccentColor()
+        for key, btn in pairs(tabButtons) do
+            if key == activeTab then
+                btn:SetBackdropColor(accent.r, accent.g, accent.b, 0.55)
+            else
+                btn:SetBackdropColor(W.C4(W.palette.PANEL_BG))
+            end
+        end
+    end
+
+    local x = 15
+    for _, tab in ipairs(TABS) do
+        local btn = CreateFrame("Button", nil, tabHost, "BackdropTemplate")
+        btn:SetSize(90, 22)
+        btn:SetPoint("TOPLEFT", tabHost, "TOPLEFT", x, -6)
+        W.StylizeFrame(btn, W.palette.PANEL_BG, {0, 0, 0, 0})
+        local text = btn:CreateFontString(nil, "OVERLAY")
+        text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        text:SetPoint("CENTER")
+        text:SetText(tab.label)
+        btn:SetScript("OnClick", function()
+            if activeTab == tab.key then return end
+            activeTab = tab.key
+            RefreshTabVisual()
+            if rebuildFields then rebuildFields() end
+            ScrollToTop()
+        end)
+        tabButtons[tab.key] = btn
+        x = x + 93
+    end
+
+    rebuildFields = function()
+        BuildFields(frame)
+        RefreshTabVisual()
+    end
+    rebuildFields()
+    frame:HookScript("OnShow", function() rebuildFields() end)
 
     -- Test icons are for while the page is open; leaving them on would draw
     -- fake cooldowns on real frames.
-    if not frame._sfPartyCDHook then
-        frame._sfPartyCDHook = true
-        frame:HookScript("OnHide", function()
-            local M = Mod()
-            if M and M.IsTestMode() then M.SetTestMode(false) end
-        end)
+    frame:HookScript("OnHide", function()
+        local M = Mod()
+        if M and M.IsTestMode() then M.SetTestMode(false) end
+    end)
+end
+
+-- Search: reopen the tab a result was indexed under, and build each tab
+-- once so search knows them all; the tab the player left is restored.
+function Panel.Select(scope)
+    if type(scope) ~= "table" or not scope.tab then return end
+    activeTab = scope.tab
+    if rebuildFields then rebuildFields() end
+end
+
+function Panel.IndexAll()
+    if not rebuildFields then return end
+    local saved = activeTab
+    for _, tab in ipairs(TABS) do
+        activeTab = tab.key
+        rebuildFields()
     end
+    activeTab = saved
+    rebuildFields()
 end

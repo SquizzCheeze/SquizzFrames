@@ -30,7 +30,7 @@ local pageHeights = {
     ["clickCasting"] = 460,
     ["tankTracker"] = 1920, -- one sub-tab at a time; a row tab with both texts expanded is the tallest
     ["nicknames"] = 780,
-    ["partyCooldowns"] = 2650, -- +150 Countdown (stage 2), +1320 per-spell list (13 classes, 2 columns)
+    ["partyCooldowns"] = 1500, -- one sub-tab at a time; Spells (13 classes, 2 columns) is the tallest
     ["profiles"] = 600,
 }
 
@@ -236,7 +236,11 @@ local function CreateOptionsFrame()
                 indexAll = function() SquizzFrames.TankTrackerPanel.IndexAll() end,
                 preview = function(column) SquizzFrames.TankTrackerPanel.BuildPreview(column) end,
             }),
-            Page("partyCooldowns", "Party Cooldowns", "Group members' defensives and externals on their frames", Pages.partyCooldowns),
+            Page("partyCooldowns", "Party Cooldowns", "Group members' defensives and externals on their frames", Pages.partyCooldowns, {
+                -- One sub-tab at a time, like the Tank Tracker.
+                select = function(scope) SquizzFrames.PartyCooldownsPanel.Select(scope) end,
+                indexAll = function() SquizzFrames.PartyCooldownsPanel.IndexAll() end,
+            }),
             Page("clickCasting", "Click Casting", "Spells and actions on mouse clicks and keys", Pages.clickCasting, {
                 onShow = function(frame)
                     if frame.RebuildClickCasting then frame:RebuildClickCasting() end
