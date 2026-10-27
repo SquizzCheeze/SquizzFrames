@@ -116,6 +116,37 @@ function PC.Set(key, value)
     SquizzFrames:Fire("PartyCooldownsChanged")
 end
 
+-- Per-spell filter (stage 4): profile.partyCooldowns.disabled = { [key] = true }.
+-- Only switched-OFF spells are stored, so every spell -- including ones added
+-- in a later version -- starts on.
+function PC.IsSpellEnabled(key)
+    local c = Cfg()
+    return not (c and c.disabled and c.disabled[key])
+end
+
+function PC.SetSpellEnabled(key, on)
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    if not p then return end
+    p.partyCooldowns = p.partyCooldowns or {}
+    p.partyCooldowns.disabled = p.partyCooldowns.disabled or {}
+    p.partyCooldowns.disabled[key] = (not on) or nil
+    SquizzFrames:Fire("PartyCooldownsChanged")
+end
+
+-- Every spell on or off at once (the page's All On / All Off).
+function PC.SetAllSpellsEnabled(on)
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    if not p then return end
+    p.partyCooldowns = p.partyCooldowns or {}
+    local disabled = {}
+    if not on then
+        local DATA = SquizzFrames.PartyCooldownsData
+        for _, def in ipairs(DATA and DATA.spells or {}) do disabled[def.key] = true end
+    end
+    p.partyCooldowns.disabled = disabled
+    SquizzFrames:Fire("PartyCooldownsChanged")
+end
+
 local function IsSecret(v)
     return issecretvalue and issecretvalue(v) or false
 end
@@ -335,6 +366,7 @@ local CAT_KEY = { personal = "personal", external = "external", group = "group" 
 local function Wanted(def, m)
     if def.class ~= m.class then return false end
     if not PC.Get(CAT_KEY[def.cat]) then return false end
+    if not PC.IsSpellEnabled(def.key) then return false end
     if def.specSet then
         if not m.spec then return false end
         if not def.specSet[m.spec] then return false end

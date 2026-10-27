@@ -44,6 +44,83 @@ local function Note(host, y, text)
     return y - math.ceil(fs:GetStringHeight() or 24) - 12
 end
 
+-- Spells (stage 4): one checkbox per tracked spell, grouped by class, two
+-- columns. Unticking hides that cooldown on every frame.
+local COLUMN_X = { 15, 255 }
+local ROW_H = 26
+local CAT_TAG = {
+    external = L["external"] or "external",
+    group = L["group"] or "group",
+}
+
+local function ClassOrder()
+    local order = {}
+    if CLASS_SORT_ORDER then
+        for _, c in ipairs(CLASS_SORT_ORDER) do order[#order + 1] = c end
+    else
+        order = { "WARRIOR", "DEATHKNIGHT", "PALADIN", "MONK", "PRIEST", "SHAMAN", "DRUID",
+                  "ROGUE", "MAGE", "WARLOCK", "HUNTER", "DEMONHUNTER", "EVOKER" }
+    end
+    return order
+end
+
+function Panel.BuildSpellList(frame, host, y)
+    local M = Mod()
+    local DATA = SquizzFrames.PartyCooldownsData
+    if not (M and DATA) then return y end
+
+    W.CreateTitledPane(host, L["Spells"] or "Spells", y)
+    y = y - 35
+
+    local allOn = W.CreateStyledButton(host, L["All On"] or "All On", "accent-hover", {80, 22}, function()
+        M.SetAllSpellsEnabled(true)
+        Panel.Build(frame)
+    end)
+    allOn:SetPoint("TOPLEFT", 15, y)
+    local allOff = W.CreateStyledButton(host, L["All Off"] or "All Off", "accent-hover", {80, 22}, function()
+        M.SetAllSpellsEnabled(false)
+        Panel.Build(frame)
+    end)
+    allOff:SetPoint("LEFT", allOn, "RIGHT", 8, 0)
+    y = y - 34
+
+    local byClass = {}
+    for _, def in ipairs(DATA.spells) do
+        byClass[def.class] = byClass[def.class] or {}
+        table.insert(byClass[def.class], def)
+    end
+
+    for _, class in ipairs(ClassOrder()) do
+        local list = byClass[class]
+        if list then
+            local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+            local name = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class]) or class
+            local header = host:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            header:SetPoint("TOPLEFT", 15, y)
+            header:SetText(color and ("|c" .. color.colorStr .. name .. "|r") or name)
+            y = y - 24
+
+            for i, def in ipairs(list) do
+                local col = (i - 1) % 2 + 1
+                local icon = C_Spell.GetSpellTexture(def.key)
+                local label = (C_Spell.GetSpellName(def.key) or tostring(def.key))
+                if CAT_TAG[def.cat] then
+                    label = label .. " |cff888888(" .. CAT_TAG[def.cat] .. ")|r"
+                end
+                if icon then label = "|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t " .. label end
+                local key = def.key
+                local cb = W.CreateStyledCheckbox(host, label,
+                    function() return M.IsSpellEnabled(key) end,
+                    function(v) M.SetSpellEnabled(key, v) end)
+                cb:SetPoint("TOPLEFT", COLUMN_X[col], y)
+                if col == 2 or i == #list then y = y - ROW_H end
+            end
+            y = y - 8
+        end
+    end
+    return y
+end
+
 function Panel.Build(frame)
     if frame.fieldsHost then
         frame.fieldsHost:Hide()
@@ -154,6 +231,9 @@ function Panel.Build(frame)
     local sNum = W.CreateStyledSlider(host, 200, 8, 24, 1, L["Number Size"] or "Number Size",
         get("numberSize"), set("numberSize"))
     sNum:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 75
+
+    y = Panel.BuildSpellList(frame, host, y)
 
     -- Test icons are for while the page is open; leaving them on would draw
     -- fake cooldowns on real frames.
