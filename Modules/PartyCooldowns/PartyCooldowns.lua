@@ -500,6 +500,27 @@ local function NewIcon(row)
         strip:SetPoint("BOTTOM", drive:GetStatusBarTexture(), "TOP", 0, 0)
         f.nums[k] = { clip = clip, drive = drive, strip = strip }
     end
+
+    -- Your OWN cooldowns (stage 3) need none of the above: the game hands
+    -- out duration objects for the player's spells, which are not secret,
+    -- and a plain Cooldown frame draws swipe and countdown from them.
+    -- cd: the cooldown proper. ccd: the recharge of a charge spell with
+    -- charges left (edge only, Blizzard's action-button look). count: charges.
+    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    f.cd:SetAllPoints(f)
+    f.cd:SetDrawEdge(false)
+    f.cd:SetFrameLevel(f:GetFrameLevel() + 1)
+    f.cd:Hide()
+    f.ccd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    f.ccd:SetAllPoints(f)
+    f.ccd:SetDrawSwipe(false)
+    f.ccd:SetDrawEdge(true)
+    f.ccd:SetHideCountdownNumbers(true)
+    f.ccd:SetFrameLevel(f:GetFrameLevel() + 1)
+    f.ccd:Hide()
+    f.count = top:CreateFontString(nil, "OVERLAY")
+    f.count:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+    f.count:Hide()
     return f
 end
 
@@ -587,6 +608,75 @@ local function StyleIcon(f, t)
     for _, e in ipairs(f.border) do e:SetShown(border) end
     f.glowFrame:SetShown(PC.Get("glow"))
     StyleNumbers(f, math.max(1, math.floor(t.cd + 0.5)))
+
+    -- Exact (own) icons swap the secret-driven shade and strip for the
+    -- Cooldown frames; everything else keeps them hidden.
+    local exact = t.exact and true or false
+    for k = 1, 2 do
+        f.bars[k]:SetShown(not exact)
+        if exact then f.nums[k].clip:Hide() end
+    end
+    f.cd:SetShown(exact)
+    f.ccd:SetShown(exact and t.charges > 1)
+    f.count:SetShown(exact and t.charges > 1)
+    if exact then
+        local numSize = PC.Get("numberSize")
+        if not PC.countdownFont then
+            PC.countdownFont = CreateFont("SquizzFramesPartyCDNumbers")
+        end
+        PC.countdownFont:SetFont(NUMBER_FONT, numSize, "OUTLINE")
+        f.cd:SetCountdownFont("SquizzFramesPartyCDNumbers")
+        f.cd:SetHideCountdownNumbers(not PC.Get("showNumbers"))
+        f.cd:SetSwipeColor(0, 0, 0, shade)
+        f.count:SetFont(NUMBER_FONT, math.max(8, numSize - 2), "OUTLINE")
+    end
+end
+
+-- The spell ID the player actually knows for this cooldown (Ice Cold
+-- replaces Ice Block, for instance).
+local function OwnSpellID(def)
+    local function knows(id)
+        if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return false end
+        local ok, v = pcall(C_SpellBook.IsSpellKnown, id)
+        return ok and v
+    end
+    if knows(def.key) then return def.key end
+    for _, id in ipairs(def.casts or {}) do
+        if knows(id) then return id end
+    end
+    return def.key
+end
+
+-- Refresh one exact icon from the game's own cooldown state. Duration
+-- objects are not secret, so this is safe in combat; the charge count IS
+-- secret in combat and goes straight to the FontString without being read.
+local function UpdateExact(f)
+    local t = f.tracker
+    if not (t and t.exact) then return end
+    local id = t.ownID or t.def.key
+    pcall(function()
+        if t.charges > 1 then
+            -- Blizzard's action-button arrangement: the swipe only when no
+            -- charge is left, the recharge as an edge, and a count.
+            f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(id, true))
+            f.ccd:SetCooldownFromDurationObject(C_Spell.GetSpellChargeDuration(id))
+            local info = C_Spell.GetSpellCharges(id)
+            if info then f.count:SetFormattedText("%d", info.currentCharges) end
+        elseif t.def.charges then
+            -- A charge spell held to one charge: its cooldown IS the recharge.
+            f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellChargeDuration(id))
+        else
+            f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(id, true))
+        end
+    end)
+end
+
+local function UpdateAllExact()
+    local row = rows["player"]
+    if not (row and row:IsShown()) then return end
+    for _, f in ipairs(row.icons) do
+        if f:IsShown() then UpdateExact(f) end
+    end
 end
 
 -- Point pairs for icon i (0-based) of n along the chosen side.
@@ -691,6 +781,11 @@ function PC:Rebuild()
                 own[def.key] = t
             end
             t.cd, t.charges = cd, charges
+            -- Your own row reads the game's exact cooldowns (stage 3); the
+            -- sensors below then only drive the "active" highlight.
+            t.exact = token == "player" and not testMode
+                and C_Spell.GetSpellCooldownDuration ~= nil or false
+            t.ownID = t.exact and OwnSpellID(def) or nil
             -- Who to watch: the caster, or for an external / zone everyone.
             wipe(t.watch)
             if def.who == "self" then
@@ -728,6 +823,7 @@ function PC:Rebuild()
     end
     ParkUnusedSensors()
     if driver then driver:Show() end
+    UpdateAllExact()
     InspectNext()
 end
 
@@ -766,6 +862,15 @@ local function Pass()
                             n.clip:SetAlpha(k == 1 and 1 or 0)
                         end
                         f.glowFrame:SetAlpha((frac < 0.1) and 1 or 0)
+                    elseif t.exact then
+                        -- The Cooldown frames draw themselves; the sensor
+                        -- only feeds the "active" highlight.
+                        local any = false
+                        for _, s in ipairs(t.watch) do
+                            if s.fresh then any = true end
+                        end
+                        if any then Glow(t) end
+                        pcall(f.glowFrame.SetAlpha, f.glowFrame, t.glow)
                     else
                         local any = false
                         for _, s in ipairs(t.watch) do
@@ -991,6 +1096,9 @@ function PC:OnEnable()
         QueueRebuild()
     end)
     self:RegisterEvent("TRAIT_CONFIG_UPDATED", QueueRebuild)
+    -- Your own exact cooldowns follow the game's cooldown events.
+    self:RegisterEvent("SPELL_UPDATE_COOLDOWN", UpdateAllExact)
+    self:RegisterEvent("SPELL_UPDATE_CHARGES", UpdateAllExact)
     self:RegisterEvent("INSPECT_READY", function(_, guid) OnInspectReady(guid) end)
     self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
         if pendingSensors then

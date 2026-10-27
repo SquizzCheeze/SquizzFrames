@@ -488,13 +488,59 @@ local function Report()
     if r.lastDrawError then print("   last draw error: " .. r.lastDrawError) end
 end
 
+-- /sfcdprobe precision: how much a number survives the engine-side select.
+-- The timers store time in 254 steps of k/255 because that much was proven
+-- (the round trip came back "close"). If values come back with full float
+-- precision, and outside 0..1, a timer could keep one epoch for hours and
+-- remember several casts -- which is what counting charges needs.
+local function PrecisionCheck()
+    if not EvalBool then
+        print(P .. "precision: the select function is missing on this client")
+        return
+    end
+    local r = Results()
+    r.precision = {}
+    local tests = {
+        { "fine step 1/65536",     1 / 65536 },
+        { "12345/65536",           12345 / 65536 },
+        { "65535/65536",           65535 / 65536 },
+        { "1/1000000",             1 / 1000000 },
+        { "0.123456789",           0.123456789 },
+        { "above one: 1.5",        1.5 },
+        { "above one: 2",          2 },
+        { "large: 1000.25",        1000.25 },
+        { "large: 86400.5",        86400.5 },
+        { "negative: -0.5",        -0.5 },
+    }
+    print(P .. "precision of the engine-side select (sent -> got, difference):")
+    for _, t in ipairs(tests) do
+        local label, want = tostring(t[1]), tonumber(t[2]) or 0
+        local ok, got = pcall(EvalBool, true, want, 0)
+        local line
+        if not ok then
+            line = string.format("   %-22s refused: %s", label, tostring(got))
+        elseif IsSecret(got) then
+            line = string.format("   %-22s came back secret (cannot be checked)", label)
+        elseif type(got) ~= "number" then
+            line = string.format("   %-22s came back as a %s", label, type(got))
+        else
+            line = string.format("   %-22s %.9g -> %.9g (diff %.3g)", label, want, got, got - want)
+        end
+        print(line)
+        r.precision[#r.precision + 1] = line
+    end
+    print("--- end")
+end
+
 SLASH_SQUIZZCDPROBE1 = "/sfcdprobe"
 SlashCmdList["SQUIZZCDPROBE"] = function(msg)
     local args = {}
     for word in (msg or ""):gmatch("%S+") do args[#args + 1] = word end
     local cmd = (args[1] or ""):lower()
 
-    if cmd == "stop" then
+    if cmd == "precision" then
+        PrecisionCheck()
+    elseif cmd == "stop" then
         Stop()
     elseif cmd == "report" then
         Report()
