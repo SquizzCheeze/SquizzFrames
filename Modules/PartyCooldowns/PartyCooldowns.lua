@@ -736,9 +736,12 @@ local function TooltipSeconds(spellID)
                 n = tonumber(n)
                 if n and unit then
                     unit = unit:lower()
-                    if unit:find("^min") then return n * 60 end
-                    if unit:find("^sec") then return n end
-                    if unit:find("^h") then return n * 3600 end
+                    -- Second value: how far off the tooltip's own rounding
+                    -- can be. Minutes show one decimal ("1.3 min" is 75s),
+                    -- so up to 3s either way.
+                    if unit:find("^min") then return n * 60, 3 end
+                    if unit:find("^sec") then return n, 0.5 end
+                    if unit:find("^h") then return n * 3600, 180 end
                 end
             end
         end
@@ -774,11 +777,11 @@ SlashCmdList["SQUIZZCDCHECK"] = function()
             local name = C_Spell.GetSpellName(id) or tostring(id)
             if KnowsSpell(id) then
                 local ours, charges = EffectiveCD(def, k.ranks, k.spec)
-                local theirs = TooltipSeconds(id)
+                local theirs, slack = TooltipSeconds(id)
                 checked = checked + 1
                 if not theirs then
                     print(string.format("   %s: ours %ds, tooltip shows no cooldown we can read", name, ours))
-                elseif math.abs(theirs - ours) < 1 then
+                elseif math.abs(theirs - ours) <= slack + 0.01 then
                     print(string.format("   |cff33ff33OK|r %s: %ds%s", name, ours, charges > 1 and (" (" .. charges .. " charges)") or ""))
                 else
                     bad = bad + 1
