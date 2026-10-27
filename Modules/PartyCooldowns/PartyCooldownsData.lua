@@ -146,6 +146,14 @@ local SPELLS = {
     { key = 6940,   class = "PALADIN", cat = "external", who = "any", cd = 120, talent = true,
       mods = { {384820, "flat", -60} } },                                        -- Blessing of Sacrifice
     { key = 1044,   class = "PALADIN", cat = "external", who = "any", cd = 25, charges = 1, talent = true }, -- Blessing of Freedom
+    -- Divine Steed: 45s in the table, but a Paladin class-skill passive
+    -- (317911, SkillLineAbility line 800, every paladin) takes 15s off, so 30s
+    -- is the real base. The cast is a script; the buff is one of 17 per-mount
+    -- "Divine Steed" auras, all of them watched.
+    { key = 190784, class = "PALADIN", cat = "personal", who = "self", cd = 30, charges = 1, talent = true,
+      buffs = {221883, 221885, 221886, 221887, 254471, 254472, 254473, 254474, 276111, 276112,
+               294133, 348489, 353094, 363608, 453804, 1289616, 1289617},
+      mods = { {230332, "chg", 1}, {469409, "pct", -20} } },                     -- Divine Steed
 
     -- PRIEST
     { key = 47585,  class = "PRIEST", cat = "personal", who = "self", cd = 120,
