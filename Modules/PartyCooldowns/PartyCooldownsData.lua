@@ -135,6 +135,7 @@ local SPELLS = {
       specs = {66}, mods = { {378425, "pct", -15}, {384909, "flat", -60} } },    -- Blessing of Spellwarding
     { key = 6940,   class = "PALADIN", cat = "external", who = "any", cd = 120, talent = true,
       mods = { {384820, "flat", -60} } },                                        -- Blessing of Sacrifice
+    { key = 1044,   class = "PALADIN", cat = "external", who = "any", cd = 25, charges = 1, talent = true }, -- Blessing of Freedom
 
     -- PRIEST
     { key = 47585,  class = "PRIEST", cat = "personal", who = "self", cd = 120,
