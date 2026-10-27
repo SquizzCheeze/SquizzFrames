@@ -493,7 +493,10 @@ local function NewIcon(row)
         drive:SetPoint("TOP", clip, "BOTTOM", 0, 0)
         local strip = clip:CreateFontString(nil, "OVERLAY")
         strip:SetJustifyH("CENTER")
-        strip:SetWordWrap(false)
+        -- No SetWordWrap(false): it can fold the explicit line breaks into a
+        -- single line, which collapsed the whole strip (first build, user
+        -- report 2026-10-27). A fixed width wide enough for "120" or "5m"
+        -- keeps any wrapping from ever happening instead.
         strip:SetPoint("BOTTOM", drive:GetStatusBarTexture(), "TOP", 0, 0)
         f.nums[k] = { clip = clip, drive = drive, strip = strip }
     end
@@ -508,27 +511,54 @@ local function Label(v)
     return tostring(v)
 end
 
+-- Line metrics for a font size, measured once on a hidden FontString: the
+-- height of one line, and the step from one line to the next (two lines
+-- minus one), which is what the strip actually advances by.
+local measure
+local metrics = {}
+local function Metrics(size)
+    local m = metrics[size]
+    if m then return m end
+    if not measure then
+        measure = UIParent:CreateFontString(nil, "OVERLAY")
+        measure:SetWidth(200)
+        measure:Hide()
+    end
+    measure:SetFont(NUMBER_FONT, size, "OUTLINE")
+    measure:SetText("0")
+    local one = measure:GetStringHeight() or 0
+    measure:SetText("0\n0")
+    local two = measure:GetStringHeight() or 0
+    local step = two - one
+    if one <= 0 then one = size end
+    if step <= 0 then step = one end
+    m = { one = one, step = step }
+    metrics[size] = m
+    return m
+end
+
 -- (Re)build the number strips for a cooldown of `secs` whole seconds.
 local function StyleNumbers(f, secs)
     local size, on = PC.Get("numberSize"), PC.Get("showNumbers")
-    local key = secs .. ":" .. size .. ":" .. PC.Get("size")
+    local iconSize = PC.Get("size")
+    local key = secs .. ":" .. size .. ":" .. iconSize
+    local m = Metrics(size)
     for k = 1, 2 do
         local n = f.nums[k]
         n.clip:SetShown(on)
         if on and n.key ~= key then
             n.key = key
             n.strip:SetFont(NUMBER_FONT, size, "OUTLINE")
+            n.strip:SetWidth(math.max(iconSize, size * 3))
             local lines = {}
             for v = 0, secs do lines[#lines + 1] = Label(v) end
             n.strip:SetText(table.concat(lines, "\n"))
-            -- Measured, not assumed: the font decides its own line height.
-            local lineH = (n.strip:GetStringHeight() or 0) / (secs + 1)
-            if lineH <= 0 then lineH = size + 2 end
-            n.lineH = lineH
+            -- Line j from the bottom starts j * step up the strip, so the
+            -- drive bar is secs steps tall and the window one line high.
             n.clip:ClearAllPoints()
             n.clip:SetPoint("CENTER", f, "CENTER", 0, 0)
-            n.clip:SetSize(PC.Get("size"), lineH)
-            n.drive:SetSize(1, lineH * secs)
+            n.clip:SetSize(iconSize, math.max(m.one, m.step))
+            n.drive:SetSize(1, m.step * secs)
         end
     end
     f.numSecs = secs
@@ -848,6 +878,46 @@ local function KnowsSpell(id)
     if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return false end
     local ok, v = pcall(C_SpellBook.IsSpellKnown, id)
     return ok and v and true or false
+end
+
+-- /sfpcddebug: what the first visible icon's number window really looks
+-- like. Everything is pcall'd and secret-safe: in combat the drive value is
+-- secret and prints as such.
+SLASH_SQUIZZPCDDEBUG1 = "/sfpcddebug"
+SlashCmdList["SQUIZZPCDDEBUG"] = function()
+    local P = "|cff33cc99[SquizzFrames]|r "
+    local function show(v)
+        if v == nil then return "nil" end
+        if IsSecret(v) then return "secret" end
+        if type(v) == "number" then return string.format("%.2f", v) end
+        return tostring(v)
+    end
+    local ok, err = pcall(function()
+        for _, token in ipairs(TOKENS) do
+            local row = rows[token]
+            local f = row and row:IsShown() and row.icons[1]
+            if f and f:IsShown() then
+                local m = Metrics(PC.Get("numberSize"))
+                print(P .. string.format("%s first icon %s: secs %s, line %s step %s, test %s",
+                    token, show(f.tracker and f.tracker.def.key), show(f.numSecs), show(m.one), show(m.step), show(testMode)))
+                for k = 1, 2 do
+                    local n = f.nums[k]
+                    local w, h = n.clip:GetSize()
+                    local mn, mx = n.drive:GetMinMaxValues()
+                    local fill = n.drive:GetStatusBarTexture()
+                    print(string.format("   slot %d: window %sx%s shown %s alpha %s | drive %s..%s value %s, %sx%s, fill h %s | strip h %s lines %s, %s",
+                        k, show(w), show(h), show(n.clip:IsShown()), show(n.clip:GetAlpha()),
+                        show(mn), show(mx), show(n.drive:GetValue()), show(n.drive:GetWidth()), show(n.drive:GetHeight()),
+                        show(fill and fill:GetHeight()), show(n.strip:GetStringHeight()),
+                        show(n.strip.GetNumLines and n.strip:GetNumLines()), show(n.strip:IsVisible() and "visible" or "not visible")))
+                end
+                print("--- end")
+                return
+            end
+        end
+        print(P .. "no icon on screen (enable Party Cooldowns, or tick Show Test Icons)")
+    end)
+    if not ok then print(P .. "debug failed: " .. tostring(err)) end
 end
 
 SLASH_SQUIZZCDCHECK1 = "/sfcdcheck"
