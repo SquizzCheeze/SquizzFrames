@@ -247,6 +247,16 @@ local function Poll()
             row.name:SetText(okN and name or unit)
         end
         if c and st and UnitExists(unit) then
+            if row then
+                local truth = TruthOf(unit)
+                if truth == true then
+                    row.truth:SetColorTexture(0.2, 0.5, 1, 1)
+                elseif truth == false then
+                    row.truth:SetColorTexture(0.25, 0.25, 0.25, 1)
+                else
+                    row.truth:SetColorTexture(0.12, 0.12, 0.12, 1) -- unknown (combat)
+                end
+            end
             local okR, lit = ReadSensor(c)
             if not okR then
                 Count(unit, "sensorErrors")
@@ -308,7 +318,7 @@ local panel
 local function BuildPanel()
     if panel then return panel end
     panel = CreateFrame("Frame", "SquizzFramesCDProbe", UIParent, "BackdropTemplate")
-    panel:SetSize(250, 34 + #UNITS * 20)
+    panel:SetSize(260, 34 + #UNITS * 20)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 220)
     panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     panel:SetBackdropColor(0, 0, 0, 0.75)
@@ -344,10 +354,18 @@ local function BuildPanel()
         litBg:SetAllPoints()
         litBg:SetColorTexture(0.25, 0.25, 0.25, 1)
 
+        -- Ground truth square, read the plain way (out of combat only): the
+        -- sensor reading turned out to be secret even out of combat, so it
+        -- cannot be compared in Lua. Blue beside green is the comparison.
+        row.truth = panel:CreateTexture(nil, "ARTWORK")
+        row.truth:SetSize(14, 14)
+        row.truth:SetPoint("TOPLEFT", 110, y)
+        row.truth:SetColorTexture(0.25, 0.25, 0.25, 1)
+
         -- Cooldown bar, drawn from the latched (possibly secret) stamp.
         row.bar = CreateFrame("StatusBar", nil, panel)
-        row.bar:SetSize(110, 14)
-        row.bar:SetPoint("TOPLEFT", 112, y)
+        row.bar:SetSize(100, 14)
+        row.bar:SetPoint("TOPLEFT", 128, y)
         row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
         row.bar:SetStatusBarColor(0.9, 0.6, 0.1)
         row.bar:SetMinMaxValues(0, 1)
