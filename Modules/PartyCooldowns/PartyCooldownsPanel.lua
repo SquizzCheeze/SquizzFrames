@@ -141,8 +141,13 @@ local function BuildLayout(host, y)
     sSpace:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
 
-    local sMax = W.CreateStyledSlider(host, 200, 1, 12, 1, L["Max Icons"] or "Max Icons", get("maxIcons"), set("maxIcons"))
-    sMax:SetPoint("TOPLEFT", 15, y - 20)
+    -- Total shown is Max Per Row x Rows; extra rows stack away from the frame.
+    local sPer = W.CreateStyledSlider(host, 200, 1, 12, 1, L["Max Per Row"] or "Max Per Row", get("perRow"), set("perRow"))
+    sPer:SetPoint("TOPLEFT", 15, y - 20)
+    y = y - 65
+
+    local sRows = W.CreateStyledSlider(host, 200, 1, 4, 1, L["Rows"] or "Rows", get("rows"), set("rows"))
+    sRows:SetPoint("TOPLEFT", 15, y - 20)
     y = y - 65
 
     local sShade = W.CreateStyledSlider(host, 200, 0.2, 1, 0.05, L["Cooldown Shade"] or "Cooldown Shade",

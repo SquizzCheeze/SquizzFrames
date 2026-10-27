@@ -87,7 +87,8 @@ local DEFAULTS = {
     offsetY = 0,
     size = 24,
     spacing = 2,
-    maxIcons = 8,
+    perRow = 8,           -- icons per row; replaced maxIcons (see PC.Get)
+    rows = 1,
     showBorder = true,
     glow = true,          -- gold edge while the buff is up
     shade = 0.7,          -- darkness of the cooldown shade
@@ -104,6 +105,9 @@ end
 function PC.Get(key)
     local c = Cfg()
     local v = c and c[key]
+    -- Max Icons became Max Per Row x Rows: a Max Icons already chosen
+    -- carries over as the per-row count, so a single row looks the same.
+    if v == nil and key == "perRow" and c and c.maxIcons then return c.maxIcons end
     if v == nil then return DEFAULTS[key] end
     return v
 end
@@ -766,27 +770,35 @@ local function UpdateAllExact()
 end
 
 -- Point pairs for icon i (0-based) of n along the chosen side.
+-- Icons fill a row of perRow, then start the next row. Rows stack AWAY
+-- from the frame: down below it, up above it, and beside it down from the
+-- top (up from the bottom when aligned to the end).
 local function Place(f, button, i, n)
     local side, align = PC.Get("side"), PC.Get("align")
     local step = PC.Get("size") + PC.Get("spacing")
     local ox, oy = PC.Get("offsetX"), PC.Get("offsetY")
+    local perRow = PC.Get("perRow")
+    local r, c = math.floor(i / perRow), i % perRow
+    local inRow = math.min(perRow, n - r * perRow) -- icons in this row, for centring
     f:ClearAllPoints()
     if side == "TOP" or side == "BOTTOM" then
-        local v, rv = "TOP", "BOTTOM"
-        if side == "TOP" then v, rv = "BOTTOM", "TOP" end
+        local v, rv, dy = "TOP", "BOTTOM", -1
+        if side == "TOP" then v, rv, dy = "BOTTOM", "TOP", 1 end
+        local y = oy + dy * r * step
         if align == "CENTER" then
-            f:SetPoint(v, button, rv, ox + i * step - (n - 1) * step / 2, oy)
+            f:SetPoint(v, button, rv, ox + c * step - (inRow - 1) * step / 2, y)
         elseif align == "END" then
-            f:SetPoint(v .. "RIGHT", button, rv .. "RIGHT", ox - i * step, oy)
+            f:SetPoint(v .. "RIGHT", button, rv .. "RIGHT", ox - c * step, y)
         else
-            f:SetPoint(v .. "LEFT", button, rv .. "LEFT", ox + i * step, oy)
+            f:SetPoint(v .. "LEFT", button, rv .. "LEFT", ox + c * step, y)
         end
     else
-        -- LEFT / RIGHT: the row runs outward from that edge.
+        -- LEFT / RIGHT: each row runs outward from that edge.
         local h, rh, dir = "RIGHT", "LEFT", -1
         if side == "RIGHT" then h, rh, dir = "LEFT", "RIGHT", 1 end
         local v = (align == "CENTER" and "") or (align == "END" and "BOTTOM") or "TOP"
-        f:SetPoint(v .. h, button, v .. rh, ox + dir * i * step, oy)
+        local dy = (align == "END") and 1 or -1
+        f:SetPoint(v .. h, button, v .. rh, ox + dir * c * step, oy + dy * r * step)
     end
 end
 
@@ -836,7 +848,7 @@ function PC:Rebuild()
 
     local DATA = SquizzFrames.PartyCooldownsData
     local spells = DATA and DATA.spells or {}
-    local maxIcons = PC.Get("maxIcons")
+    local maxIcons = PC.Get("perRow") * PC.Get("rows")
 
     -- Each member's list, in table order: personal, then external, then group.
     local order = { personal = 1, external = 2, group = 3 }
