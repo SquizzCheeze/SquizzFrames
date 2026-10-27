@@ -752,10 +752,13 @@ local function UpdateExact(f)
             f.ccd:SetCooldownFromDurationObject(C_Spell.GetSpellChargeDuration(id))
             local info = C_Spell.GetSpellCharges(id)
             if info then f.count:SetFormattedText("%d", info.currentCharges) end
-        elseif t.def.charges then
-            -- A charge spell held to one charge: its cooldown IS the recharge.
-            f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellChargeDuration(id))
         else
+            -- One charge, including the "charge" spells held to one (BoP,
+            -- BoF, GoAK, Life Cocoon, Ice Block): the game reports those as
+            -- a plain cooldown and their recharge as nothing, so reading the
+            -- recharge left them looking always ready (user report
+            -- 2026-10-27). Blizzard's action buttons only use the charge
+            -- timer above one charge, and so does this.
             f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(id, true))
         end
     end)
