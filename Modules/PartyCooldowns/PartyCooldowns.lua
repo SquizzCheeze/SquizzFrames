@@ -20,11 +20,16 @@
               min/max of [now - cd, now], so its fill is the share of the
               cooldown left. The shade over the icon is that bar.
 
-    The stored time only has 254 steps, so each timer has two slots that take
-    turns: every P seconds (P >= the cooldown) the older slot is wiped and new
-    casts go into it. A cast always outlives its own slot's window, so nothing
-    running is ever lost. Step size comes from the member's own cooldown
-    (1s for anything up to 127s, so the countdown is exact).
+    The stored time only has 254 steps (the select returns 8-bit values), so
+    each timer has two slots reset in turn, every cast is written into both,
+    and the display reads the older one -- see NewTracker. Step size comes
+    from the member's own cooldown (1s up to 127s of history, so the
+    countdown is exact; a 2-charge spell needs twice the history).
+
+    Charges (stage 3): a 2-charge spell keeps its last two casts, darkens
+    with a number only when no charge is left, and shows a thin bar along
+    the bottom while recharging. Your own row instead reads the game's exact
+    cooldowns and charge count.
 
     Countdown numbers (stage 2) use the same secret start: a FontString of
     every value slides behind a one-line window, pinned to an invisible
@@ -42,8 +47,7 @@
         both can will both show it
       * the sensor reads through the cursor: with the cursor outside the game
         window a cast can be missed, or picked up late
-      * charges: a timer shows the recharge of the LAST use; how many charges
-        are left is not tracked yet
+      * charges: counted up to two (no spell here gets a third)
 ]]
 
 local SquizzFrames = _G["SquizzFrames"]
@@ -366,23 +370,41 @@ local function EffectiveCD(def, ranks, spec)
 end
 PC.EffectiveCD = EffectiveCD
 
--- Step size from the cooldown this member actually has, not the longest the
--- spell could ever have: Fortifying Brew is 6 min in the table but 90s for a
--- talented Mistweaver, and sizing from 6 min meant 3s steps (numbers up to
--- ~1.5s late) where 1s steps fit. If the cooldown later outgrows the slot
--- period (a respec), Rebuild replaces the timer.
-local function NewTracker(def, cd)
+-- A timer, sized for the cooldown and charges this member actually has.
+--
+-- The engine-side select hands numbers back as 8-bit values clamped to 0..1
+-- (measured with /sfcdprobe precision, 2026-10-27: 1.5 came back 1, 1/65536
+-- came back 0). So a time is stored as one of 254 steps of u seconds, and a
+-- slot's epoch can only cover 254 * u seconds before it must be reset.
+--
+-- Two slots, reset in turn and half a cycle apart, and EVERY cast is written
+-- into BOTH, each in its own encoding. The display always reads the OLDER
+-- slot, which has been recording for at least P seconds -- P is the history
+-- the display needs (one cooldown, or two for a 2-charge spell), so the casts
+-- that matter are always in it. Nothing has to move between encodings, which
+-- would need arithmetic on secrets.
+--
+-- Each slot keeps the last two casts (s1 newest, s2 the one before) and a
+-- shown flag for each. With charges the display is drawn from both:
+--   no charge left       s2 + cd - now   (only ever positive after s1)
+--   until fully charged  max(s1 + cd, s2 + 2cd) - now, as two overlaid bars
+-- Step size: Fortifying Brew is 6 min in the table but 90s for a talented
+-- Mistweaver, so u comes from the member's own cooldown, not the spell's
+-- longest. If the cooldown or charges change (a respec), Rebuild replaces
+-- the timer.
+local function NewTracker(def, cd, charges)
     local now = GetTime()
-    local u = math.max(1, math.ceil(2 * cd / CODES))
+    local n = math.min(math.max(charges or 1, 1), 2)
+    local P = math.ceil(n * cd)
+    local u = math.max(1, math.ceil(2 * P / CODES))
+    local function slot(epoch) return { epoch = epoch, s1 = 0, s2 = 0, h1 = 0, h2 = 0 } end
     return {
         def = def,
+        n = n,
         u = u,
-        P = math.floor(CODES / 2) * u,
-        cur = 1,
-        slots = {
-            { epoch = now, stamp = 0, shown = 0 },
-            { epoch = now, stamp = 0, shown = 0 },
-        },
+        P = P,
+        -- The second slot starts "P ago": it resets half a cycle after the first.
+        slots = { slot(now), slot(now - P) },
         glow = 0,
         watch = {},
     }
@@ -392,24 +414,35 @@ end
 -- Timers
 ------------------------------------------------------------------------
 local function Roll(t, now)
-    if now - t.slots[t.cur].epoch < t.P then return end
-    t.cur = 3 - t.cur
-    local sl = t.slots[t.cur]
-    sl.epoch, sl.stamp, sl.shown = now, 0, 0
+    for _, sl in ipairs(t.slots) do
+        if now - sl.epoch >= 2 * t.P then
+            sl.epoch, sl.s1, sl.s2, sl.h1, sl.h2 = now, 0, 0, 0, 0
+        end
+    end
 end
 
--- One fresh reading from one sensor: on a rising edge, stamp now.
+-- The slot that has been recording longer.
+local function Older(t)
+    local a, b = t.slots[1], t.slots[2]
+    return (a.epoch <= b.epoch) and a or b
+end
+
+-- One fresh reading from one sensor: on a rising edge (up now, not up last
+-- time) the newest cast moves to s2 and "now" becomes s1, in both slots.
 local function Latch(t, s, now)
     Roll(t, now)
-    local sl = t.slots[t.cur]
-    -- Nearest step, not floor: halves the worst error (a 360s cooldown
-    -- steps in 3s, so +-1.5s).
-    local v = math.floor((now - sl.epoch) / t.u + 0.5) / 255
-    local ok, stamp, shown = pcall(function()
-        return EvalBool(s.lit, EvalBool(s.prev, sl.stamp, v), sl.stamp),
-               EvalBool(s.lit, EvalBool(s.prev, sl.shown, 1), sl.shown)
-    end)
-    if ok then sl.stamp, sl.shown = stamp, shown end
+    for _, sl in ipairs(t.slots) do
+        -- Nearest step, not floor: halves the worst error.
+        local v = math.floor((now - sl.epoch) / t.u + 0.5) / 255
+        local ok, s1, s2, h1, h2 = pcall(function()
+            local lit, prev = s.lit, s.prev
+            return EvalBool(lit, EvalBool(prev, sl.s1, v), sl.s1),
+                   EvalBool(lit, EvalBool(prev, sl.s2, sl.s1), sl.s2),
+                   EvalBool(lit, EvalBool(prev, sl.h1, 1), sl.h1),
+                   EvalBool(lit, EvalBool(prev, sl.h2, sl.h1), sl.h2)
+        end)
+        if ok then sl.s1, sl.s2, sl.h1, sl.h2 = s1, s2, h1, h2 end
+    end
 end
 
 local function Glow(t)
@@ -499,6 +532,24 @@ local function NewIcon(row)
         -- keeps any wrapping from ever happening instead.
         strip:SetPoint("BOTTOM", drive:GetStatusBarTexture(), "TOP", 0, 0)
         f.nums[k] = { clip = clip, drive = drive, strip = strip }
+    end
+
+    -- Recharge bars for a 2-charge spell: a thin strip along the bottom edge
+    -- while a charge is missing. Two bars on top of each other draw "the
+    -- later of the two" (see NewTracker); same colour, so they read as one.
+    f.rbar = {}
+    for k = 1, 2 do
+        local rb = CreateFrame("StatusBar", nil, top)
+        rb:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+        rb:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+        rb:SetHeight(3)
+        rb:SetStatusBarTexture(WHITE)
+        rb:SetStatusBarColor(1, 0.82, 0.1, 0.9)
+        rb:SetMinMaxValues(0, 1)
+        rb:SetValue(0)
+        rb:SetAlpha(0)
+        rb:Hide()
+        f.rbar[k] = rb
     end
 
     -- Your OWN cooldowns (stage 3) need none of the above: the game hands
@@ -615,6 +666,9 @@ local function StyleIcon(f, t)
     for k = 1, 2 do
         f.bars[k]:SetShown(not exact)
         if exact then f.nums[k].clip:Hide() end
+    end
+    for k = 1, 2 do
+        f.rbar[k]:SetShown(not exact and not testMode and t.n == 2)
     end
     f.cd:SetShown(exact)
     f.ccd:SetShown(exact and t.charges > 1)
@@ -776,8 +830,8 @@ function PC:Rebuild()
             local t = own[def.key]
             local cd, charges = EffectiveCD(def, m.ranks, m.spec)
             -- A timer is only valid while its slot period covers the cooldown.
-            if not t or cd > t.P then
-                t = NewTracker(def, cd)
+            if not t or math.min(charges, 2) ~= t.n or t.n * cd > t.P then
+                t = NewTracker(def, cd, charges)
                 own[def.key] = t
             end
             t.cd, t.charges = cd, charges
@@ -881,25 +935,43 @@ local function Pass()
                         end
                         if any then Glow(t) end
                         Roll(t, now)
+                        local o = Older(t)
                         local span = t.cd / t.u / 255
                         local secs = f.numSecs or 1
                         local spanQ = secs / t.u / 255
-                        for k = 1, 2 do
-                            local sl, bar, n = t.slots[k], f.bars[k], f.nums[k]
-                            local nv = (now - sl.epoch) / t.u / 255
-                            -- Whole seconds for the numbers: the stamp is a
-                            -- whole number of u-second steps, so with "now"
-                            -- floored too the seconds left is a whole number
-                            -- and the strip lands exactly on a line instead
-                            -- of scrolling between two.
-                            local nq = math.floor(now - sl.epoch) / t.u / 255
+                        local nv = (now - o.epoch) / t.u / 255
+                        -- Whole seconds for the numbers: the stamp is a whole
+                        -- number of u-second steps, so with "now" floored too
+                        -- the seconds left is a whole number and the strip
+                        -- lands exactly on a line instead of between two.
+                        local nq = math.floor(now - o.epoch) / t.u / 255
+                        -- One charge: the shade and number run from the
+                        -- newest cast. Two: they run from the one before
+                        -- (that is when a charge comes back with none left),
+                        -- and the thin bars show the recharge until full.
+                        local stamp, shown = o.s1, o.h1
+                        if t.n == 2 then stamp, shown = o.s2, o.h2 end
+                        local bar, n = f.bars[1], f.nums[1]
+                        pcall(function()
+                            bar:SetMinMaxValues(nv - span, nv)
+                            bar:SetValue(stamp)
+                            bar:SetAlpha(shown)
+                            n.drive:SetMinMaxValues(nq - spanQ, nq)
+                            n.drive:SetValue(stamp)
+                            n.clip:SetAlpha(shown)
+                        end)
+                        f.bars[2]:SetAlpha(0)
+                        f.nums[2].clip:SetAlpha(0)
+                        if t.n == 2 then
                             pcall(function()
-                                bar:SetMinMaxValues(nv - span, nv)
-                                bar:SetValue(sl.stamp)
-                                bar:SetAlpha(sl.shown)
-                                n.drive:SetMinMaxValues(nq - spanQ, nq)
-                                n.drive:SetValue(sl.stamp)
-                                n.clip:SetAlpha(sl.shown)
+                                -- Until full: s1 + cd, or s2 + 2cd, whichever
+                                -- is later -- two bars over each other.
+                                f.rbar[1]:SetMinMaxValues(nv - span, nv)
+                                f.rbar[1]:SetValue(o.s1)
+                                f.rbar[1]:SetAlpha(o.h1)
+                                f.rbar[2]:SetMinMaxValues(nv - 2 * span, nv - span)
+                                f.rbar[2]:SetValue(o.s2)
+                                f.rbar[2]:SetAlpha(o.h2)
                             end)
                         end
                         pcall(f.glowFrame.SetAlpha, f.glowFrame, t.glow)
