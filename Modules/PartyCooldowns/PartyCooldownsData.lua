@@ -102,6 +102,7 @@ local SPELLS = {
       specs = {268}, mods = { {325093, "pct", -20}, {450892, "chg", 1} } },      -- Celestial Brew
     { key = 116849, class = "MONK", cat = "external", who = "any", cd = 120, charges = 1, talent = true,
       specs = {270}, mods = { {202424, "flat", -45} } },                         -- Life Cocoon
+    { key = 116841, class = "MONK", cat = "external", who = "any", cd = 30, talent = true }, -- Tiger's Lust
 
     -- PALADIN
     { key = 642,    class = "PALADIN", cat = "personal", who = "self", cd = 300,
