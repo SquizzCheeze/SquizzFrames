@@ -2,29 +2,33 @@ SquizzFrames - Changelog
 ========================
 
 
-V2.1
+V2.1 (2026-10-27)
 -----
 
 New:
 
 - Party Cooldowns (Tools > Party Cooldowns, off by default): each group
-  member's defensives, externals and group-wide cooldowns as icons on
-  their party frame, shaded while on cooldown and highlighted while
-  active. Works in combat and in keys. Solo and party only, never in a
-  raid. Attach below, above, left or right of the frame, with alignment,
-  offsets, size, spacing and a maximum count. Cooldown lengths follow
-  talents (yours directly, party members' after an out-of-combat
-  inspect), and talent cooldowns a member did not take are hidden.
-  Cooldowns that leave no buff (interrupts, most damage cooldowns)
-  cannot be seen. Countdown numbers on the icons, in combat too, with
-  their own size setting. Your own cooldowns are read exactly from the
-  game, with a charge count. Party members' 2-charge spells darken with a
-  number only when no charge is left, and show a thin bar along the
-  bottom while recharging. Potions: everyone's combat potion, plus your
-  own healing potion and Healthstone. Optional tooltips on the icons, and
-  a live preview on the options page. Every spell can be switched on or off on its
-  own (grouped by class, with All On / All Off). /sfcdcheck compares
-  your own cooldown lengths with your tooltips.
+  member's defensives, externals, group-wide and utility cooldowns as
+  icons on their party frame, with countdown numbers, a shade while on
+  cooldown and a highlight while active. Works in combat and in Mythic+.
+  Solo and party only, never in a raid.
+- Cooldown lengths follow each player's spec and talents (yours directly,
+  party members' after an out-of-combat inspect), and talent cooldowns a
+  player did not take are hidden.
+- Your own cooldowns are read exactly from the game, with a charge count.
+  Party members' two-charge spells darken with a number only when no
+  charge is left, and show a thin bar along the bottom while recharging.
+- Potions: everyone's combat potion, plus your own healing potion and
+  Healthstone.
+- Place the icons below, above, left or right of the frame, aligned to
+  either end or centred, in up to four rows, with offsets, size, spacing,
+  shade and number size. Optional tooltips on hover, and a live preview on
+  the options page that matches your frames' colours.
+- Every spell can be switched on or off on its own (Spells tab, grouped by
+  class, with All On / All Off).
+- /sfcdcheck compares your own cooldown lengths with your tooltips.
+- Cooldowns that leave no buff on anyone (interrupts, most damage
+  cooldowns, other players' healing potions) cannot be seen in instances.
 
 
 V2.0.1 (2026-10-18)

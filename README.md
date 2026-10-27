@@ -1,6 +1,6 @@
 # SquizzFrames
 
-Party, raid, pet and unit frames for World of Warcraft Retail, built for patch 12.1.
+Party, raid, pet and unit frames for World of Warcraft Retail, built for patch 12.1.5.
 
 Built around healing, where the frames are the game. Aura indicators run on Blizzard's own aura
 system (AuraContainer), so they keep working in combat, when aura data is hidden from addons.
@@ -46,6 +46,15 @@ system (AuraContainer), so they keep working in combat, when aura data is hidden
 - Points as bars, shapes (round, star, heart, runes and more) or Blizzard's own class art, with
   rainbow colours and borders that follow the shape
 
+**Party cooldowns**
+- Your group's defensives, externals, group-wide and utility cooldowns as icons on their party
+  frames, with countdowns, in combat and in Mythic+ (solo and party, not raids)
+- Cooldown lengths follow each player's spec and talents; talents they didn't take are hidden
+- Your own cooldowns exact from the game with charge counts; party members' two-charge spells
+  show when a charge is left
+- Everyone's combat potion, plus your own healing potion and Healthstone
+- Below, above or beside the frame, in rows, with a per-spell on/off list and a live preview
+
 **Tank tracker**
 - A frame per tank showing their incoming debuffs above and their defensives below
 
@@ -75,7 +84,7 @@ manually: download this repository and drop the `SquizzFrames` folder into
 World of Warcraft\_retail_\Interface\AddOns\
 ```
 
-Requires WoW Retail 12.1 (interface 120100). All libraries are bundled — there
+Requires WoW Retail 12.1.5 (interface 120105). All libraries are bundled — there
 is nothing else to install.
 
 ## Commands
@@ -87,6 +96,7 @@ is nothing else to install.
 | `/sf healer` | Apply the healer preset |
 | `/sf nick` | Nickname management (run alone for usage) |
 | `/sf notes` | Show this version's release notes again |
+| `/sfcdcheck` | Compare Party Cooldowns' lengths for your spells with your tooltips |
 | `/sf reset` | Reset the profile and reload the UI |
 
 `/squizz` is not used — that belongs to another addon.
