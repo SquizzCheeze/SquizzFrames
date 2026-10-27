@@ -30,7 +30,7 @@ local pageHeights = {
     ["clickCasting"] = 460,
     ["tankTracker"] = 1920, -- one sub-tab at a time; a row tab with both texts expanded is the tallest
     ["nicknames"] = 780,
-    ["partyCooldowns"] = 1180,
+    ["partyCooldowns"] = 1330, -- +150 Countdown (stage 2)
     ["profiles"] = 600,
 }
 

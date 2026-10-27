@@ -141,6 +141,19 @@ function Panel.Build(frame)
     local cbGlow = W.CreateStyledCheckbox(host, L["Highlight While Active"] or "Highlight While Active",
         get("glow"), set("glow"))
     cbGlow:SetPoint("TOPLEFT", 15, y)
+    y = y - 40
+
+    W.CreateTitledPane(host, L["Countdown"] or "Countdown", y)
+    y = y - 35
+
+    local cbNums = W.CreateStyledCheckbox(host, L["Show Countdown Numbers"] or "Show Countdown Numbers",
+        get("showNumbers"), set("showNumbers"))
+    cbNums:SetPoint("TOPLEFT", 15, y)
+    y = y - 30
+
+    local sNum = W.CreateStyledSlider(host, 200, 8, 24, 1, L["Number Size"] or "Number Size",
+        get("numberSize"), set("numberSize"))
+    sNum:SetPoint("TOPLEFT", 15, y - 20)
 
     -- Test icons are for while the page is open; leaving them on would draw
     -- fake cooldowns on real frames.

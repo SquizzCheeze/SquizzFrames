@@ -23,8 +23,12 @@
     The stored time only has 254 steps, so each timer has two slots that take
     turns: every P seconds (P >= the cooldown) the older slot is wiped and new
     casts go into it. A cast always outlives its own slot's window, so nothing
-    running is ever lost. Step size is fixed per spell from the longest
-    cooldown any talent can give it.
+    running is ever lost. Step size comes from the member's own cooldown
+    (1s for anything up to 127s, so the countdown is exact).
+
+    Countdown numbers (stage 2) use the same secret start: a FontString of
+    every value slides behind a one-line window, pinned to an invisible
+    StatusBar's fill -- see NewIcon.
 
     Cooldown lengths follow talents: yours from your active loadout, a party
     member's from inspecting them out of combat (one at a time, the way
@@ -83,6 +87,8 @@ local DEFAULTS = {
     showBorder = true,
     glow = true,          -- gold edge while the buff is up
     shade = 0.7,          -- darkness of the cooldown shade
+    showNumbers = true,   -- countdown text (stage 2)
+    numberSize = 12,
 }
 PC.DEFAULTS = DEFAULTS
 
@@ -360,9 +366,14 @@ local function EffectiveCD(def, ranks, spec)
 end
 PC.EffectiveCD = EffectiveCD
 
-local function NewTracker(def)
+-- Step size from the cooldown this member actually has, not the longest the
+-- spell could ever have: Fortifying Brew is 6 min in the table but 90s for a
+-- talented Mistweaver, and sizing from 6 min meant 3s steps (numbers up to
+-- ~1.5s late) where 1s steps fit. If the cooldown later outgrows the slot
+-- period (a respec), Rebuild replaces the timer.
+local function NewTracker(def, cd)
     local now = GetTime()
-    local u = math.max(1, math.ceil(2 * def.maxCd / CODES))
+    local u = math.max(1, math.ceil(2 * cd / CODES))
     return {
         def = def,
         u = u,
@@ -455,7 +466,72 @@ local function NewIcon(row)
     f.glowFrame:SetAllPoints(f)
     f.glowFrame:SetAlpha(0)
     Edges(f.glowFrame, "OVERLAY", 2, 1, 0.82, 0.1, 1)
+
+    -- Countdown numbers (stage 2), one per timer slot. The remaining time is
+    -- secret, so no Lua code can format it. Instead:
+    --   strip   one FontString holding every value the timer can show, one
+    --           per line: blank, 1, 2 ... cd from the top down
+    --   drive   an invisible StatusBar fed the same secret start as the
+    --           shade, whose fill is the share of the cooldown left
+    --   clip    a one-line window over the icon
+    -- The strip's bottom is pinned to the top of drive's fill, and drive
+    -- hangs directly below the window, as tall as one line per second. So
+    -- with r of the cooldown left the strip sits r * cd lines up, which puts
+    -- exactly the line for "r * cd seconds" in the window. The game does the
+    -- arithmetic; Lua only ever sets plain min/max and hands over the secret.
+    f.nums = {}
+    for k = 1, 2 do
+        local clip = CreateFrame("Frame", nil, top)
+        clip:SetClipsChildren(true)
+        clip:SetAlpha(0)
+        local drive = CreateFrame("StatusBar", nil, clip)
+        drive:SetStatusBarTexture(WHITE)
+        drive:SetStatusBarColor(0, 0, 0, 0)
+        drive:SetOrientation("VERTICAL")
+        drive:SetMinMaxValues(0, 1)
+        drive:SetValue(0)
+        drive:SetPoint("TOP", clip, "BOTTOM", 0, 0)
+        local strip = clip:CreateFontString(nil, "OVERLAY")
+        strip:SetJustifyH("CENTER")
+        strip:SetWordWrap(false)
+        strip:SetPoint("BOTTOM", drive:GetStatusBarTexture(), "TOP", 0, 0)
+        f.nums[k] = { clip = clip, drive = drive, strip = strip }
+    end
     return f
+end
+
+local NUMBER_FONT = "Fonts\\FRIZQT__.TTF"
+
+local function Label(v)
+    if v <= 0 then return " " end
+    if v >= 60 then return string.format("%dm", math.ceil(v / 60)) end
+    return tostring(v)
+end
+
+-- (Re)build the number strips for a cooldown of `secs` whole seconds.
+local function StyleNumbers(f, secs)
+    local size, on = PC.Get("numberSize"), PC.Get("showNumbers")
+    local key = secs .. ":" .. size .. ":" .. PC.Get("size")
+    for k = 1, 2 do
+        local n = f.nums[k]
+        n.clip:SetShown(on)
+        if on and n.key ~= key then
+            n.key = key
+            n.strip:SetFont(NUMBER_FONT, size, "OUTLINE")
+            local lines = {}
+            for v = 0, secs do lines[#lines + 1] = Label(v) end
+            n.strip:SetText(table.concat(lines, "\n"))
+            -- Measured, not assumed: the font decides its own line height.
+            local lineH = (n.strip:GetStringHeight() or 0) / (secs + 1)
+            if lineH <= 0 then lineH = size + 2 end
+            n.lineH = lineH
+            n.clip:ClearAllPoints()
+            n.clip:SetPoint("CENTER", f, "CENTER", 0, 0)
+            n.clip:SetSize(PC.Get("size"), lineH)
+            n.drive:SetSize(1, lineH * secs)
+        end
+    end
+    f.numSecs = secs
 end
 
 local function Row(token)
@@ -480,6 +556,7 @@ local function StyleIcon(f, t)
     local border = PC.Get("showBorder")
     for _, e in ipairs(f.border) do e:SetShown(border) end
     f.glowFrame:SetShown(PC.Get("glow"))
+    StyleNumbers(f, math.max(1, math.floor(t.cd + 0.5)))
 end
 
 -- Point pairs for icon i (0-based) of n along the chosen side.
@@ -577,11 +654,13 @@ function PC:Rebuild()
         for i = 1, shown do
             local def = list[i]
             local t = own[def.key]
-            if not t then
-                t = NewTracker(def)
+            local cd, charges = EffectiveCD(def, m.ranks, m.spec)
+            -- A timer is only valid while its slot period covers the cooldown.
+            if not t or cd > t.P then
+                t = NewTracker(def, cd)
                 own[def.key] = t
             end
-            t.cd, t.charges = EffectiveCD(def, m.ranks, m.spec)
+            t.cd, t.charges = cd, charges
             -- Who to watch: the caster, or for an external / zone everyone.
             wipe(t.watch)
             if def.who == "self" then
@@ -650,6 +729,11 @@ local function Pass()
                             bar:SetMinMaxValues(0, 1)
                             bar:SetValue(k == 1 and math.max(0, 1 - frac) or 0)
                             bar:SetAlpha(k == 1 and 1 or 0)
+                            -- Same strip mechanism as live, on plain values.
+                            local n, secs = f.nums[k], f.numSecs or 1
+                            n.drive:SetMinMaxValues(0, secs)
+                            n.drive:SetValue(k == 1 and math.max(0, math.floor((1 - frac) * secs + 0.5)) or 0)
+                            n.clip:SetAlpha(k == 1 and 1 or 0)
                         end
                         f.glowFrame:SetAlpha((frac < 0.1) and 1 or 0)
                     else
@@ -663,13 +747,24 @@ local function Pass()
                         if any then Glow(t) end
                         Roll(t, now)
                         local span = t.cd / t.u / 255
+                        local secs = f.numSecs or 1
+                        local spanQ = secs / t.u / 255
                         for k = 1, 2 do
-                            local sl, bar = t.slots[k], f.bars[k]
+                            local sl, bar, n = t.slots[k], f.bars[k], f.nums[k]
                             local nv = (now - sl.epoch) / t.u / 255
+                            -- Whole seconds for the numbers: the stamp is a
+                            -- whole number of u-second steps, so with "now"
+                            -- floored too the seconds left is a whole number
+                            -- and the strip lands exactly on a line instead
+                            -- of scrolling between two.
+                            local nq = math.floor(now - sl.epoch) / t.u / 255
                             pcall(function()
                                 bar:SetMinMaxValues(nv - span, nv)
                                 bar:SetValue(sl.stamp)
                                 bar:SetAlpha(sl.shown)
+                                n.drive:SetMinMaxValues(nq - spanQ, nq)
+                                n.drive:SetValue(sl.stamp)
+                                n.clip:SetAlpha(sl.shown)
                             end)
                         end
                         pcall(f.glowFrame.SetAlpha, f.glowFrame, t.glow)

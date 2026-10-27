@@ -174,9 +174,7 @@ local SPELLS = {
       buffs = {97463} },                                                         -- Rallying Cry
 }
 
--- Fill in the derived fields once: buff set for the sensor filter, spec set,
--- and the longest cooldown any talent can produce (the timer's step size is
--- fixed from it, so a talent change never re-scales a running timer).
+-- Fill in the derived fields once: buff set for the sensor filter, spec set.
 for _, def in ipairs(SPELLS) do
     def.buffs = def.buffs or { def.key }
     def.buffSet = {}
@@ -185,18 +183,6 @@ for _, def in ipairs(SPELLS) do
         def.specSet = {}
         for _, s in ipairs(def.specs) do def.specSet[s] = true end
     end
-    local longest = def.cd
-    for _, m in ipairs(def.mods or {}) do
-        if m[2] == "flat" and m[3] > 0 then longest = longest + m[3] end
-    end
-    local specUp = 0
-    for _, list in pairs(def.specMods or {}) do
-        for _, m in ipairs(list) do
-            if m[1] == "flat" and m[2] > specUp then specUp = m[2] end
-        end
-    end
-    longest = longest + specUp
-    def.maxCd = longest
 end
 
 SquizzFrames.PartyCooldownsData = {

@@ -16,7 +16,9 @@ New:
   talents (yours directly, party members' after an out-of-combat
   inspect), and talent cooldowns a member did not take are hidden.
   Cooldowns that leave no buff (interrupts, most damage cooldowns)
-  cannot be seen.
+  cannot be seen. Countdown numbers on the icons, in combat too, with
+  their own size setting. /sfcdcheck compares your own cooldown
+  lengths with your tooltips.
 
 
 V2.0.1 (2026-10-18)
