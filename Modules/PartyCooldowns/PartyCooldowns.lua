@@ -81,6 +81,7 @@ local DEFAULTS = {
     personal = true,
     external = true,
     group = true,
+    potions = true,       -- combat potions (everyone), healing potion + Healthstone (yours)
     side = "BOTTOM",      -- BOTTOM / TOP / LEFT / RIGHT of the party frame
     align = "START",      -- START / CENTER / END along that side
     offsetX = 0,
@@ -365,10 +366,22 @@ end
 ------------------------------------------------------------------------
 -- Which cooldowns a member gets, and how long they are
 ------------------------------------------------------------------------
-local CAT_KEY = { personal = "personal", external = "external", group = "group" }
+local CAT_KEY = { personal = "personal", external = "external", group = "group", potion = "potions" }
+
+-- The first of an item-based entry's items the player carries, or nil.
+local function OwnedItem(def)
+    for _, id in ipairs(def.items or {}) do
+        local ok, n = pcall(C_Item.GetItemCount, id)
+        if ok and type(n) == "number" and not IsSecret(n) and n > 0 then return id end
+    end
+    return nil
+end
 
 local function Wanted(def, m)
-    if def.class ~= m.class then return false end
+    if def.class ~= "ANY" and def.class ~= m.class then return false end
+    -- No buff to watch (healing potion, Healthstone): only your own, from
+    -- the item cooldown, and only while you carry one.
+    if def.ownOnly and (m.token ~= "player" or not OwnedItem(def)) then return false end
     if not PC.Get(CAT_KEY[def.cat]) then return false end
     if not PC.IsSpellEnabled(def.key) then return false end
     if def.specSet then
@@ -686,7 +699,8 @@ end
 local function StyleIcon(f, t)
     local size = PC.Get("size")
     f:SetSize(size, size)
-    f.icon:SetTexture(C_Spell.GetSpellTexture(t.def.key))
+    local tex = t.item and C_Item.GetItemIconByID(t.item)
+    f.icon:SetTexture(tex or C_Spell.GetSpellTexture(t.def.key))
     local shade = PC.Get("shade")
     for k = 1, 2 do
         f.bars[k]:SetStatusBarColor(0, 0, 0, shade)
@@ -745,7 +759,16 @@ local function UpdateExact(f)
     if not (t and t.exact) then return end
     local id = t.ownID or t.def.key
     pcall(function()
-        if t.charges > 1 then
+        if t.item then
+            -- Potions and Healthstones: the item cooldown, which stays
+            -- readable in combat (unlike spell cooldowns), so plain numbers.
+            local start, duration = C_Container.GetItemCooldown(t.item)
+            if start and duration and duration > 1.5 then
+                f.cd:SetCooldown(start, duration)
+            else
+                f.cd:Clear()
+            end
+        elseif t.charges > 1 then
             -- Blizzard's action-button arrangement: the swipe only when no
             -- charge is left, the recharge as an edge, and a count.
             f.cd:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(id, true))
@@ -831,7 +854,7 @@ local function ReadMembers()
             if guid and class then
                 local k = known[guid]
                 local spec = (k and k.spec) or GuessSpec(token, class)
-                members[token] = { guid = guid, class = class, spec = spec, ranks = k and k.ranks }
+                members[token] = { token = token, guid = guid, class = class, spec = spec, ranks = k and k.ranks }
                 if token ~= "player" and (not k or GetTime() - k.at > INSPECT_AGAIN) then
                     QueueInspect(token)
                 end
@@ -854,7 +877,7 @@ function PC:Rebuild()
     local maxIcons = PC.Get("perRow") * PC.Get("rows")
 
     -- Each member's list, in table order: personal, then external, then group.
-    local order = { personal = 1, external = 2, group = 3 }
+    local order = { personal = 1, external = 2, group = 3, potion = 4 }
     for _, token in ipairs(TOKENS) do
         local row = Row(token)
         local m = members[token]
@@ -886,10 +909,15 @@ function PC:Rebuild()
             -- sensors below then only drive the "active" highlight.
             t.exact = token == "player" and not testMode
                 and C_Spell.GetSpellCooldownDuration ~= nil or false
-            t.ownID = t.exact and OwnSpellID(def) or nil
+            t.ownID = t.exact and not def.items and OwnSpellID(def) or nil
+            -- Potions: the item whose cooldown is read (the category is
+            -- shared, so any of them answers; one you carry if possible).
+            t.item = def.items and (OwnedItem(def) or def.items[1]) or nil
             -- Who to watch: the caster, or for an external / zone everyone.
             wipe(t.watch)
-            if def.who == "self" then
+            if def.ownOnly then
+                -- Nothing to watch: no buff. The item cooldown is the timer.
+            elseif def.who == "self" then
                 local s = Sensor(token, def)
                 if s then t.watch[1] = s end
             else
@@ -1219,6 +1247,9 @@ function PC:OnEnable()
     -- Your own exact cooldowns follow the game's cooldown events.
     self:RegisterEvent("SPELL_UPDATE_COOLDOWN", UpdateAllExact)
     self:RegisterEvent("SPELL_UPDATE_CHARGES", UpdateAllExact)
+    -- Potions: their cooldowns, and whether you still carry one.
+    self:RegisterEvent("BAG_UPDATE_COOLDOWN", UpdateAllExact)
+    self:RegisterEvent("BAG_UPDATE_DELAYED", QueueRebuild)
     self:RegisterEvent("INSPECT_READY", function(_, guid) OnInspectReady(guid) end)
     self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
         if pendingSensors then

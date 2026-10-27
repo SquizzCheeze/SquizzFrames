@@ -198,6 +198,30 @@ local SPELLS = {
       buffs = {97463} },                                                         -- Rallying Cry
 }
 
+-- POTIONS (class "ANY": every member). Midnight gives combat potions and
+-- healing potions SEPARATE 5-minute cooldowns (spell categories 4 and 30),
+-- and the Healthstones their own minute each (1711 and 2566).
+--   * combat potions leave a 10-30s buff, so party members' are seen like
+--     any other cooldown; yours read the item cooldown exactly
+--   * healing potions and Healthstones leave NO buff: yours only (ownOnly),
+--     from the item cooldown, and only while you carry one
+-- `label` replaces the spell name where one icon stands for several items;
+-- `items` are every item that casts it (both qualities, the Fleeting ones).
+SPELLS[#SPELLS + 1] = { key = 1236616, label = "Combat Potion", class = "ANY", cat = "potion", who = "self", cd = 300,
+    buffs = {1236616, 1236994, 1236998, 1239479, 1295132},
+    items = {241309, 241308, 245897, 245898, 246134,    -- Light's Potential
+             241289, 241288, 245902, 245903, 246128,    -- Potion of Recklessness
+             241293, 241292, 245910, 245911, 246430,    -- Draught of Rampant Abandon
+             241295, 241294, 245904, 245905, 246130,    -- Potion of Devoured Dreams
+             271886, 271887, 274763, 274764, 274738} }  -- Liquid Luster
+SPELLS[#SPELLS + 1] = { key = 1234768, label = "Health Potion", class = "ANY", cat = "potion", who = "self", cd = 300,
+    ownOnly = true,
+    items = {241305, 241304, 245918, 245919, 246136,    -- Silvermoon Health Potion
+             271883, 271884, 274773} }                  -- Concentrated Silvermoon Health Potion
+SPELLS[#SPELLS + 1] = { key = 6262, label = "Healthstone", class = "ANY", cat = "potion", who = "self", cd = 60,
+    ownOnly = true,
+    items = {5512, 224464} }                            -- Healthstone, Demonic Healthstone
+
 -- Fill in the derived fields once: buff set for the sensor filter, spec set.
 for _, def in ipairs(SPELLS) do
     def.buffs = def.buffs or { def.key }

@@ -96,13 +96,15 @@ local function BuildGeneral(host, y)
         {"personal", L["Personal Defensives"] or "Personal Defensives"},
         {"external", L["Externals"] or "Externals"},
         {"group",    L["Group-wide Cooldowns"] or "Group-wide Cooldowns"},
+        {"potions",  L["Potions"] or "Potions"},
     }) do
         local cb = W.CreateStyledCheckbox(host, item[2], get(item[1]), set(item[1]))
         cb:SetPoint("TOPLEFT", 15, y)
         y = y - 30
     end
     y = y - 4
-    return Note(host, y, "Individual spells can be switched off on the Spells tab.")
+    return Note(host, y, "Potions: everyone's combat potion, plus your own healing potion and Healthstone " ..
+        "(those leave no buff, so other players' cannot be seen). Individual spells can be switched off on the Spells tab.")
 end
 
 ------------------------------------------------------------------------
@@ -197,6 +199,7 @@ local function ClassOrder()
         order = { "WARRIOR", "DEATHKNIGHT", "PALADIN", "MONK", "PRIEST", "SHAMAN", "DRUID",
                   "ROGUE", "MAGE", "WARLOCK", "HUNTER", "DEMONHUNTER", "EVOKER" }
     end
+    order[#order + 1] = "ANY" -- potions, for everyone, last
     return order
 end
 
@@ -231,6 +234,7 @@ local function BuildSpells(host, y)
         if list then
             local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
             local name = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class]) or class
+            if class == "ANY" then name = L["Potions"] or "Potions" end
             local header = host:CreateFontString(nil, "OVERLAY", "GameFontNormal")
             header:SetPoint("TOPLEFT", 15, y)
             header:SetText(color and ("|c" .. color.colorStr .. name .. "|r") or name)
@@ -238,8 +242,9 @@ local function BuildSpells(host, y)
 
             for i, def in ipairs(list) do
                 local col = (i - 1) % 2 + 1
-                local icon = C_Spell.GetSpellTexture(def.key)
-                local label = (C_Spell.GetSpellName(def.key) or tostring(def.key))
+                local icon = (def.items and C_Item.GetItemIconByID(def.items[1])) or C_Spell.GetSpellTexture(def.key)
+                local label = def.label or C_Spell.GetSpellName(def.key) or tostring(def.key)
+                if def.ownOnly then label = label .. " |cff888888(yours only)|r" end
                 if CAT_TAG[def.cat] then
                     label = label .. " |cff888888(" .. CAT_TAG[def.cat] .. ")|r"
                 end

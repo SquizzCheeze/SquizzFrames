@@ -532,6 +532,49 @@ local function PrecisionCheck()
     print("--- end")
 end
 
+-- /sfcdprobe secrecy: can a party member's potion or Healthstone be seen
+-- from their cast? Healing potions and Healthstones leave no buff, so the
+-- buff sensor is blind to them; the only other route is the spell ID in
+-- UNIT_SPELLCAST_SUCCEEDED, which in instances is hidden unless Blizzard
+-- marks the spell NeverSecret (0). Every class interrupt measured 2
+-- (ContextuallySecret) on 2026-10-06.
+local SECRECY_SPELLS = {
+    { 1234768, "Silvermoon Health Potion" },
+    { 1295247, "Concentrated Silvermoon Health Potion" },
+    { 6262,    "Healthstone" },
+    { 452930,  "Demonic Healthstone" },
+    { 1236616, "Light's Potential (combat potion)" },
+    { 1236994, "Potion of Recklessness (combat potion)" },
+}
+local SECRECY_NAMES = { [0] = "NeverSecret - visible everywhere", [1] = "AlwaysSecret",
+                        [2] = "ContextuallySecret - hidden in instances" }
+
+local function SecrecyCheck()
+    local r = Results()
+    r.secrecy = {}
+    local get = C_Secrets and C_Secrets.GetSpellCastSecrecy
+    if not get then
+        print(P .. "secrecy: C_Secrets.GetSpellCastSecrecy is missing on this client")
+        return
+    end
+    print(P .. "cast secrecy (0 = a party member's cast is readable even in keys):")
+    for _, s in ipairs(SECRECY_SPELLS) do
+        local ok, v = pcall(get, s[1])
+        local text
+        if not ok then
+            text = "refused: " .. tostring(v)
+        elseif IsSecret(v) then
+            text = "came back secret"
+        else
+            text = tostring(v) .. " (" .. (SECRECY_NAMES[v] or "?") .. ")"
+        end
+        local line = string.format("   %d %s: %s", s[1], s[2], text)
+        print(line)
+        r.secrecy[#r.secrecy + 1] = line
+    end
+    print("--- end")
+end
+
 SLASH_SQUIZZCDPROBE1 = "/sfcdprobe"
 SlashCmdList["SQUIZZCDPROBE"] = function(msg)
     local args = {}
@@ -540,6 +583,8 @@ SlashCmdList["SQUIZZCDPROBE"] = function(msg)
 
     if cmd == "precision" then
         PrecisionCheck()
+    elseif cmd == "secrecy" then
+        SecrecyCheck()
     elseif cmd == "stop" then
         Stop()
     elseif cmd == "report" then
