@@ -19,6 +19,18 @@
                   game keeps those separate (Honed Reflexes carries both, a
                   plain -10% and a -10% recharge), and counting both would
                   double it.
+      * specMods  the same kind of modifier carried by a SPEC PASSIVE
+                  (SpecializationSpells), applied to everyone in that spec:
+                  { [specID] = { {"flat"|"pct"|"chg", amount}, ... } }.
+                  Fortifying Brew is the big one: 6 min in the table, 2 min
+                  for Mistweaver and Windwalker (user-confirmed in game,
+                  2026-10-27). Modifiers from anything else that is neither a
+                  current talent nor a spec passive are deliberately NOT used:
+                  the data still holds dozens from old expansions (legendaries,
+                  conduits, set bonuses, retired ranks such as a second
+                  "Fortifying Brew" -4 min nothing grants any more), and
+                  applying them would be wrong. /sfcdcheck compares the result
+                  with your own tooltips.
     Hand-chosen: which spells are worth showing, the category, the specs a
     talent-free cast belongs to, and `who`:
       * "self"  the buff lands on the caster, so only the caster's own unit
@@ -60,9 +72,11 @@ local SPELLS = {
 
     -- DRUID
     { key = 22812,  class = "DRUID", cat = "personal", who = "self", cd = 60,
-      mods = { {203965, "pct", -12} } },                                         -- Barkskin
+      mods = { {203965, "pct", -12} },
+      specMods = { [104] = { {"flat", -15} } } },                                -- Barkskin
     { key = 61336,  class = "DRUID", cat = "personal", who = "self", cd = 180, charges = 1, talent = true,
-      specs = {103, 104}, mods = { {203965, "pct", -12} } },                     -- Survival Instincts
+      specs = {103, 104}, mods = { {203965, "pct", -12} },
+      specMods = { [104] = { {"chg", 1} } } },                                   -- Survival Instincts
     { key = 102342, class = "DRUID", cat = "external", who = "any", cd = 90, talent = true,
       specs = {105}, mods = { {382552, "flat", -20} } },                         -- Ironbark
 
@@ -93,7 +107,8 @@ local SPELLS = {
 
     -- MONK
     { key = 115203, class = "MONK", cat = "personal", who = "self", cd = 360,
-      buffs = {120954}, mods = { {388813, "flat", -30} } },                      -- Fortifying Brew
+      buffs = {120954}, mods = { {388813, "flat", -30} },
+      specMods = { [269] = { {"flat", -240} }, [270] = { {"flat", -240} } } },   -- Fortifying Brew
     { key = 122783, class = "MONK", cat = "personal", who = "self", cd = 90,  talent = true }, -- Diffuse Magic
     { key = 122278, class = "MONK", cat = "personal", who = "self", cd = 120, talent = true }, -- Dampen Harm
     { key = 115176, class = "MONK", cat = "personal", who = "self", cd = 300, talent = true,
@@ -108,7 +123,8 @@ local SPELLS = {
     { key = 642,    class = "PALADIN", cat = "personal", who = "self", cd = 300,
       mods = { {114154, "pct", -30}, {378425, "pct", -15} } },                   -- Divine Shield
     { key = 498,    class = "PALADIN", cat = "personal", who = "self", cd = 60,
-      specs = {65, 70}, mods = { {114154, "pct", -30} } },                       -- Divine Protection
+      specs = {65, 70}, mods = { {114154, "pct", -30} },
+      specMods = { [70] = { {"flat", 30} } } },                                  -- Divine Protection
     { key = 31850,  class = "PALADIN", cat = "personal", who = "self", cd = 90, talent = true,
       specs = {66}, mods = { {114154, "pct", -30} } },                           -- Ardent Defender
     { key = 86659,  class = "PALADIN", cat = "personal", who = "self", cd = 180, charges = 1, talent = true,
@@ -173,6 +189,13 @@ for _, def in ipairs(SPELLS) do
     for _, m in ipairs(def.mods or {}) do
         if m[2] == "flat" and m[3] > 0 then longest = longest + m[3] end
     end
+    local specUp = 0
+    for _, list in pairs(def.specMods or {}) do
+        for _, m in ipairs(list) do
+            if m[1] == "flat" and m[2] > specUp then specUp = m[2] end
+        end
+    end
+    longest = longest + specUp
     def.maxCd = longest
 end
 

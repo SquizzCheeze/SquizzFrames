@@ -340,18 +340,25 @@ local function Wanted(def, m)
     return true
 end
 
-local function EffectiveCD(def, ranks)
+-- Base, then spec passive, then talents: flat amounts add, percentages add
+-- together and scale the result (how the game stacks SPELLMOD_COOLDOWN).
+local function EffectiveCD(def, ranks, spec)
     local flat, pct, charges = 0, 0, def.charges or 1
+    local function add(kind, amount)
+        if kind == "flat" then flat = flat + amount
+        elseif kind == "pct" then pct = pct + amount
+        elseif kind == "chg" then charges = charges + amount end
+    end
+    for _, mod in ipairs((spec and def.specMods and def.specMods[spec]) or {}) do
+        add(mod[1], mod[2])
+    end
     for _, mod in ipairs(def.mods or {}) do
         local r = ranks and ranks[mod[1]] or 0
-        if r > 0 then
-            if mod[2] == "flat" then flat = flat + mod[3] * r
-            elseif mod[2] == "pct" then pct = pct + mod[3] * r
-            elseif mod[2] == "chg" then charges = charges + mod[3] * r end
-        end
+        if r > 0 then add(mod[2], mod[3] * r) end
     end
     return math.max(1, (def.cd + flat) * (1 + pct / 100)), charges
 end
+PC.EffectiveCD = EffectiveCD
 
 local function NewTracker(def)
     local now = GetTime()
@@ -574,7 +581,7 @@ function PC:Rebuild()
                 t = NewTracker(def)
                 own[def.key] = t
             end
-            t.cd, t.charges = EffectiveCD(def, m.ranks)
+            t.cd, t.charges = EffectiveCD(def, m.ranks, m.spec)
             -- Who to watch: the caster, or for an external / zone everyone.
             wipe(t.watch)
             if def.who == "self" then
@@ -711,6 +718,77 @@ function PC.SetTestMode(on)
 end
 
 function PC.IsTestMode() return testMode end
+
+------------------------------------------------------------------------
+-- /sfcdcheck: our cooldown for each of YOUR tracked spells against the
+-- game's own tooltip, which includes every modifier that applies to you.
+-- The quick way to catch a wrong base value or a missing spec passive.
+------------------------------------------------------------------------
+local function TooltipSeconds(spellID)
+    if not (C_TooltipInfo and C_TooltipInfo.GetSpellByID) then return nil end
+    local ok, data = pcall(C_TooltipInfo.GetSpellByID, spellID)
+    if not ok or not data or not data.lines then return nil end
+    for _, line in ipairs(data.lines) do
+        for _, text in ipairs({ line.leftText, line.rightText }) do
+            if text and not IsSecret(text) then
+                local n, unit = text:match("([%d%.]+) (%a+) [Cc]ooldown")
+                if not n then n, unit = text:match("([%d%.]+) (%a+) [Rr]echarge") end
+                n = tonumber(n)
+                if n and unit then
+                    unit = unit:lower()
+                    if unit:find("^min") then return n * 60 end
+                    if unit:find("^sec") then return n end
+                    if unit:find("^h") then return n * 3600 end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function KnowsSpell(id)
+    if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return false end
+    local ok, v = pcall(C_SpellBook.IsSpellKnown, id)
+    return ok and v and true or false
+end
+
+SLASH_SQUIZZCDCHECK1 = "/sfcdcheck"
+SlashCmdList["SQUIZZCDCHECK"] = function()
+    local P = "|cff33cc99[SquizzFrames]|r "
+    ReadOwn()
+    local guid = Plain(UnitGUID("player"))
+    local k = guid and known[guid] or {}
+    local _, class = UnitClass("player")
+    local DATA = SquizzFrames.PartyCooldownsData
+    print(P .. string.format("Party Cooldowns check, spec %s, talents %s:",
+        tostring(k.spec), k.ranks and "read" or "|cffff5555NOT read|r"))
+    local checked, bad = 0, 0
+    for _, def in ipairs(DATA and DATA.spells or {}) do
+        if def.class == class then
+            local id = def.key
+            if not KnowsSpell(id) then
+                for _, alt in ipairs(def.casts or {}) do
+                    if KnowsSpell(alt) then id = alt end
+                end
+            end
+            local name = C_Spell.GetSpellName(id) or tostring(id)
+            if KnowsSpell(id) then
+                local ours, charges = EffectiveCD(def, k.ranks, k.spec)
+                local theirs = TooltipSeconds(id)
+                checked = checked + 1
+                if not theirs then
+                    print(string.format("   %s: ours %ds, tooltip shows no cooldown we can read", name, ours))
+                elseif math.abs(theirs - ours) < 1 then
+                    print(string.format("   |cff33ff33OK|r %s: %ds%s", name, ours, charges > 1 and (" (" .. charges .. " charges)") or ""))
+                else
+                    bad = bad + 1
+                    print(string.format("   |cffff5555MISMATCH|r %s: ours %ds, tooltip %ds", name, ours, theirs))
+                end
+            end
+        end
+    end
+    print(P .. string.format("%d checked, %d mismatched. Spells you do not know are skipped.", checked, bad))
+end
 
 ------------------------------------------------------------------------
 -- Events
