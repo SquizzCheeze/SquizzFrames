@@ -878,8 +878,9 @@ function PC:Rebuild()
                 local s = Sensor(token, def)
                 if s then t.watch[1] = s end
             else
+                -- "others" skips the caster: see Mass Barrier in the data.
                 for _, other in ipairs(TOKENS) do
-                    if UnitExists(other) then
+                    if UnitExists(other) and not (def.who == "others" and other == token) then
                         local s = Sensor(other, def)
                         if s then t.watch[#t.watch + 1] = s end
                     end

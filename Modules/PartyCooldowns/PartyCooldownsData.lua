@@ -38,6 +38,9 @@
       * "any"   an external or a zone: the buff can land on anyone, so every
                 group member is watched and the cooldown goes to whoever in
                 the group can cast it
+      * "others" like "any" but never the caster, for a buff the caster
+                also gets from something else (Mass Barrier vs the mage's
+                own barrier)
 
     Only cooldowns that leave a buff can be tracked in combat -- see the
     kiraui-party-cds-technique notes. Interrupts and most damage cooldowns
@@ -79,6 +82,8 @@ local SPELLS = {
       specMods = { [104] = { {"chg", 1} } } },                                   -- Survival Instincts
     { key = 102342, class = "DRUID", cat = "external", who = "any", cd = 90, talent = true,
       specs = {105}, mods = { {382552, "flat", -20} } },                         -- Ironbark
+    { key = 106898, class = "DRUID", cat = "group", who = "self", cd = 120, talent = true,
+      buffs = {106898, 77764, 77761}, mods = { {288826, "flat", -60} } },        -- Stampeding Roar (per form)
 
     -- EVOKER
     { key = 363916, class = "EVOKER", cat = "personal", who = "self", cd = 90, charges = 1, talent = true,
@@ -86,6 +91,7 @@ local SPELLS = {
     { key = 357170, class = "EVOKER", cat = "external", who = "any", cd = 60, charges = 1, talent = true,
       specs = {1468}, mods = { {376204, "chg", 1}, {376204, "flat", -10} } },    -- Time Dilation
     { key = 374227, class = "EVOKER", cat = "group", who = "any", cd = 120, talent = true },  -- Zephyr
+    { key = 370665, class = "EVOKER", cat = "external", who = "any", cd = 60, talent = true }, -- Rescue (1s buff on the target)
 
     -- HUNTER
     { key = 186265, class = "HUNTER", cat = "personal", who = "self", cd = 180,
@@ -100,6 +106,10 @@ local SPELLS = {
                {1265517, "flat", -30} } },                                       -- Ice Block / Ice Cold
     { key = 342245, class = "MAGE", cat = "personal", who = "self", cd = 60, talent = true,
       buffs = {342246} },                                                        -- Alter Time
+    -- Mass Barrier puts the spec's barrier on the group; the mage casts the
+    -- same barrier on themselves every 25s, so only OTHER members are read.
+    { key = 414660, class = "MAGE", cat = "group", who = "others", cd = 180, talent = true,
+      buffs = {11426, 235313, 235450} },                                         -- Mass Barrier
     { key = 110959, class = "MAGE", cat = "personal", who = "self", cd = 120, talent = true,
       buffs = {110960}, mods = { {210476, "flat", -60} } },                      -- Greater Invisibility
     { key = 55342,  class = "MAGE", cat = "personal", who = "self", cd = 120, talent = true,
@@ -148,6 +158,7 @@ local SPELLS = {
       specs = {257} },                                                           -- Guardian Spirit
     { key = 62618,  class = "PRIEST", cat = "group", who = "any", cd = 180, talent = true,
       buffs = {81782}, specs = {256} },                                          -- Power Word: Barrier
+    { key = 10060,  class = "PRIEST", cat = "external", who = "any", cd = 120, talent = true }, -- Power Infusion
 
     -- ROGUE
     { key = 31224,  class = "ROGUE", cat = "personal", who = "self", cd = 120, talent = true }, -- Cloak of Shadows
@@ -156,6 +167,8 @@ local SPELLS = {
     -- SHAMAN
     { key = 108271, class = "SHAMAN", cat = "personal", who = "self", cd = 120, talent = true,
       mods = { {381647, "flat", -30} } },                                        -- Astral Shift
+    { key = 192077, class = "SHAMAN", cat = "group", who = "any", cd = 120, talent = true,
+      buffs = {192082} },                                                        -- Wind Rush Totem
 
     -- WARLOCK
     { key = 104773, class = "WARLOCK", cat = "personal", who = "self", cd = 180,
