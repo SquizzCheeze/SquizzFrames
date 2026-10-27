@@ -33,6 +33,12 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.1"] = {
+        "Party Cooldowns (Tools > Party Cooldowns): your group's defensives, externals and group-wide cooldowns as icons on their party frames, with countdowns - and it keeps working in combat and in keys. Off by default.",
+        "Cooldown lengths follow each player's spec and talents, talent cooldowns nobody took are hidden, and two-charge spells show when a charge is left.",
+        "Potions too: everyone's combat potion, plus your own health potion and Healthstone.",
+        "Place them below, above or beside the frames, in as many rows as you like, and tick off any spell you don't care about.",
+    },
     ["2.0.1"] = {
         "With Squizzumables, a resource bar or cast bar attached to a Cooldown Manager row no longer loads in the wrong place and jumps into position after login or /reload.",
     },
