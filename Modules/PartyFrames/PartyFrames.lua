@@ -2958,14 +2958,20 @@ local function IsLiveHeader(h)
     return false
 end
 
+-- Counters for /sfrosterdiag: whether the hook fires at all, and why it bails.
+local liveStats = {calls = 0, notInit = 0, notLive = 0, cleared = 0, full = 0}
+
 function PartyFrames.OnButtonUnitAssigned(button, unit)
-    if not initialized or not IsLiveHeader(button:GetParent()) then return end
+    liveStats.calls = liveStats.calls + 1
+    if not initialized then liveStats.notInit = liveStats.notInit + 1 return end
+    if not IsLiveHeader(button:GetParent()) then liveStats.notLive = liveStats.notLive + 1 return end
     local old = button.unit
     if not unit then
         -- Someone left and the header emptied this button. Unmap it so unit
         -- events stop landing on it; RegisterUnitWatch hides it. button.unit
         -- stays as it was: code all over reads it and none expects nil.
         if old and unitButtons[old] == button then unitButtons[old] = nil end
+        liveStats.cleared = liveStats.cleared + 1
         return
     end
     if old and old ~= unit and unitButtons[old] == button then
@@ -2977,6 +2983,7 @@ function PartyFrames.OnButtonUnitAssigned(button, unit)
     if old == unit and guid and button._sfLiveGuid == guid then return end
     button.unit = unit
     button._sfLiveGuid = guid
+    liveStats.full = liveStats.full + 1
     UpdateButtonAll(button)
     SquizzFrames:Fire("PartyButtonUnitChanged", button, unit)
 end
@@ -3033,6 +3040,17 @@ SlashCmdList["SQUIZZROSTERDIAG"] = function()
     end
     print(P .. "game roster: " .. (#roster > 0 and table.concat(roster, ", ") or "(solo)"))
 
+    print(P .. ("live hook: %d calls, %d full updates, %d cleared, bailed %d not-initialized / %d not-live-header")
+        :format(liveStats.calls, liveStats.full, liveStats.cleared, liveStats.notInit, liveStats.notLive))
+
+    -- A secret prints NOTHING (not an error), which would silently drop the
+    -- whole row, so every value that can be one goes through this.
+    local function Plain(v)
+        if v == nil then return "nil" end
+        if not F.IsValueNonSecret(v) then return "<secret>" end
+        return tostring(v)
+    end
+
     local shown, hidden, unitless = 0, 0, 0
     -- Walks whichever headers are live -- eight subgroup headers in a raid --
     -- and labels each row with the header it came from, since "child 2" means
@@ -3048,10 +3066,13 @@ SlashCmdList["SQUIZZROSTERDIAG"] = function()
                 if isShown then shown = shown + 1 else hidden = hidden + 1 end
                 -- Only print interesting rows: anything real, or any disagreement.
                 if exists or isShown or wired ~= attrUnit then
-                    print(("   %s[%d] attr=%s wired=%s exists=%s shown=%s alpha=%.2f size=%dx%d")
-                        :format(hName, i, tostring(attrUnit), tostring(wired), tostring(exists),
-                            tostring(isShown), button:GetAlpha() or 0,
-                            math.floor(button:GetWidth() or 0), math.floor(button:GetHeight() or 0)))
+                    local nt = button.indicators and button.indicators.nameText
+                    print(("   %s[%d] attr=%s unit=%s lastWire=%s map=%s shown=%s is=%s drawn=%s")
+                        :format(hName, i, tostring(attrUnit), tostring(wired),
+                            tostring(button._sfWiredUnit),
+                            unitButtons[attrUnit] == button and "ok" or "WRONG",
+                            tostring(isShown), Plain(UnitName(attrUnit)),
+                            nt and nt.GetText and Plain(nt:GetText()) or "-"))
                 end
             else
                 unitless = unitless + 1
