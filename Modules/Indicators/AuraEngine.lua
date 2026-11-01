@@ -1203,60 +1203,30 @@ end
 -- whatever content is declared AT THAT MOMENT). UpdateAllAuras then forces an
 -- immediate re-parse so the new unit's existing auras appear without waiting
 -- for its next UNIT_AURA.
-local pendingRebinds = {}
-local rebindListener
-
-local function ApplyRebind(container, unitToken)
-    container:SetUnit(unitToken)
-    container:UpdateAllAuras()
-end
-
-function AE.RebindUnit(container, unitToken)
+--
+-- IMMEDIATE, combat included (2026-11-01). This used to queue until
+-- PLAYER_REGEN_ENABLED, on the grounds that SetUnit's combat legality was
+-- unverified and that button.unit was combat-stale anyway, so staying
+-- uniformly one sort behind beat a name over someone else's debuffs. Both
+-- premises are gone: EllesmereUI calls SetUnit + UpdateAllAuras on live
+-- containers mid-fight from its OnAttributeChanged hook, and our own buttons
+-- now follow the header live (PartyFrames.OnButtonUnitAssigned), so deferring
+-- the containers would be the one thing left behind. The header itself has
+-- no InCombatLockdown check and re-sorts mid-combat (Blizzard's
+-- SecureGroupHeaders.lua).
+--
+-- `force` re-parses an unchanged token: the person behind a party token
+-- changes when someone ahead of them leaves.
+function AE.RebindUnit(container, unitToken, force)
     if not container or not unitToken then return end
     local data = containerData[container]
     -- Cheap no-op guard: HandleIndicators re-runs constantly (rosters stream
     -- in over several frames), and re-binding an unchanged unit would force a
     -- pointless full re-parse every time.
-    if data and data.unit == unitToken then return end
+    if data and data.unit == unitToken and not force then return end
     if data then data.unit = unitToken end
-
-    -- Deferred in combat for the same reason creation is: this reaches into
-    -- the same C-side container plumbing, and SetUnit's combat legality on an
-    -- existing container is unverified -- not worth finding out mid-fight.
-    --
-    -- Note this is NOT because the header holds still: SecureGroupHeaders.lua
-    -- has no InCombatLockdown check at all (checked against Blizzard's source
-    -- in Blizzard_RestrictedAddOnEnvironment), and being privileged code it
-    -- can and does re-sort and rewrite child unit attributes mid-combat. So a
-    -- re-sort during a fight does leave these bindings stale until it ends.
-    -- That's deliberate and consistent rather than a gap: WireUpAllButtons is
-    -- itself combat-gated, so button.unit -- and therefore name text, health,
-    -- and every legacy indicator -- is equally stale for that same window.
-    -- Re-pointing only the aura containers mid-fight would produce a frame
-    -- showing one player's name over another player's debuffs, which is worse
-    -- than being uniformly one sort behind.
-    --
-    -- pendingRebinds is keyed BY CONTAINER, so repeated unit changes during
-    -- one fight collapse to the final token rather than replaying.
-    if InCombatLockdown() then
-        pendingRebinds[container] = unitToken
-        if not rebindListener then
-            rebindListener = CreateFrame("Frame")
-            rebindListener:RegisterEvent("PLAYER_REGEN_ENABLED")
-            rebindListener:SetScript("OnEvent", function()
-                local queue = pendingRebinds
-                pendingRebinds = {}
-                for c, u in pairs(queue) do
-                    ApplyRebind(c, u)
-                end
-            end)
-        end
-        return
-    end
-
-    -- A rebind queued earlier in this same combat is now superseded.
-    pendingRebinds[container] = nil
-    ApplyRebind(container, unitToken)
+    container:SetUnit(unitToken)
+    container:UpdateAllAuras()
 end
 
 -- Combat-safe wrapper: fulfills immediately out of combat, otherwise queues

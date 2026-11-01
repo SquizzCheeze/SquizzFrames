@@ -957,6 +957,10 @@ local function WireUpButton(button, unit)
     if not button then return end
     unitButtons[unit] = button
     button.unit = unit
+    -- What the last full wire saw, kept apart from button.unit: the live
+    -- OnAttributeChanged path (OnButtonUnitAssigned) moves button.unit mid-
+    -- combat, and HeaderUnitsChanged must still see that a wire is owed.
+    button._sfWiredUnit = unit
     resolveChildren(button)
     -- Bars are now Texture objects in <Layer level="BACKGROUND">, so they
     -- naturally render behind all text/artwork/overlay layers. No frame level
@@ -2477,7 +2481,11 @@ function PartyFrames:OnEnable()
             ForEachHeaderButton(function(button)
                 if button ~= UIParent then
                     local attr = button:GetAttribute("unit")
-                    if attr ~= button.unit then changed = true end
+                    -- Against the last WIRE, not button.unit: the live hook
+                    -- keeps button.unit current, so comparing with it would
+                    -- report "nothing changed" and skip a wire still owed
+                    -- (sizing, click registration, indicator rebuild).
+                    if attr ~= button._sfWiredUnit then changed = true end
                 end
             end)
             return changed
@@ -2500,7 +2508,13 @@ function PartyFrames:OnEnable()
         --     shrink-wraps (OnRosterOrFlagChanged) and visible buttons still
         --     refresh (UpdateAllButtons).
         local function ReapplyRosterLayout()
-            if InCombatLockdown() then return end
+            -- In combat the wire waits, but repainting is not protected: a
+            -- member who moved onto a token another button already held gets
+            -- their own health and name now, not after the fight.
+            if InCombatLockdown() then
+                UpdateAllButtons()
+                return
+            end
             OnRosterOrFlagChanged()
             if HeaderUnitsChanged() then
                 WireUpAllButtons()
@@ -2517,11 +2531,10 @@ function PartyFrames:OnEnable()
         -- in range only because UNIT_NAME_UPDATE triggers a re-wire.
         --
         -- A 1s out-of-combat check of the header against what was wired closes
-        -- that for any timing. Polled rather than hooked: a HookScript on a
-        -- secure child's OnAttributeChanged would run our code inside the
-        -- header's own secure update, which is a taint risk this file has
-        -- paid for before. Cheap -- an attribute read per button -- and it
-        -- re-wires only when something actually moved.
+        -- that for any timing. Cheap -- an attribute read per button -- and it
+        -- re-wires only when something actually moved. The live, in-combat
+        -- half is the OnAttributeChanged hook (OnButtonUnitAssigned); this
+        -- owes the protected half (sizing, clicks, indicator rebuild) it skips.
         -- Once per session: OnEnable can run again after a disable.
         if self._sfUnitWatchdog then self._sfUnitWatchdog:Cancel() end
         self._sfUnitWatchdog = C_Timer.NewTicker(1, function()
@@ -2917,6 +2930,55 @@ end
 
 function PartyFrames.FindButtonByUnit(unit)
     return unitButtons[unit]
+end
+
+-- LIVE UNIT TRACKING (user report 2026-11-01: a member leaving mid-fight left
+-- the frames showing the wrong people until combat ended; EllesmereUI's do not).
+--
+-- The secure header reassigns its children's units in combat -- it is
+-- privileged code with no lockdown check. Our map of which button shows which
+-- unit (unitButtons + button.unit) was only rebuilt by WireUpAllButtons, which
+-- is combat-gated, so every unit event painted onto the wrong button for the
+-- rest of the fight. This runs from each button's OnAttributeChanged hook
+-- (UnitButton.lua) the moment the header assigns, in or out of combat, and does
+-- only unprotected work: the map, a repaint, and a message so indicators and
+-- party cooldowns follow. Sizing, click registration and the full indicator
+-- rebuild still wait for the next wire (see HeaderUnitsChanged). Same approach
+-- as EllesmereUI's EUI_RaidFrames_Style.lua.
+--
+-- The header re-sets EVERY child's unit on every re-process, mostly to the
+-- same value, so the common case is a map write and an early return. Same
+-- token with a different GUID (party2 leaves, party3 becomes party2) is a real
+-- change and takes the full path; so does a secret GUID, which can't be compared.
+local function IsLiveHeader(h)
+    if not h then return false end
+    for _, a in ipairs(ActiveHeaders()) do
+        if a == h then return true end
+    end
+    return false
+end
+
+function PartyFrames.OnButtonUnitAssigned(button, unit)
+    if not initialized or not IsLiveHeader(button:GetParent()) then return end
+    local old = button.unit
+    if not unit then
+        -- Someone left and the header emptied this button. Unmap it so unit
+        -- events stop landing on it; RegisterUnitWatch hides it. button.unit
+        -- stays as it was: code all over reads it and none expects nil.
+        if old and unitButtons[old] == button then unitButtons[old] = nil end
+        return
+    end
+    if old and old ~= unit and unitButtons[old] == button then
+        unitButtons[old] = nil
+    end
+    unitButtons[unit] = button
+    local guid = UnitGUID(unit)
+    if not F.IsValueNonSecret(guid) then guid = nil end
+    if old == unit and guid and button._sfLiveGuid == guid then return end
+    button.unit = unit
+    button._sfLiveGuid = guid
+    UpdateButtonAll(button)
+    SquizzFrames:Fire("PartyButtonUnitChanged", button, unit)
 end
 
 -- Exposes the private GetBarTexture local above so PetFrames.lua doesn't

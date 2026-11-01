@@ -1433,6 +1433,28 @@ local function OnPartyButtonsWired(_, header)
     end
 end
 
+-- The header moved a button onto another member WITHOUT a wire -- mid-combat,
+-- or ahead of the next roster pass (PartyFrames.OnButtonUnitAssigned). Bring
+-- the indicators across without rebuilding them: re-point the aura containers
+-- (forced, since the token can be unchanged while the person is not) and re-run
+-- the checks and the legacy scan, which all read button.unit live. The rebuild
+-- still happens at the next wire (_sfBuiltUnit no longer matches). A button
+-- never built has nothing to move; the wire builds it.
+local function OnPartyButtonUnitChanged(_, button)
+    if type(button) ~= "table" or not button._indicatorsReady then return end
+    local AEI = SquizzFrames.AuraEngineIndicators
+    if AEI and AEI.SyncContainerUnits then
+        AEI.SyncContainerUnits(button, true)
+    end
+    if BuiltIn then
+        BuiltIn.CheckAll(button)
+    end
+    local CustomDispatch = SquizzFrames.modules and SquizzFrames.modules["Custom_Dispatch"]
+    if CustomDispatch and CustomDispatch.Scan then
+        CustomDispatch.Scan(button)
+    end
+end
+
 local function OnPartyButtonWiredSingle(_, button)
     if not button or type(button) ~= "table" then return end
     I.HandleIndicators(button)
@@ -1446,6 +1468,7 @@ function I:OnInitialize()
     BuiltIn = SquizzFrames.modules and SquizzFrames.modules["BuiltIn_Update"]
     self:RegisterMessage("PartyButtonsWired", OnPartyButtonsWired)
     self:RegisterMessage("PartyButtonWired", OnPartyButtonWiredSingle)
+    self:RegisterMessage("PartyButtonUnitChanged", OnPartyButtonUnitChanged)
     self:RegisterMessage("UpdateIndicators", UpdateIndicators)
     self:RegisterMessage("ProfileChanged", "OnProfileChanged")
     -- Party <-> raid switch (bug fix 2026-08-07). Party and Raid have

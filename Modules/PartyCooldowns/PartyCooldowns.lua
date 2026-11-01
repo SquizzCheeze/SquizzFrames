@@ -1265,6 +1265,8 @@ function PC:OnEnable()
     self:RegisterMessage("ProfileChanged", QueueRebuild)
     -- The party frames re-wire their buttons on roster and sort changes.
     self:RegisterMessage("PartyButtonsWired", QueueRebuild)
+    -- ...and, between wires, follow the header live, combat included.
+    self:RegisterMessage("PartyButtonUnitChanged", QueueRebuild)
 
     -- Inspect replies can be slow or never come; keep the queue moving.
     C_Timer.NewTicker(2, InspectNext)

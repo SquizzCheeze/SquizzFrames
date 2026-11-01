@@ -2,6 +2,17 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.2
+-----
+
+Fixed:
+
+- A member leaving, joining or being re-sorted during combat no longer
+  leaves the party and raid frames showing the wrong people until the
+  fight ends. Health, names, status, aura indicators and Party Cooldowns
+  now follow the change straight away, in combat too.
+
+
 V2.1 (2026-10-27)
 -----
 

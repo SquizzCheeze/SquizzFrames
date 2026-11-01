@@ -53,6 +53,19 @@ local function UnitButton_OnLeave(self)
     end
 end
 
+-- Fires for every attribute, and the header re-sets every child's unit on each
+-- re-process, so this stays a string compare until it is a unit change.
+-- PartyFrames is looked up at fire time: buttons can load before the module
+-- exists, and NewModule never sets SquizzFrames.PartyFrames.
+local partyFramesModule
+local function UnitButton_OnAttributeChanged(self, name, value)
+    if name ~= "unit" then return end
+    partyFramesModule = partyFramesModule or SquizzFrames:GetModule("PartyFrames", true)
+    if partyFramesModule and partyFramesModule.OnButtonUnitAssigned then
+        partyFramesModule.OnButtonUnitAssigned(self, value)
+    end
+end
+
 -- OnLoad for unit button template
 function SquizzFramesUnitButton_OnLoad(self)
     -- Store reference in global scope for secure template lookups
@@ -205,4 +218,9 @@ function SquizzFramesUnitButton_OnLoad(self)
     -- replace it and break click-casting.
     self:HookScript("OnEnter", UnitButton_OnEnter)
     self:HookScript("OnLeave", UnitButton_OnLeave)
+
+    -- Follow the secure header's unit assignments live, combat included (see
+    -- PartyFrames.OnButtonUnitAssigned). Hooked, never SetScript: the header's
+    -- own handling must still run. The handler does nothing protected.
+    self:HookScript("OnAttributeChanged", UnitButton_OnAttributeChanged)
 end

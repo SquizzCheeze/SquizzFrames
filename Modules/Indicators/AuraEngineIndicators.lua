@@ -1864,7 +1864,9 @@ AEI.shared = { ExtractSize = ExtractSize } -- private helpers the split-out file
 -- button's real "player" unit is precisely the real-data leak those branches
 -- exist to prevent.
 ------------------------------------------------------------------------
-function AEI.SyncContainerUnits(button)
+-- `force` re-parses even when the token is unchanged: party3 leaving makes the
+-- old party4 the new party3, a different person under the same token.
+function AEI.SyncContainerUnits(button, force)
     if not button or not button.indicators then return end
     local AE = SquizzFrames.AuraEngine
     if not AE or not AE.RebindUnit then return end
@@ -1880,7 +1882,7 @@ function AEI.SyncContainerUnits(button)
         -- on a combat-deferred creation. The latter need nothing here: they
         -- get created with whatever unit is current when the queue drains.
         if type(indicator) == "table" and indicator._container then
-            AE.RebindUnit(indicator._container, unit)
+            AE.RebindUnit(indicator._container, unit, force)
         end
     end
 end
