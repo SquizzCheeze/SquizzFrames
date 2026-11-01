@@ -927,7 +927,7 @@ restyler:SetScript("OnUpdate", function(self)
     -- addon code from touching an AuraButton at all once its aura is secret
     -- (roughly: while in combat/an encounter). Leave the queue/work untouched
     -- and keep ticking every frame -- resumes on its own the moment combat
-    -- ends, same deferral pattern as AE.RequestContainer's regenListener.
+    -- ends.
     if InCombatLockdown() then return end
     local budget = RESTYLE_BUDGET
     while budget > 0 do
@@ -1130,7 +1130,6 @@ function AE.ApplyContainerLayout(container, layout)
 end
 
 function AE.CreateContainer(parent, unitToken, spec)
-    assert(not InCombatLockdown(), "AuraEngine: containers cannot be created in combat; use AE.RequestContainer")
 
     local container = CreateFrame("AuraContainer", nil, parent, "CustomAuraContainerTemplate")
 
@@ -1229,12 +1228,12 @@ function AE.RebindUnit(container, unitToken, force)
     container:UpdateAllAuras()
 end
 
--- Combat-safe wrapper: fulfills immediately out of combat, otherwise queues
--- until PLAYER_REGEN_ENABLED.
-local pending = {}
-local regenListener
-local drainListeners = {}
-
+-- Kept as the one entry point every caller uses. It used to queue requests
+-- made in combat until PLAYER_REGEN_ENABLED, when container creation was
+-- refused in combat. That stopped with 12.1 PTR 7 (build 68914) and EllesmereUI
+-- has created them mid-fight since; the queue meant a member who joined
+-- mid-fight had no HoTs, debuffs or dispels until it ended (user report
+-- 2026-11-01).
 function AE.RequestContainer(parent, unitToken, spec, callback)
     -- No unit, no container. A container is bound to a unit for life, and
     -- there is nothing sensible to bind to yet -- building one anyway is how
@@ -1247,46 +1246,8 @@ function AE.RequestContainer(parent, unitToken, spec, callback)
     -- during the window before the header has assigned units, and they get
     -- called again once it has.
     if not unitToken then return end
-    if not InCombatLockdown() then
-        local container, slotFrames = AE.CreateContainer(parent, unitToken, spec)
-        if callback then callback(container, slotFrames) end
-        return
-    end
-
-    pending[#pending + 1] = { parent = parent, unit = unitToken, spec = spec, callback = callback }
-
-    if not regenListener then
-        regenListener = CreateFrame("Frame")
-        regenListener:RegisterEvent("PLAYER_REGEN_ENABLED")
-        regenListener:SetScript("OnEvent", function()
-            local queue = pending
-            pending = {}
-            for i = 1, #queue do
-                local q = queue[i]
-                local container, slotFrames = AE.CreateContainer(q.parent, q.unit, q.spec)
-                if q.callback then q.callback(container, slotFrames) end
-            end
-            -- q.unit was captured when the request was QUEUED -- i.e. before
-            -- this combat -- so anything that reassigned unit tokens meanwhile
-            -- leaves these fresh containers bound to the wrong unit. The
-            -- re-wire that fixes that (WireUpAllButtons -> HandleIndicators ->
-            -- AEI.SyncContainerUnits) also runs off PLAYER_REGEN_ENABLED, from
-            -- a DIFFERENT frame, so which of the two goes first is undefined --
-            -- and if it goes first it finds _container still nil and skips.
-            -- Notifying explicitly here makes the outcome order-independent.
-            if #queue > 0 then
-                for j = 1, #drainListeners do
-                    drainListeners[j]()
-                end
-            end
-        end)
-    end
-end
-
--- Register a function to run right after a batch of combat-deferred
--- containers is created. See the drain loop above for why this exists.
-function AE.OnContainersDrained(fn)
-    drainListeners[#drainListeners + 1] = fn
+    local container, slotFrames = AE.CreateContainer(parent, unitToken, spec)
+    if callback then callback(container, slotFrames) end
 end
 
 function AE.GetContainerData(container)

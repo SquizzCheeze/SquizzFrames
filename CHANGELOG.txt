@@ -11,6 +11,9 @@ Fixed:
   leaves the party and raid frames showing the wrong people until the
   fight ends. Health, names, status, aura indicators and Party Cooldowns
   now follow the change straight away, in combat too.
+- A member who joins during combat now gets a full frame straight away:
+  health bar, the right size, and all indicators including HoTs, debuffs
+  and dispels. Before, the frame stayed blank until the fight ended.
 
 
 V2.1 (2026-10-27)

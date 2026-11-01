@@ -1267,6 +1267,8 @@ function PC:OnEnable()
     self:RegisterMessage("PartyButtonsWired", QueueRebuild)
     -- ...and, between wires, follow the header live, combat included.
     self:RegisterMessage("PartyButtonUnitChanged", QueueRebuild)
+    -- ...including a mid-fight joiner landing on a button that had no one.
+    self:RegisterMessage("PartyButtonWired", QueueRebuild)
 
     -- Inspect replies can be slow or never come; keep the queue moving.
     C_Timer.NewTicker(2, InspectNext)

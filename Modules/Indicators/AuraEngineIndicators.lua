@@ -1988,21 +1988,6 @@ function AEI.RefreshIdentityGatedFilters()
     -- it: its containers are absent or bound to a fake token on purpose.
 end
 
--- Sync every real button. Used for the post-combat container drain below,
--- where the trigger is engine-side rather than per-button.
-function AEI.SyncAllContainerUnits()
-    local PartyFrames = SquizzFrames.modules and SquizzFrames.modules["PartyFrames"]
-    if PartyFrames and PartyFrames.IterateButtons then
-        PartyFrames:IterateButtons(AEI.SyncContainerUnits)
-    end
-end
-
-do
-    local AE = SquizzFrames.AuraEngine
-    if AE and AE.OnContainersDrained then
-        AE.OnContainersDrained(AEI.SyncAllContainerUnits)
-    end
-end
 
 -----------------------------------------------------------------------
 -- /sfants -- state of the Dispels Animated Border on the Designer preview

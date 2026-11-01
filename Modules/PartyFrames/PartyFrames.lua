@@ -950,27 +950,30 @@ local function resolveChildren(button, overrideW, overrideH, overridePowerH)
     -- so we must re-apply our size AFTER the header finishes configuring.
     -- resolveChildren runs from WireUpButton, which is called after the header
     -- has configured its children — making this the reliable place to size.
-    button:SetSize(bw, bh)
+    -- Protected in combat; the bars above are not, which is what lets the live
+    -- path (OnButtonUnitAssigned) give a never-prepared button its bars.
+    if not InCombatLockdown() then
+        button:SetSize(bw, bh)
+    end
 end
 
-local function WireUpButton(button, unit)
-    if not button then return end
-    unitButtons[unit] = button
-    button.unit = unit
-    -- What the last full wire saw, kept apart from button.unit: the live
-    -- OnAttributeChanged path (OnButtonUnitAssigned) moves button.unit mid-
-    -- combat, and HeaderUnitsChanged must still see that a wire is owed.
-    button._sfWiredUnit = unit
+-- Everything a button needs before it can show anybody, none of it per-unit:
+-- size, bar widths, clicks, the drag hook. Done for EVERY header child, empty
+-- ones included, so a member who joins mid-fight lands on a button that is
+-- already sized and clickable -- the header hands it over in combat, when
+-- none of this is allowed any more (user report 2026-11-01: the joiner showed
+-- no health bar). Out of combat only.
+local function PrepButton(button)
     resolveChildren(button)
-    -- Bars are now Texture objects in <Layer level="BACKGROUND">, so they
-    -- naturally render behind all text/artwork/overlay layers. No frame level
-    -- adjustment needed (Textures don't support SetFrameLevel anyway).
-
+    button._sfPrepped = true
     -- Register for clicks so click-casting attributes (type1/type2/...) can
     -- fire. SecureUnitButtonTemplate provides default left-click=target and
     -- right-click=menu; our click-casting bindings override those per-button
     -- by setting the specific typeN attributes.
     button:RegisterForClicks("AnyUp")
+    -- Bars are now Texture objects in <Layer level="BACKGROUND">, so they
+    -- naturally render behind all text/artwork/overlay layers. No frame level
+    -- adjustment needed (Textures don't support SetFrameLevel anyway).
 
     -- Drag-to-move: when in edit mode, left-press on a button starts the
     -- container's drag. Hooked (never SetScript -- that would replace the
@@ -997,6 +1000,17 @@ local function WireUpButton(button, unit)
             if onMouseDown then onMouseDown(mover, "LeftButton") end
         end)
     end
+end
+
+local function WireUpButton(button, unit)
+    if not button then return end
+    unitButtons[unit] = button
+    button.unit = unit
+    -- What the last full wire saw, kept apart from button.unit: the live
+    -- OnAttributeChanged path (OnButtonUnitAssigned) moves button.unit mid-
+    -- combat, and HeaderUnitsChanged must still see that a wire is owed.
+    button._sfWiredUnit = unit
+    PrepButton(button)
 end
 
 local wireUpRetryFrame
@@ -1183,7 +1197,7 @@ local function WireUpAllButtons()
                 if not unit and isPartyHeader and not inRaid then
                     unit = fallbackUnits[i]
                 end
-                if unit then WireUpButton(button, unit) end
+                if unit then WireUpButton(button, unit) else PrepButton(button) end
             end
         end
     end
@@ -2984,8 +2998,20 @@ function PartyFrames.OnButtonUnitAssigned(button, unit)
     button.unit = unit
     button._sfLiveGuid = guid
     liveStats.full = liveStats.full + 1
+    -- A button no wire ever reached (normally PrepButton covers every child):
+    -- resolveChildren skips the protected SetSize in combat but still sizes
+    -- the bars, which is what makes the health bar visible at all.
+    if not button._sfPrepped then resolveChildren(button) end
     UpdateButtonAll(button)
-    SquizzFrames:Fire("PartyButtonUnitChanged", button, unit)
+    if button._indicatorsReady then
+        SquizzFrames:Fire("PartyButtonUnitChanged", button, unit)
+    else
+        -- Never had a unit, so it has no indicators to move: build them now,
+        -- combat included (user report 2026-11-01: a mid-fight joiner showed
+        -- none). Frames on the button are fine in combat; aura containers queue
+        -- themselves to regen through AE.RequestContainer.
+        SquizzFrames:Fire("PartyButtonWired", button)
+    end
 end
 
 -- Exposes the private GetBarTexture local above so PetFrames.lua doesn't

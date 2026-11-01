@@ -133,7 +133,7 @@ self:RegisterMessage("MessageName", function(_, arg1, arg2) ... end)
 - **All secure attribute changes** (layout, click-casting, indicators on secure frames) must happen **out of combat**
 - `InCombatLockdown()` guards + `C_Timer.After(0.5, retry)` pattern throughout
 - `PLAYER_REGEN_ENABLED` used to flush deferred work
-- 12.1 AuraEngine has its own parallel combat-safe patterns: `AE.RequestContainer` queues container creation until `PLAYER_REGEN_ENABLED` (container creation itself hard-errors in combat by Blizzard design), and `AE.RestyleSoon`'s time-sliced restyler simply stops ticking (not errors) while `InCombatLockdown()` and resumes on its own after combat
+- 12.1 AuraEngine has its own parallel combat-safe patterns: `AE.RequestContainer` creates containers immediately, combat included (legal since 12.1 PTR 7, build 68914; it queued them to `PLAYER_REGEN_ENABLED` until 2026-11-01, which left mid-fight joiners without aura indicators), and `AE.RestyleSoon`'s time-sliced restyler simply stops ticking (not errors) while `InCombatLockdown()` and resumes on its own after combat
 
 ### 3. Layout System (PartyFrames.lua)
 - **Single container** (`SquizzFramesPartyFrame`) anchored `CENTER→CENTER` to `UIParent` with saved `anchorX/anchorY` (pixels from screen center, scaled by UI scale)
@@ -269,7 +269,7 @@ not just the defaults table.
 
 **Core engine pieces (`AuraEngine.lua`)**:
 - `AE.CreateContainer(parent, unitToken, spec)` — builds a real `AuraContainer` frame (`CreateFrame("AuraContainer", nil, parent, "CustomAuraContainerTemplate")`), declares groups (`AddAuraGroup`, multi-icon grids) and slots (`AddAuraSlot`, exactly-one-always-present overlays like dispel types or a single tracked spell), then `SetUnit` **last** (setting it before groups/slots are declared leaves `UNIT_AURA` unregistered). Asserts `not InCombatLockdown()` — never call directly from anywhere that might run in combat.
-- `AE.RequestContainer(parent, unitToken, spec, callback)` — the actual call site everywhere else uses; fulfills immediately out of combat, otherwise queues until `PLAYER_REGEN_ENABLED`.
+- `AE.RequestContainer(parent, unitToken, spec, callback)` — the actual call site everywhere else uses; skips a nil unit, otherwise creates immediately, in combat too.
 - `AE.styles[styleKey]` + `AE.MakeInitializer(styleKey, extra)` — a style is a plain table describing how a button should look; `MakeInitializer` returns the `initializeFrame` callback the engine calls **once per button, at creation time** (buttons are pre-created in batches of 10). This is the ONLY place region creation + `SetIcon`/`SetDurationCooldown`/`SetApplicationCount`/`SetDurationText` registration may happen — see the PTR5 rule below.
 - `AE.RestyleSoon(styleKey)` — settings changes (size, colors, border, duration visibility) don't touch buttons synchronously; they queue the style key and a time-sliced `OnUpdate` restyler applies `ApplyStyleToRegions` to up to 200 buttons/frame, pausing entirely (not skipping/erroring) during combat.
 - `style.noRegions = true` ("bare" styles) — used by dispels, custom color, and custom bar indicators, which don't want icon/cooldown/stack/duration regions at all, just a presence-driven host frame; all visuals are built by `style.applyExtra` instead.
