@@ -358,7 +358,9 @@ local function OnInspectReady(guid)
         spec = ok and Plain(s)
     end
     local ranks = ReadTraits(Constants and Constants.TraitConsts and Constants.TraitConsts.INSPECT_TRAIT_CONFIG_ID or -1)
-    if spec and spec > 0 then
+    -- Forever may not answer with a spec, and no entry there depends on one,
+    -- so the talents alone are worth keeping.
+    if (spec and spec > 0) or (SquizzFrames.IS_FOREVER and ranks) then
         known[guid] = { spec = spec, ranks = ranks, at = GetTime() }
     end
     if ClearInspectPlayer then pcall(ClearInspectPlayer) end
@@ -379,8 +381,29 @@ local function OwnedItem(def)
     return nil
 end
 
+-- Any rank of the spell in your spell book.
+local function KnowsAnyRank(def)
+    if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return true end
+    local function knows(id)
+        local ok, v = pcall(C_SpellBook.IsSpellKnown, id)
+        return ok and v
+    end
+    if knows(def.key) then return true end
+    for _, id in ipairs(def.casts or {}) do
+        if knows(id) then return true end
+    end
+    return false
+end
+
 local function Wanted(def, m)
     if def.class ~= "ANY" and def.class ~= m.class then return false end
+    -- Forever's table: a character can still be too low for the spell.
+    if def.minLevel then
+        local ok, level = pcall(UnitLevel, m.token)
+        level = ok and Plain(level)
+        if level and level > 0 and level < def.minLevel then return false end
+    end
+    if def.learned and m.token == "player" and not KnowsAnyRank(def) then return false end
     -- No buff to watch (healing potion, Healthstone): only your own, from
     -- the item cooldown, and only while you carry one.
     if def.ownOnly and (m.token ~= "player" or not OwnedItem(def)) then return false end
@@ -415,7 +438,7 @@ local function EffectiveCD(def, ranks, spec)
     end
     for _, mod in ipairs(def.mods or {}) do
         local r = ranks and ranks[mod[1]] or 0
-        if r > 0 then add(mod[2], mod[3] * r) end
+        if r > 0 then add(mod[2], mod.whole and mod[3] or mod[3] * r) end
     end
     return math.max(1, (def.cd + flat) * (1 + pct / 100)), charges
 end
@@ -1212,6 +1235,12 @@ SlashCmdList["SQUIZZCDCHECK"] = function()
         end
     end
     print(P .. string.format("%d checked, %d mismatched. Spells you do not know are skipped.", checked, bad))
+    for _, id in ipairs(DATA and DATA.unconfirmed and DATA.unconfirmed[class] or {}) do
+        if KnowsSpell(id) then
+            print(P .. string.format("You know %s (%d), which is not tracked yet. Worth adding.",
+                C_Spell.GetSpellName(id) or "?", id))
+        end
+    end
 end
 
 ------------------------------------------------------------------------
@@ -1247,6 +1276,11 @@ function PC:OnEnable()
         QueueRebuild()
     end)
     self:RegisterEvent("TRAIT_CONFIG_UPDATED", QueueRebuild)
+    -- Forever's characters level up and train new spells as they go.
+    if SquizzFrames.IS_FOREVER then
+        self:RegisterEvent("UNIT_LEVEL", QueueRebuild)
+        self:RegisterEvent("SPELLS_CHANGED", QueueRebuild)
+    end
     -- Your own exact cooldowns follow the game's cooldown events.
     self:RegisterEvent("SPELL_UPDATE_COOLDOWN", UpdateAllExact)
     self:RegisterEvent("SPELL_UPDATE_CHARGES", UpdateAllExact)

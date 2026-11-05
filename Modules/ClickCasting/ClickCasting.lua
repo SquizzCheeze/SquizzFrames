@@ -120,6 +120,21 @@ local COMBAT_RESURRECTION = {
     ["WARLOCK"]     = 20707,  -- Soulstone
 }
 
+-- WoW Forever: no mass resurrections, and the retail tiers would send a priest
+-- to one (one specialization per class, so [nospec:3] is always true). "exists"
+-- stands in for the spec condition. A warlock's Soulstone is an item here, with
+-- no spell to cast.
+if SquizzFrames.IS_FOREVER then
+    NORMAL_RESURRECTION = {
+        ["PALADIN"] = { ["exists"] = 7328 },
+        ["PRIEST"]  = { ["exists"] = 2006 },
+        ["SHAMAN"]  = { ["exists"] = 2008 },
+    }
+    COMBAT_RESURRECTION = {
+        ["DRUID"] = 20484, -- Rebirth
+    }
+end
+
 -- Build the ";[...] Spell" fallback segments for Smart Resurrection, based
 -- on the profile's smartResurrection mode ("normal", "combat", or
 -- "normalcombat" -- prefix/suffix matched so all 3 share one code path,

@@ -64,9 +64,16 @@ function SquizzFrames.ClaimReloadSlash(key)
     end)
 end
 
--- IS_121 / IS_1215 (client build gates) were removed in 2.0: the TOC is
--- 120105 only, so every client runs the 12.1 code and the pre-12.1 branches
--- they selected were deleted.
+-- IS_121 / IS_1215 (client build gates) were removed in 2.0: every client we
+-- load on runs the 12.1 engine, and the pre-12.1 branches they selected were
+-- deleted.
+--
+-- WoW Forever (game type "camelot") is that same engine with vanilla content,
+-- reporting a 1.60+ interface number. Retail stays the unbranched path; only
+-- what Forever genuinely does differently goes behind this flag.
+local clientInterface = select(4, GetBuildInfo())
+SquizzFrames.IS_FOREVER = type(clientInterface) == "number"
+    and clientInterface >= 16000 and clientInterface < 20000
 
 -----------------------------------------------------------------------
 -- Specialization API compat
@@ -623,6 +630,21 @@ local CLICK_CAST_SPELLS = {
     ["WARLOCK"] = { common = { 20707, 89808, 5697 } },
     ["WARRIOR"] = { common = { "3411C" }, [73] = { "213871P" } },
 }
+
+-- WoW Forever: first rank of each, from build 1.60.1.70790's data. Bindings cast
+-- by name, which the game takes as your highest rank, so one ID per spell is
+-- enough. One specialization per class, so no spec keys.
+if SquizzFrames.IS_FOREVER then
+    CLICK_CAST_SPELLS = {
+        ["DRUID"] = { common = { 1126, 21849, 467, 774, 8936, 5185, 20484, 2782, 8946, 2893, 29166, 18562, 408120, 408124 } },
+        ["HUNTER"] = { common = { 136 } },
+        ["MAGE"] = { common = { 1459, 23028, 475, 130, 604, 1008 } },
+        ["PALADIN"] = { common = { 7328, 635, 19750, 20473, 633, 4987, 1152, 1022, 1044, 6940, 19740, 19742, 20217, 412019 } },
+        ["PRIEST"] = { common = { 1243, 21562, 2006, 17, 139, 2050, 2054, 2060, 2061, 596, 527, 528, 552, 14752, 27681, 976, 6346, 10060, 1706, 401877 } },
+        ["SHAMAN"] = { common = { 331, 8004, 1064, 2008, 526, 2870, 408514, 408521, 546, 131 } },
+        ["WARLOCK"] = { common = { 5697, 755 } },
+    }
+end
 
 local function Copy(t)
     local c = {}
@@ -1226,6 +1248,8 @@ function F.SlashHandler(msg)
         else
             SquizzFrames:Print("Nicknames module isn't loaded.")
         end
+    elseif cmd == "forevercheck" then
+        if SquizzFrames.ForeverCheck then SquizzFrames.ForeverCheck() end
     elseif cmd == "notes" or cmd == "changelog" then
         -- Re-open the current release notes on demand. The window itself only
         -- appears once per version; this is the way back to it.

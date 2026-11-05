@@ -2666,8 +2666,26 @@ local function LightPingMarker(button, kit, unit)
     -- Blizzard's art is authored at 30px, so the user's size is expressed as a
     -- factor of that rather than forced onto both textures as a flat size.
     local factor = (indicator:GetWidth() or 30) / 30
-    SetPingAtlas(indicator.bg, "Ping_Frame_BG_" .. kit, factor)
-    SetPingAtlas(indicator.tex, "Ping_Frame_" .. kit, factor)
+    if SquizzFrames.IS_FOREVER then
+        -- Forever has no Ping_Frame_* atlases at all, so those two calls draw
+        -- nothing, without an error. The ping's world marker art does exist
+        -- (icon 35px on a 58px background). The icon takes the user's size and
+        -- the background keeps a similar proportion. Ability pings carry kits
+        -- with no art; those light nothing.
+        local icon, bg = "Ping_Marker_Icon_" .. kit, "Ping_UnitMarker_BG_" .. kit
+        if not C_Texture.GetAtlasInfo(icon) then return end
+        indicator.tex:SetAtlas(icon, false)
+        indicator.tex:SetSize(30 * factor, 30 * factor)
+        if C_Texture.GetAtlasInfo(bg) then
+            indicator.bg:SetAtlas(bg, false)
+            indicator.bg:SetSize(48 * factor, 48 * factor)
+        else
+            indicator.bg:SetTexture(nil)
+        end
+    else
+        SetPingAtlas(indicator.bg, "Ping_Frame_BG_" .. kit, factor)
+        SetPingAtlas(indicator.tex, "Ping_Frame_" .. kit, factor)
+    end
     indicator._sfPingUnit = unit
     indicator:Show()
 
@@ -2739,6 +2757,37 @@ end
 
 if type(CompactUnitFrame_SetUpFrame) == "function" then
     hooksecurefunc("CompactUnitFrame_SetUpFrame", HookCompactPingIcon)
+end
+
+-- WoW Forever: the hook above only catches a frame set up after we load, and
+-- nothing sets the compact party frame up again until the roster changes, so
+-- sweep what already exists. Blizzard also drops raid-frame pings while
+-- showPingsOnRaidFrames is off; turn it on once, so turning it back off in the
+-- game's settings sticks.
+if SquizzFrames.IS_FOREVER then
+    local function PingMarkerEnabled()
+        local layout = SquizzFrames.db and SquizzFrames.db.profile and SquizzFrames.db.profile.layout
+        for _, list in ipairs({ layout and layout.indicators or {}, layout and layout.indicatorsRaid or {} }) do
+            for _, t in ipairs(list) do
+                if t.indicatorName == "pingMarker" and t.enabled then return true end
+            end
+        end
+        return false
+    end
+
+    local sweep = CreateFrame("Frame")
+    sweep:RegisterEvent("PLAYER_ENTERING_WORLD")
+    sweep:SetScript("OnEvent", function()
+        for i = 1, 5 do HookCompactPingIcon(_G["CompactPartyFrameMember" .. i]) end
+        for i = 1, 40 do HookCompactPingIcon(_G["CompactRaidFrame" .. i]) end
+        for g = 1, 8 do
+            for i = 1, 5 do HookCompactPingIcon(_G["CompactRaidGroup" .. g .. "Member" .. i]) end
+        end
+        if SquizzFramesDB and not SquizzFramesDB.pingCVarSet and not InCombatLockdown() and PingMarkerEnabled() then
+            SquizzFramesDB.pingCVarSet = true
+            if not GetCVarBool("showPingsOnRaidFrames") then SetCVar("showPingsOnRaidFrames", "1") end
+        end
+    end)
 end
 
 -- Release a marker whose button has changed hands. The secure header reassigns

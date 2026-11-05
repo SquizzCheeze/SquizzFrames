@@ -109,6 +109,7 @@
          the panel is a shell over the engine. The dev harness that measured
          the technique (/sfcdprobe) was removed before 2.1; see git history. -->
     <Script file="PartyCooldowns/PartyCooldownsData.lua"/>
+    <Script file="PartyCooldowns/PartyCooldownsData_Forever.lua"/>
     <Script file="PartyCooldowns/PartyCooldowns.lua"/>
     <Script file="PartyCooldowns/PartyCooldownsPanel.lua"/>
 </Ui>

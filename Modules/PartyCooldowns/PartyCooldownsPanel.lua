@@ -103,7 +103,9 @@ local function BuildGeneral(host, y)
         y = y - 30
     end
     y = y - 4
-    return Note(host, y, "Potions: everyone's combat potion, plus your own healing potion and Healthstone " ..
+    local potions = SquizzFrames.IS_FOREVER and "Potions: your own healing potion and Healthstone "
+        or "Potions: everyone's combat potion, plus your own healing potion and Healthstone "
+    return Note(host, y, potions ..
         "(those leave no buff, so other players' cannot be seen). Individual spells can be switched off on the Spells tab.")
 end
 

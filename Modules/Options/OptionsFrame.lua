@@ -31,7 +31,7 @@ local pageHeights = {
     ["tankTracker"] = 1920, -- one sub-tab at a time; a row tab with both texts expanded is the tallest
     ["nicknames"] = 780,
     ["partyCooldowns"] = 1500, -- one sub-tab at a time; Spells (13 classes, 2 columns) is the tallest
-    ["profiles"] = 600,
+    ["profiles"] = 810, -- every section plus the Auto-Switch checkbox; +80 Import / Export
 }
 
 -----------------------------------------------------------------------
@@ -768,6 +768,21 @@ local function BuildProfilesFields(frame)
         copyBtn:SetPoint("LEFT", copyDD, "RIGHT", 10, -10)
         yOffset = yOffset - 70
     end
+
+    -- Section: Import / Export. Both open a dialog (ProfileTransfer.lua); an
+    -- import always lands as a new profile.
+    W.CreateTitledPane(fieldsHost, L["Import / Export"] or "Import / Export", yOffset)
+    yOffset = yOffset - 35
+
+    local exportBtn = W.CreateStyledButton(fieldsHost, L["Export Current Profile"] or "Export Current Profile", "accent-hover", {180, 22}, function()
+        SquizzFrames.ProfileTransfer.ShowExport()
+    end)
+    exportBtn:SetPoint("TOPLEFT", 15, yOffset - 5)
+    local importBtn = W.CreateStyledButton(fieldsHost, L["Import Profile"] or "Import Profile", "accent-hover", {180, 22}, function()
+        SquizzFrames.ProfileTransfer.ShowImport()
+    end)
+    importBtn:SetPoint("LEFT", exportBtn, "RIGHT", 10, 0)
+    yOffset = yOffset - 45
 
     -- Section: Delete Profile. "Default" is unconditionally excluded --
     -- ProfileStore.lua's DB:DeleteProfile refuses it too (it's the template

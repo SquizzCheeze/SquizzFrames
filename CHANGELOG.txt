@@ -5,6 +5,21 @@ SquizzFrames - Changelog
 V2.2
 -----
 
+New:
+
+- Profiles can be shared as a string: Import / Export on the Profiles page.
+  An import is always added as a new profile, so nothing you have is
+  overwritten. Click-cast macros are removed unless you tick the box to keep
+  them, so only keep them from someone you trust.
+- WoW Forever: Party Cooldowns have their own spell list, with every rank of
+  each spell, and hide spells a character is too low level to have.
+- WoW Forever: HoT, external, defensive and missing-buff indicators and the
+  click-casting spell list now use Forever's spells, every rank included.
+  Smart Resurrection casts the right spell for your class. The Arena tab is
+  gone there, since Forever has no arenas.
+- WoW Forever: ping markers show on the party and raid frames, using Forever's
+  own ping art.
+
 Fixed:
 
 - A member leaving, joining or being re-sorted during combat no longer

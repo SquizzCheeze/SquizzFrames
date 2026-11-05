@@ -223,17 +223,21 @@ SPELLS[#SPELLS + 1] = { key = 6262, label = "Healthstone", class = "ANY", cat = 
     items = {5512, 224464} }                            -- Healthstone, Demonic Healthstone
 
 -- Fill in the derived fields once: buff set for the sensor filter, spec set.
-for _, def in ipairs(SPELLS) do
-    def.buffs = def.buffs or { def.key }
-    def.buffSet = {}
-    for _, id in ipairs(def.buffs) do def.buffSet[id] = true end
-    if def.specs then
-        def.specSet = {}
-        for _, s in ipairs(def.specs) do def.specSet[s] = true end
+local function Prepare(spells)
+    for _, def in ipairs(spells) do
+        def.buffs = def.buffs or { def.key }
+        def.buffSet = {}
+        for _, id in ipairs(def.buffs) do def.buffSet[id] = true end
+        if def.specs then
+            def.specSet = {}
+            for _, s in ipairs(def.specs) do def.specSet[s] = true end
+        end
     end
 end
+Prepare(SPELLS)
 
 SquizzFrames.PartyCooldownsData = {
     spells = SPELLS,
+    Prepare = Prepare,       -- PartyCooldownsData_Forever.lua's table goes through it too
     BUILD = "12.1.5.70575",
 }

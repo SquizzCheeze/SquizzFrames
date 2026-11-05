@@ -275,6 +275,18 @@ function DB:SetProfile(name, isAutomatic)
     end)
 end
 
+-- Stores a profile decoded from an import string under a name the caller has
+-- already made unique, then switches to it. SetProfile's RefreshProfile runs
+-- the migrations and defaults backfill, so an old string upgrades on arrival.
+function DB:ImportProfile(name, profile)
+    if not name or name == "" or type(profile) ~= "table" then return end
+    local self_ = self
+    GuardedCall(function()
+        self_.sv.profiles[name] = profile
+        self_:SetProfile(name)
+    end)
+end
+
 -- Overwrites the CURRENT active profile's contents with sourceName's.
 function DB:CopyProfile(sourceName)
     if not sourceName then return end

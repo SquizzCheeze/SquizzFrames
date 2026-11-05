@@ -69,6 +69,8 @@ local UNIT_TABS = {
     {key = "boss",         label = L["Boss"] or "Boss"},
     {key = "arena",        label = L["Arena"] or "Arena"},
 }
+-- Forever has no arenas: Blizzard does not even load its arena frame there.
+if SquizzFrames.IS_FOREVER then UNIT_TABS[#UNIT_TABS] = nil end
 
 -- The stack tabs, with the words their stack controls use.
 local STACK_TABS = {
@@ -2592,6 +2594,7 @@ local INDEX_PLAN = {
     { unit = "boss",  sections = { general = true, frame = true, position = true } },
     { unit = "arena", sections = { general = true, frame = true, position = true } },
 }
+if SquizzFrames.IS_FOREVER then INDEX_PLAN[#INDEX_PLAN] = nil end
 function Panel.IndexAll()
     if not rebuildFields then return end
     local saved = { activeUnit, activeSection, activeIndicatorTab,

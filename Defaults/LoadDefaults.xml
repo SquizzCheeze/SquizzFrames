@@ -7,4 +7,5 @@
     <Script file="ClickCasting_Defaults.lua"/>
     <Script file="TankTracker_Defaults.lua"/>
     <Script file="Indicator_Defaults.lua"/>
+    <Script file="Indicator_Spells_Forever.lua"/>
 </Ui>
