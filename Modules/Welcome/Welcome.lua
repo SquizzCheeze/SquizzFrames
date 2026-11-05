@@ -33,6 +33,11 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.2"] = {
+        "Now runs on WoW Forever as well as retail, with Forever's spells in the indicators, click-casting and Party Cooldowns.",
+        "Share profiles with Import / Export on the Profiles page. An import always arrives as a new profile.",
+        "Members leaving, joining or being re-sorted during combat now update straight away, and a mid-fight joiner gets a full frame with all indicators.",
+    },
     ["2.1"] = {
         "Party Cooldowns (Tools > Party Cooldowns): your group's defensives, externals and group-wide cooldowns as icons on their party frames, with countdowns - and it keeps working in combat and in keys. Off by default.",
         "Cooldown lengths follow each player's spec and talents, talent cooldowns nobody took are hidden, and two-charge spells show when a charge is left.",
