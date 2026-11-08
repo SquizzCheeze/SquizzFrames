@@ -38,6 +38,18 @@ local function DefaultPetNameText(size)
     }
 end
 
+-- WoW Forever: your hunter pet's happiness icon (see PetFrames.lua's
+-- UpdatePetHappiness). Per layout like nameText; retail never reads it.
+local function DefaultPetHappiness(size)
+    return {
+        enabled = true,
+        size = size,
+        anchorPoint = "RIGHT",
+        offsetX = 0,
+        offsetY = 0,
+    }
+end
+
 profile.petFrames = {
     opacity = 1,  -- blanket alpha for every pet button (General page)
     main = {
@@ -52,6 +64,7 @@ profile.petFrames = {
         matchOwnerWidth = false,
         matchOwnerHeight = false,
         nameText = DefaultPetNameText(10),
+        happiness = DefaultPetHappiness(16),
         anchorSide = "RIGHT",     -- LEFT | RIGHT | TOP | BOTTOM (attached mode)
         offsetX = 4,
         offsetY = 0,
@@ -69,6 +82,7 @@ profile.petFrames = {
         matchOwnerWidth = false,
         matchOwnerHeight = false,
         nameText = DefaultPetNameText(9),
+        happiness = DefaultPetHappiness(12),
         anchorSide = "RIGHT",
         offsetX = 2,
         offsetY = 0,
@@ -97,6 +111,7 @@ profile.petFrames = {
         width = 80,
         height = 30,
         nameText = DefaultPetNameText(10),
+        happiness = DefaultPetHappiness(18),
         anchorX = 0,             -- CENTER->CENTER screen offset, as above
         anchorY = -320,
     },

@@ -160,6 +160,7 @@ local function PetButton_OnEnter(self)
         if unit then
             GameTooltip_SetDefaultAnchor(GameTooltip, self)
             GameTooltip:SetUnit(unit)
+            if SquizzFrames.AddPetHappinessTooltip then SquizzFrames.AddPetHappinessTooltip(self) end
             GameTooltip:Show()
         end
     end

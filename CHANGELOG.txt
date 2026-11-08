@@ -2,6 +2,16 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.3
+-----
+
+New:
+
+- WoW Forever: your hunter pet's happiness shows as an icon on your pet's
+  frame, and hovering the frame adds its mood, damage and loyalty to the
+  tooltip. Size, anchor and offsets are under Pet Frames > Pet Happiness.
+
+
 V2.2 (2026-11-05)
 -----
 

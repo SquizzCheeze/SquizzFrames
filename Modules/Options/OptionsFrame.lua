@@ -25,7 +25,7 @@ local optionsFrame -- the shell window's frame, "SquizzFramesOptionsFrame"
 local pageHeights = {
     ["general"] = 715, -- -30: Edit Mode's button moved to the title bar; +320 Frame Opacity; +125 Theme, +25 Follow Blizzard's Edit Mode (2.0); +25 Reduce Motion
     ["layout"] = 1615, -- +280 Health Gradient group above Health Bar Colors
-    ["petFrames"] = 1090, -- +490 for the Name Text section
+    ["petFrames"] = SquizzFrames.IS_FOREVER and 1445 or 1090, -- +490 for the Name Text section; +355 Pet Happiness (Forever only)
     ["unitFrames"] = 1450, -- one section at a time; Colors/Text are the tallest
     ["clickCasting"] = 460,
     ["tankTracker"] = 1920, -- one sub-tab at a time; a row tab with both texts expanded is the tallest

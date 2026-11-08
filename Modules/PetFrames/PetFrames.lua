@@ -171,10 +171,98 @@ local function RefreshPetAggro(button)
     if BU.CheckAggroBorder then BU.CheckAggroBorder(button) end
 end
 
+-----------------------------------------------------------------------
+-- Pet happiness (WoW Forever only)
+-----------------------------------------------------------------------
+-- Forever's hunter pets have a mood: C_PetInfo.GetPetHappiness() answers
+-- 1 Unhappy, 2 Content, 3 Happy, plus the damage percentage and loyalty rate
+-- the mood gives, and UNIT_HAPPINESS fires when it changes. Read off
+-- Blizzard's own Forever PetHappiness.lua, whose atlases these are. It exists
+-- for YOUR pet only, so the icon goes on whichever button shows it: "pet", or
+-- your own raidpetN in a raid without the standalone frame. Settings live per
+-- layout (layout.happiness), the same as nameText, because the three layouts
+-- are sized differently.
+local HAPPINESS_ATLAS = { "UI-PetMad", "UI-PetNeutral", "UI-PetHappiness" }
+
+local function IsOwnPetSlot(slot)
+    return slot == "pet" or slot == GetOwnRaidPetSlot()
+end
+
+-- Which layout table is drawing this button: the standalone frame owns "pet"
+-- while it is on, otherwise the group layout does.
+local function LayoutForButton(button)
+    if button.petUnit == "pet" and PlayerPetFrameEnabled() then
+        return GetPlayerPetLayout()
+    end
+    return GetActivePetLayout()
+end
+
+-- Mood, damage percentage and loyalty rate, or nil when there is no hunter
+-- pet to ask about. HasPetUI's second return is Blizzard's own test for it.
+local function GetHunterPetHappiness()
+    if not (C_PetInfo and C_PetInfo.GetPetHappiness) then return nil end
+    local _, isHunterPet = HasPetUI()
+    if not isHunterPet then return nil end
+    local happiness, damagePercentage, loyaltyRate = C_PetInfo.GetPetHappiness()
+    if not HAPPINESS_ATLAS[happiness] then return nil end
+    return happiness, damagePercentage, loyaltyRate
+end
+
+local function UpdatePetHappiness(button)
+    local icon = button and button._sfHappiness
+    if not icon then return end
+    local layout = LayoutForButton(button)
+    local cfg = layout and layout.happiness
+    local happiness = cfg and cfg.enabled ~= false and IsOwnPetSlot(button.petUnit)
+        and UnitExists(button.petUnit) and GetHunterPetHappiness()
+    if not happiness then
+        icon:Hide()
+        return
+    end
+    icon.tex:SetAtlas(HAPPINESS_ATLAS[happiness])
+    -- Placement only out of combat; the mood itself updates in combat too.
+    if not InCombatLockdown() then
+        local size = cfg.size or 16
+        local point = cfg.anchorPoint or "RIGHT"
+        icon:SetSize(size, size)
+        icon:ClearAllPoints()
+        icon:SetPoint(point, button, point, cfg.offsetX or 0, cfg.offsetY or 0)
+    end
+    icon:Show()
+end
+
+local function RefreshOwnPetHappiness()
+    if not SquizzFrames.IS_FOREVER then return end
+    UpdatePetHappiness(petButtons["pet"])
+    local raidSlot = GetOwnRaidPetSlot()
+    if raidSlot then UpdatePetHappiness(petButtons[raidSlot]) end
+end
+
+-- Hovering your pet's frame adds its mood to the unit tooltip, worded as
+-- Blizzard's own happiness icon words it. Called from PetButton.lua's OnEnter.
+function SquizzFrames.AddPetHappinessTooltip(button)
+    if not (SquizzFrames.IS_FOREVER and button and IsOwnPetSlot(button.petUnit)) then return end
+    local happiness, damagePercentage, loyaltyRate = GetHunterPetHappiness()
+    if not happiness then return end
+    local text = _G["PET_HAPPINESS" .. happiness]
+    if text then GameTooltip:AddLine(text, 1, 1, 1) end
+    if PET_DAMAGE_PERCENTAGE and damagePercentage then
+        GameTooltip:AddLine(PET_DAMAGE_PERCENTAGE:format(damagePercentage), NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+    end
+    -- Forever-only strings, so read through _G.
+    local loyaltyText = loyaltyRate and (loyaltyRate < 0 and _G["LOSING_LOYALTY"]
+        or loyaltyRate > 0 and _G["GAINING_LOYALTY"]) or nil
+    if loyaltyText then
+        GameTooltip:AddLine(loyaltyText, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+    end
+end
+
 local function UpdatePetButton(button)
     if not button or not button.petUnit then return end
     local unit = button.petUnit
     if not UnitExists(unit) then return end
+
+    UpdatePetHappiness(button)
 
     -- Before the dead/disconnected early-out below: a dead pet reads as no
     -- threat, which is precisely when these need to be cleared.
@@ -320,6 +408,18 @@ local function CreatePetButtons()
         -- Safe fallback anchor so the button is never anchor-less before the
         -- first real ApplyPetLayout pass positions it for real.
         button:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        -- Forever: the happiness icon (see UpdatePetHappiness). Made here, out
+        -- of combat, and never takes the mouse, so clicks still reach the
+        -- button underneath. Above the bars, which sit at levels 1 and 2.
+        if SquizzFrames.IS_FOREVER then
+            local icon = CreateFrame("Frame", nil, button)
+            icon:SetFrameLevel(button:GetFrameLevel() + 10)
+            icon:EnableMouse(false)
+            icon.tex = icon:CreateTexture(nil, "OVERLAY")
+            icon.tex:SetAllPoints(icon)
+            icon:Hide()
+            button._sfHappiness = icon
+        end
         petButtons[slot] = button
     end
 end
@@ -845,6 +945,8 @@ local function ApplyPetLayout()
         end
     end
 
+    RefreshOwnPetHappiness()
+
     applyingPetLayout = false
 
     -- Pet frames being turned on/off (or a profile switch doing it) changes
@@ -1043,6 +1145,10 @@ function PetFrames:OnEnable()
         self:RegisterEvent("UNIT_DISPLAYPOWER", onPetUnitEvent)
         self:RegisterEvent("UNIT_CONNECTION", onPetUnitEvent)
         self:RegisterEvent("UNIT_NAME_UPDATE", onPetUnitEvent)
+        -- Forever only: the event does not exist on retail.
+        if SquizzFrames.IS_FOREVER then
+            self:RegisterEvent("UNIT_HAPPINESS", RefreshOwnPetHappiness)
+        end
         -- Fires on the OWNER's unit token when their pet is summoned/
         -- dismissed/swapped. RegisterUnitWatch already handles individual
         -- button show/hide automatically -- this just catches the

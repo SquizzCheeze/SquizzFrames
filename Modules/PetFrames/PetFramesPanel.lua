@@ -239,6 +239,37 @@ local PET_NAME_ANCHOR_ITEMS = {
     {value = "BOTTOM",      text = L["Bottom"] or "Bottom"},
     {value = "BOTTOMRIGHT", text = L["Bottom Right"] or "Bottom Right"},
 }
+-- WoW Forever: the hunter pet happiness icon, per layout like the name text.
+-- One table rather than ten locals; the page is shown on Forever only.
+local Happy = {}
+function Happy.Cfg()
+    local layout = GetActivePetFrameLayout()
+    if not layout then return nil end
+    if not layout.happiness then
+        layout.happiness = { enabled = true, size = 16, anchorPoint = "RIGHT", offsetX = 0, offsetY = 0 }
+    end
+    return layout.happiness
+end
+function Happy.Set(key, val)
+    local cfg = Happy.Cfg()
+    if not cfg then return end
+    cfg[key] = val
+    SquizzFrames:Fire("PetFramesChanged")
+end
+function Happy.GetEnabled() local c = Happy.Cfg(); return c and c.enabled ~= false end
+function Happy.SetEnabled(v)
+    Happy.Set("enabled", v)
+    if rebuildPetFields then rebuildPetFields() end
+end
+function Happy.GetSize() local c = Happy.Cfg(); return (c and c.size) or 16 end
+function Happy.SetSize(v) Happy.Set("size", v) end
+function Happy.GetAnchor() local c = Happy.Cfg(); return (c and c.anchorPoint) or "RIGHT" end
+function Happy.SetAnchor(v) Happy.Set("anchorPoint", v) end
+function Happy.GetX() local c = Happy.Cfg(); return (c and c.offsetX) or 0 end
+function Happy.SetX(v) Happy.Set("offsetX", v) end
+function Happy.GetY() local c = Happy.Cfg(); return (c and c.offsetY) or 0 end
+function Happy.SetY(v) Happy.Set("offsetY", v) end
+
 local function SetPetHeight(val)
     local layout = GetActivePetFrameLayout()
     if layout then layout.height = val; SquizzFrames:Fire("PetFramesChanged") end
@@ -494,6 +525,48 @@ local function BuildPetFrameFields(frame)
             GetPetNameOffsetY, SetPetNameOffsetY)
         sliderNY:SetPoint("TOPLEFT", 15, yOffset - 20)
         yOffset = yOffset - 65
+    end
+
+    if SquizzFrames.IS_FOREVER then
+        W.CreateTitledPane(fieldsHost, L["Pet Happiness"] or "Pet Happiness", yOffset)
+        yOffset = yOffset - 35
+
+        local cbHappy = W.CreateStyledCheckbox(fieldsHost, L["Show Happiness"] or "Show Happiness",
+            Happy.GetEnabled, Happy.SetEnabled)
+        cbHappy:SetPoint("TOPLEFT", 15, yOffset)
+        yOffset = yOffset - 25
+
+        local happyNote = fieldsHost:CreateFontString(nil, "OVERLAY")
+        happyNote:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        happyNote:SetPoint("TOPLEFT", 15, yOffset)
+        happyNote:SetWidth(340)
+        happyNote:SetJustifyH("LEFT")
+        happyNote:SetTextColor(W.C4(W.palette.GREY_TEXT))
+        happyNote:SetText(L["Your own hunter pet's mood. Hover the frame for its damage and loyalty."]
+            or "Your own hunter pet's mood. Hover the frame for its damage and loyalty.")
+        yOffset = yOffset - 30
+
+        if Happy.GetEnabled() then
+            local sliderHS = W.CreateStyledSlider(fieldsHost, 200, 6, 40, 1, L["Size"] or "Size",
+                Happy.GetSize, Happy.SetSize)
+            sliderHS:SetPoint("TOPLEFT", 15, yOffset - 20)
+            yOffset = yOffset - 65
+
+            local ddHA = W.CreateStyledDropdown(fieldsHost, 200, 40, L["Anchor"] or "Anchor",
+                PET_NAME_ANCHOR_ITEMS, Happy.GetAnchor, Happy.SetAnchor)
+            ddHA:SetPoint("TOPLEFT", 15, yOffset - 20)
+            yOffset = yOffset - 70
+
+            local sliderHX = W.CreateStyledSlider(fieldsHost, 200, -50, 50, 1, L["Offset X"] or "Offset X",
+                Happy.GetX, Happy.SetX)
+            sliderHX:SetPoint("TOPLEFT", 15, yOffset - 20)
+            yOffset = yOffset - 65
+
+            local sliderHY = W.CreateStyledSlider(fieldsHost, 200, -50, 50, 1, L["Offset Y"] or "Offset Y",
+                Happy.GetY, Happy.SetY)
+            sliderHY:SetPoint("TOPLEFT", 15, yOffset - 20)
+            yOffset = yOffset - 65
+        end
     end
 
     -- Health Bar Color -- single shared setting (not affected by the
