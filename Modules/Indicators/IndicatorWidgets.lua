@@ -1387,7 +1387,8 @@ local function MakeCheckButton(key, defaultLabel)
                 if setting and type(setting) == "string" then
                     local labels = {
                         showGroupNumber = "Show Group Number",
-                        hideRealmName = "Hide Realm Name",
+                        -- Forever puts the surname where retail puts the realm (F.UnitFullName)
+                        hideRealmName = SquizzFrames.IS_FOREVER and "Hide Surname" or "Hide Realm Name",
                         showTimer = "Show Timer",
                         timerOpposite = "Timer on Other Side",
                         showBackground = "Show Background",

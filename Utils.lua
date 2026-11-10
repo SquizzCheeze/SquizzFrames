@@ -372,8 +372,17 @@ function F.UnitFullName(unit, hideRealm)
     -- `count > 1`/`dispelName == "Magic"` did elsewhere in this codebase --
     -- F.IsValueNonSecret must gate it. When realm comes back secret, fall
     -- back to just the bare name rather than risk the crash.
+    --
+    -- On Forever the second return is the SURNAME, not a realm (see Blizzard's
+    -- Camelot NameUtil.FormatUnitNameForDisplay), so hideRealm hides surnames
+    -- there and the join uses the game's own surname separator.
     if not hideRealm and realm and F.IsValueNonSecret(realm) and realm ~= "" then
-        return name .. "-" .. realm
+        local sep = "-"
+        if SquizzFrames.IS_FOREVER then
+            local consts = Constants and Constants["CharacterNameSeparatorConsts"]
+            sep = consts and consts.CHARACTERNAME_SURNAME_SEPARATOR or " "
+        end
+        return name .. sep .. realm
     end
     return name
 end
