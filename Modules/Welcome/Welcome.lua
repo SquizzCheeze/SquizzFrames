@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.3"] = {
+        "WoW Forever: your hunter pet's happiness shows as an icon on your pet's frame, with mood, damage and loyalty in its tooltip.",
+        "WoW Forever: Name Text can hide surnames (Indicators > Name Text > Hide Surname).",
+    },
     ["2.2"] = {
         "Now runs on WoW Forever as well as retail, with Forever's spells in the indicators, click-casting and Party Cooldowns.",
         "Share profiles with Import / Export on the Profiles page. An import always arrives as a new profile.",
