@@ -3,6 +3,10 @@
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# CLAUDE.md audit reports (audit-fable.md and the like): working notes, never
+# committed. Also listed in .pkgmeta so one can never reach a release zip.
+audit-*.md
+
 # Packaged builds (CurseForge uploads are zipped from this folder)
 *.zip
 

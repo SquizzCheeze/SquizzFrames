@@ -29,6 +29,7 @@ ignore:
   - .pkgmeta
   - CLAUDE.md
   - README.md
+  - audit-*.md
 
 # All libraries are vendored in Libs/, so there is nothing to check out and no
 # separate no-libraries package to build.
