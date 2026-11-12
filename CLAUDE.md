@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Blizzard UI source
+
+Blizzard's UI source is at C:\dev\wow-ui-source. Search it to verify any API, event or mixin before using it. It is a local git clone; check which branch is checked out (`git -C C:\dev\wow-ui-source branch`) before trusting it for a PTR or Forever question.
+
 ## Project Overview
 
 **SquizzFrames** is a World of Warcraft (Mainline/Retail, API 12.1) unit frame addon. It began as party frames and now also covers raid frames, pet frames, standalone unit frames (player/target/ToT/focus/focustarget/boss), a resource bar, a tank tracker and nicknames. It uses the **Ace3** framework and follows patterns from **DandersFrames** and **EllesmereUI** for secure frame handling, indicator systems and click-casting.
