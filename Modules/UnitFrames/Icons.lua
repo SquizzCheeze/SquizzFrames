@@ -190,11 +190,16 @@ function Icons.Update(holder, unit, t)
                 if isLeader then
                     leader:SetTexture(LEADER_TEXTURE)
                     leader:SetAlpha(leader._sfAlpha)
-                elseif UnitIsGroupAssistant(unit) then
-                    leader:SetTexture(ASSISTANT_TEXTURE)
-                    leader:SetAlpha(leader._sfAlpha)
                 else
-                    leader:SetAlpha(0)
+                    -- The assistant flag is secret-capable on its own, so it
+                    -- gets the same check before it is tested.
+                    local isAssistant = UnitIsGroupAssistant(unit)
+                    if F.IsValueNonSecret(isAssistant) and isAssistant then
+                        leader:SetTexture(ASSISTANT_TEXTURE)
+                        leader:SetAlpha(leader._sfAlpha)
+                    else
+                        leader:SetAlpha(0)
+                    end
                 end
             else
                 -- Secret: the assistant distinction needs a comparison we

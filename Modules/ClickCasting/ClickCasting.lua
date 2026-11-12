@@ -186,6 +186,25 @@ local function NormalizeModifier(modifier)
     return result
 end
 
+-- Every prefix NormalizeModifier can produce: all 16 combinations of alt-,
+-- ctrl-, shift-, meta-, always in that order. ClearClickCastings must clear
+-- exactly what ApplyClickCastings writes. Its old hand-written list used
+-- another order ("shift-ctrl-"), so no multi-modifier binding was ever
+-- cleared and a deleted Ctrl+Shift click kept casting until /reload.
+local ALL_MODIFIER_PREFIXES = {}
+do
+    local order = {"alt-", "ctrl-", "shift-", "meta-"}
+    for mask = 0, 15 do
+        local prefix = ""
+        for bit = 1, 4 do
+            if math.floor(mask / 2 ^ (bit - 1)) % 2 == 1 then
+                prefix = prefix .. order[bit]
+            end
+        end
+        ALL_MODIFIER_PREFIXES[#ALL_MODIFIER_PREFIXES + 1] = prefix
+    end
+end
+
 -- Build the secure attribute key for a given bind + modifier.
 -- e.g. ("Left", "shift-")  → "shift-type1"
 --      ("ScrollUp", "ctrl-") → "ctrl-type-SCROLLUP"
@@ -405,7 +424,7 @@ end
 -- that were set by the previous ApplyClickCastings call.
 local function ClearClickCastings(button)
     if not button then return end
-    local mods = {"", "shift-", "ctrl-", "alt-", "shift-ctrl-", "shift-alt-", "ctrl-alt-", "shift-ctrl-alt-"}
+    local mods = ALL_MODIFIER_PREFIXES
     -- Mouse buttons: typeN / macrotextN / spellN / itemN / clickbuttonN
     for _, k in ipairs({"type", "macrotext", "spell", "item", "clickbutton"}) do
         for _, mod in ipairs(mods) do
@@ -819,6 +838,14 @@ end
 -- Combat-state driver: toggles the menu key between nil (in combat) and
 -- "togglemenu" (out of combat) on the currently-hovered button. This is
 -- Cell's "togglemenu_nocombat" behavior.
+--
+-- `mouseoverbutton` lives in THIS frame's restricted environment. It is set
+-- by OnEnter/OnLeave wraps whose header is this frame (WrapMenuCombatState
+-- for our buttons, WrapExternalHover for Blizzard's), because a wrap body runs
+-- in its header's environment with `self` = the wrapped button. Nothing set
+-- it before 2026-11-13, so this handler never did anything: entering combat
+-- while hovering a frame left its menu click live, and leaving combat while
+-- hovering left it dead until the mouse left and came back.
 local function EnsureWrapFrame()
     if wrapFrame then return wrapFrame end
     wrapFrame = CreateFrame("Frame", "SquizzWrapFrame", nil, "SecureHandlerStateTemplate")
@@ -957,8 +984,15 @@ local function WrapExternalHover(frame)
     -- doesn't just skip the wrap -- it unwinds the whole caller. That is
     -- exactly what an unsupported script type did on first attempt: it took
     -- out PetFrames' initialisation as collateral.
+    -- Header is the combat-state wrapFrame, not the frame itself, so these
+    -- bodies share its environment and can set `mouseoverbutton` (see
+    -- EnsureWrapFrame). `self` is still the wrapped frame either way. One wrap
+    -- carries both jobs: stacking a second OnLeave wrap would break this one,
+    -- since nested wraps share the "_wrapentered" flag and the outer one
+    -- clears it before the inner one checks it.
+    local header = EnsureWrapFrame()
     local function Wrap(script, body)
-        pcall(SecureHandlerWrapScript, frame, script, frame, body)
+        pcall(SecureHandlerWrapScript, frame, script, header, body)
     end
     -- Bodies are kept IDENTICAL to the _onenter/_onleave attributes
     -- SetBindingClicks writes -- `self` is the frame in both cases,
@@ -967,6 +1001,7 @@ local function WrapExternalHover(frame)
     -- differently on a boss frame than on a party frame, which is exactly the
     -- kind of inconsistency that gets reported as "click-casting is flaky".
     Wrap("OnEnter", [[
+        mouseoverbutton = self
         self:ClearBindings()
         self:Run(self:GetAttribute("snippet"))
         local menuKey = self:GetAttribute("menu")
@@ -979,6 +1014,7 @@ local function WrapExternalHover(frame)
         end
     ]])
     Wrap("OnLeave", [[
+        if mouseoverbutton == self then mouseoverbutton = nil end
         self:ClearBindings()
     ]])
     -- NO OnMouseDown COUNTERPART. SetBindingClicks installs an "_onmousedown"
@@ -992,6 +1028,28 @@ local function WrapExternalHover(frame)
     -- Dropped rather than approximated: OnEnter already installs the bindings
     -- on hover, which is what actually makes keyboard and wheel binds work.
     -- PreClick is the nearest supported hook if a gap ever shows up here.
+end
+
+-- Our own buttons run their hover snippets from _onenter/_onleave attributes
+-- (SecureHandlerEnterLeaveTemplate), which execute in the BUTTON's
+-- environment and so cannot reach the wrapFrame's `mouseoverbutton`. A thin
+-- wrap with the wrapFrame as header does only that. It does not stack with the
+-- template: the template tracks "_entered", a wrap "_wrapentered". Frames
+-- WrapExternalHover took are skipped, since their one wrap already does it.
+-- Must run out of combat (SecureHandlerWrapScript); ApplyToAll guarantees it.
+local menuStateWrapped = {}
+local function WrapMenuCombatState(button)
+    if menuStateWrapped[button] or externalWrapped[button] then return end
+    if type(SecureHandlerWrapScript) ~= "function" then return end
+    -- Marked before wrapping and never retried, same reason as above.
+    menuStateWrapped[button] = true
+    local header = EnsureWrapFrame()
+    pcall(SecureHandlerWrapScript, button, "OnEnter", header, [[
+        mouseoverbutton = self
+    ]])
+    pcall(SecureHandlerWrapScript, button, "OnLeave", header, [[
+        if mouseoverbutton == self then mouseoverbutton = nil end
+    ]])
 end
 
 -- Walk a SecureGroupHeaderTemplate's children. ipairs(header) is how our own
@@ -1135,6 +1193,7 @@ function ClickCasting:ApplyToAll(onlyNew)
     end
 
     for _, button in ipairs(buttons) do
+        WrapMenuCombatState(button)
         if onlyNew and button._sfCCPass == ccPass then
             -- Already carries these exact bindings.
         else

@@ -320,7 +320,7 @@ function F.ColorRGBTable(colorTable, alpha)
 end
 
 function F.ColorHex(colorTable, alpha)
-    local r, g, b = F.ColorRGB(colorTable, alpha or 1)
+    local r, g, b, a = F.ColorRGB(colorTable, alpha or 1)
     return string.format("|c%02x%02x%02x%02x", (a or 1) * 255, r * 255, g * 255, b * 255)
 end
 
@@ -339,7 +339,7 @@ end
 
 function F.FormatNumber(n)
     if not n then return "0" end
-    local formatted = tostring(n)
+    local formatted, k = tostring(n), nil
     while true do
         formatted, k = gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
         if k == 0 then break end

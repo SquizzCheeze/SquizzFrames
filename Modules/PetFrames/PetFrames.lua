@@ -75,14 +75,18 @@ end
 -- not found. Resolved by GUID rather than UnitIsUnit: that call is on the 12.1
 -- secret-value list (already confirmed to return secrets on rated-PvP maps),
 -- and a secret here would silently fail the equality test and let the pet draw
--- twice -- exactly the bug this exists to prevent. UnitGUID on a raid token is
--- a plain string.
+-- twice -- exactly the bug this exists to prevent. UnitGUID itself is
+-- SecretWhenUnitIdentityRestricted in the API docs, though, and comparing a
+-- secret throws, so each GUID is checked before the comparison (type() is no
+-- such check: a secret string still reports "string"). A secret raid GUID is
+-- skipped; the player's own is never expected to be secret.
 local function GetOwnRaidPetSlot()
     if not IsInRaid() then return nil end
     local mine = UnitGUID("player")
-    if type(mine) ~= "string" then return nil end
+    if not F.IsValueNonSecret(mine) or type(mine) ~= "string" then return nil end
     for i = 1, 40 do
-        if UnitGUID("raid" .. i) == mine then return "raidpet" .. i end
+        local guid = UnitGUID("raid" .. i)
+        if F.IsValueNonSecret(guid) and guid == mine then return "raidpet" .. i end
     end
     return nil
 end

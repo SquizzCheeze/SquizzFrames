@@ -270,6 +270,11 @@ end
 -- that F.IsValueNonSecret's guard (added earlier this session for the
 -- crash fix) then silently treats as "not a match" rather than "drinking").
 -- Remove once the real cause is confirmed.
+--
+-- Declared local up here so the test below can call it; the
+-- `function IsUnitDrinking` further down assigns to this local. It was an
+-- accidental global until 2026-11-13.
+local IsUnitDrinking
 SLASH_SQUIZZDRINKTEST1 = "/sfdrinktest"
 SlashCmdList["SQUIZZDRINKTEST"] = function(msg)
     local unit = (msg and msg ~= "" and msg) or "party1"
@@ -305,12 +310,23 @@ SlashCmdList["SQUIZZDRINKTEST"] = function(msg)
         .. secretCount .. " slots threw/secret, result=" .. tostring(IsUnitDrinking and IsUnitDrinking(unit)))
 end
 
+-- This runs from UpdateStatus on every health, power and aura event of every
+-- group member, so it must be cheap. The lookup set is built once from
+-- defaults.drinks (again only if that table is ever replaced) instead of on
+-- every call, and the scan is skipped outright while we are in combat: aura
+-- data is secret there, so walking 40 slots could find nothing it can trust,
+-- and it was a burst of AuraData garbage per event in a raid fight.
+local drinkSet, drinkSetSource
 function IsUnitDrinking(unit)
+    if InCombatLockdown() then return false end
     local drinks = SquizzFrames.defaults and SquizzFrames.defaults.drinks
     if not drinks or #drinks == 0 then return false end
     if not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then return false end
-    local drinkSet = {}
-    for _, id in ipairs(drinks) do drinkSet[id] = true end
+    if drinkSetSource ~= drinks then
+        drinkSet = {}
+        for _, id in ipairs(drinks) do drinkSet[id] = true end
+        drinkSetSource = drinks
+    end
     local i = 1
     while i <= 40 do
         local ok, info = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")

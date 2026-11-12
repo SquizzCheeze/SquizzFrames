@@ -127,6 +127,11 @@ local enabledBuiltIns = {}
 -- reflect the change.
 local RefreshHighlightSize
 
+-- Forward declarations: defined further down, called from functions above
+-- their definitions. Accidental globals until 2026-11-13; the `function Name`
+-- statements below now assign to these locals.
+local FindOrCreateIndicatorSlot, HookEventSafe, UnhookEventSafe
+
 -- -----------------------------------------------------------------
 -- Helpers
 -- -----------------------------------------------------------------
@@ -1692,7 +1697,9 @@ function HookEventSafe(event)
 end
 function UnhookEventSafe(event)
     if not hookedEvents[event] then return end
-    hookedEvents[event] = false
+    hookedEvents[event] = nil
+    -- It used to clear only the flag and leave the event registered.
+    I:UnregisterEvent(event)
 end
 
 function I:ReapplyToAll()

@@ -2101,8 +2101,15 @@ local function CheckLeaderIcon(button)
         isLeader = button._sfFakeLeader
         isAssistant = button._sfFakeAssistant
     else
+        -- Both are SecretWhenUnitIdentityRestricted in the API docs, and
+        -- testing a secret boolean throws. A secret answer shows no icon
+        -- rather than raising out of the event handler.
         isLeader = UnitIsGroupLeader(unit)
-        isAssistant = not isLeader and UnitIsGroupAssistant(unit)
+        if not F.IsValueNonSecret(isLeader) then isLeader = false end
+        if not isLeader then
+            isAssistant = UnitIsGroupAssistant(unit)
+            if not F.IsValueNonSecret(isAssistant) then isAssistant = false end
+        end
     end
     if isLeader then
         indicator:SetIcon("Interface\\GroupFrame\\UI-Group-LeaderIcon")
