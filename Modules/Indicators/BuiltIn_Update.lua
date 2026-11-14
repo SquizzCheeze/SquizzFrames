@@ -61,22 +61,36 @@ local function IsBuffPresent(id, presentSet)
 end
 
 -- Which classes are actually present in the current group (player + party,
--- or the full raid roster). Recomputed fresh on each CheckMissingBuffs call
--- -- group composition changes are rare and a party/raid roster is at most
--- 40 units, so there's no need for event-driven cache invalidation here.
--- UnitClass's classFileName return is plain identity data (not aura/health/
--- combat-log data, the categories confirmed secret-tainted elsewhere this
--- session) but the whole scan is pcall-wrapped as a defensive measure since
--- that hasn't been specifically verified safe on this client.
+-- or the full raid roster). UnitClass's classFileName return is plain
+-- identity data (not aura/health/combat-log data, the categories confirmed
+-- secret-tainted elsewhere this session) but the whole scan is pcall-wrapped
+-- as a defensive measure since that hasn't been specifically verified safe on
+-- this client.
+--
+-- CACHED until the roster changes (2026-11-13). It used to be rebuilt on
+-- every CheckMissingBuffs call, i.e. every UNIT_AURA of every button: in a
+-- 40-player raid, 40 UnitClass calls and a new table per aura event. The
+-- cache is dropped on GROUP_ROSTER_UPDATE and PLAYER_ENTERING_WORLD, and is
+-- not kept at all when a member's class could not be read yet (an
+-- out-of-range joiner), so it fills in on a later call instead of staying
+-- short until the next roster change.
+local groupClassesCache
+local groupClassesWatcher = CreateFrame("Frame")
+groupClassesWatcher:RegisterEvent("GROUP_ROSTER_UPDATE")
+groupClassesWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+groupClassesWatcher:SetScript("OnEvent", function() groupClassesCache = nil end)
+
 local function GetGroupClasses()
+    if groupClassesCache then return groupClassesCache end
     local classes = {}
+    local complete = true
     pcall(function()
         if IsInRaid() then
             for i = 1, GetNumGroupMembers() do
                 local unit = "raid" .. i
                 if UnitExists(unit) then
                     local classFile = select(2, UnitClass(unit))
-                    if classFile then classes[classFile] = true end
+                    if classFile then classes[classFile] = true else complete = false end
                 end
             end
         else
@@ -86,11 +100,12 @@ local function GetGroupClasses()
                 local unit = "party" .. i
                 if UnitExists(unit) then
                     local cf = select(2, UnitClass(unit))
-                    if cf then classes[cf] = true end
+                    if cf then classes[cf] = true else complete = false end
                 end
             end
         end
     end)
+    if complete then groupClassesCache = classes end
     return classes
 end
 
@@ -2505,6 +2520,13 @@ local function CheckMissingBuffs(button)
         end
         return
     end
+
+    -- In combat the aura walk below nearly always meets a secret aura and
+    -- returns having drawn nothing (see sawSecretSpell), so it is skipped
+    -- outright: same result, the last out-of-combat state stays up, without a
+    -- 40-slot walk on every aura event of every button. PLAYER_REGEN_ENABLED
+    -- is already in this check's event list, so it redraws as combat ends.
+    if InCombatLockdown() then return end
 
     local tracked = F.GetEffectiveSpellList(t.useBuiltInMissingBuffs, raidBuffs, t.customMissingBuffs, t.hiddenBuiltInMissingBuffs)
     local maxSlots = t.num or 5

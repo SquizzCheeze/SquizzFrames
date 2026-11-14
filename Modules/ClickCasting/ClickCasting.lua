@@ -1106,12 +1106,38 @@ function ClickCasting.CollectBlizzardFrames()
     return frames
 end
 
+-- Our own group headers, by global name. headerFrames only holds headers that
+-- have been wired (PartyButtonsWired), i.e. the set that was live at some
+-- point this session. Since 2026-11-13 the INACTIVE set can take over in
+-- combat (PartyFrames' visibility drivers swap party and raid headers when
+-- the group type changes), and bindings cannot be written then, so every set
+-- must already carry them. The children are all pre-created out of combat.
+local OWN_HEADER_NAMES = {
+    "SquizzFramesPartyHeader",
+    "SquizzFramesRaidGroupHeader1", "SquizzFramesRaidGroupHeader2",
+    "SquizzFramesRaidGroupHeader3", "SquizzFramesRaidGroupHeader4",
+    "SquizzFramesRaidGroupHeader5", "SquizzFramesRaidGroupHeader6",
+    "SquizzFramesRaidGroupHeader7", "SquizzFramesRaidGroupHeader8",
+}
+
 local function CollectButtons()
     local buttons = {}
+    local seenHeader = {}
     for _, h in ipairs(headerFrames) do
+        seenHeader[h] = true
         for _, button in ipairs(h) do
             if button then
                 tinsert(buttons, button)
+            end
+        end
+    end
+    for _, name in ipairs(OWN_HEADER_NAMES) do
+        local h = _G[name]
+        if h and not seenHeader[h] then
+            for _, button in ipairs(h) do
+                if button then
+                    tinsert(buttons, button)
+                end
             end
         end
     end

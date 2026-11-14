@@ -963,8 +963,13 @@ end
 -- already sized and clickable -- the header hands it over in combat, when
 -- none of this is allowed any more (user report 2026-11-01: the joiner showed
 -- no health bar). Out of combat only.
-local function PrepButton(button)
-    resolveChildren(button)
+--
+-- w/h/powerH are optional overrides for resolveChildren (default: the active
+-- layout). ApplyLayout passes the OTHER mode's sizes when it arms the hidden
+-- header set (ArmRaidGroupHeaders), since a set swapped in during combat can
+-- only use what was prepared before.
+local function PrepButton(button, w, h, powerH)
+    resolveChildren(button, w, h, powerH)
     button._sfPrepped = true
     -- Register for clicks so click-casting attributes (type1/type2/...) can
     -- fire. SecureUnitButtonTemplate provides default left-click=target and
@@ -1411,7 +1416,9 @@ function PartyFrames.RaidGroupsAlongX(layout)
     return (layout and layout.orientation) ~= "horizontal"
 end
 
-local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, bW, bH, isCenterH, isCenterV)
+-- armOnly (2026-11-13): write every attribute and anchor but leave the headers
+-- HIDDEN, for party/solo. See ArmRaidGroupHeaders.
+local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, bW, bH, isCenterH, isCenterV, armOnly)
     if not partyFrame then return end
     CreateRaidGroupHeaders()
     if not groupHeaders[1] then return end
@@ -1518,7 +1525,15 @@ local function LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir, b
             -- unless IsVisible(). Showing first would lay the group out from
             -- the PREVIOUS attribute set and only correct itself on the next
             -- write.
-            h:Show()
+            --
+            -- Armed-only headers stay hidden. The writes above are stored and
+            -- acted on in full by OnShow when the in-combat swap brings
+            -- the header up, which is exactly the "show last" order.
+            if armOnly then
+                h:Hide()
+            else
+                h:Show()
+            end
         end
     end
 end
@@ -1534,6 +1549,166 @@ local function HideRaidGroupHeaders()
             h:Hide()
         end
     end
+end
+
+-- Finding 3 of the 2026-11-13 review: which header set shows used to be
+-- decided ONLY by ApplyLayout, which cannot run in combat. A party that
+-- became a raid mid-fight kept drawing just your own subgroup (the party
+-- header, still on showParty, counts as "in a group"), and a raid that became
+-- a party drew nothing at all (the raid headers have neither showParty nor
+-- showSolo) until combat ended.
+--
+-- Now both sets are kept configured for their own mode at all times, and in
+-- combat a secure snippet picks between them (RegisterHeaderSwap -- not a
+-- [group:raid] driver, which does not update in combat); a header's OnShow
+-- runs its full update from the attributes stored here.
+-- What still waits for combat to end is everything protected: the container's
+-- position and size (raid frames appear at the party position until then)
+-- and the re-slotting of raid groups by population.
+
+-- Prepare a hidden set's buttons for the mode they will serve: size, bars,
+-- click registration (PrepButton). All protected, so a set swapped in during
+-- combat can only use what was done here. The 3/4 power-bar defaults are
+-- resolveChildren's own.
+local function PrepHiddenButtons(h, layout, defaultPowerH)
+    for _, button in ipairs(h) do
+        PrepButton(button, layout.width or 100, layout.height or 40,
+            layout.powerHeight or defaultPowerH)
+    end
+end
+
+-- Party/solo: lay the raid headers out for the RAID layout and prepare their
+-- buttons, but keep them hidden.
+local function ArmRaidGroupHeaders(raidLayout)
+    if not raidLayout then
+        HideRaidGroupHeaders()
+        return
+    end
+    local growth = raidLayout.growthDirection or "DOWN"
+    LayoutRaidGroupHeaders(raidLayout, raidLayout.spacingY or 0,
+        raidLayout.orientation or "vertical", growth,
+        raidLayout.width or 100, raidLayout.height or 40,
+        growth == "CENTER_H", growth == "CENTER_V", true)
+    for i = 1, RAID_GROUP_COUNT do
+        if groupHeaders[i] then
+            PrepHiddenButtons(groupHeaders[i], raidLayout, 3)
+        end
+    end
+end
+
+-- The party header's attributes for a party/solo layout. Used in party mode
+-- for the live header, and in raid mode to keep the hidden one armed for a
+-- raid-to-party change in combat (sizes included, for the same reason as
+-- ArmRaidGroupHeaders). showRaid is always false, so in a raid this header
+-- can only ever hold your own subgroup, and it is kept hidden there.
+local function ConfigurePartyHeader(layout)
+    local spacing = layout.spacingY or 0
+    local orientation = layout.orientation or "vertical"
+    local growthDir = layout.growthDirection or "DOWN"
+    -- point: which direction children grow from the header anchor. CENTER_H/
+    -- CENTER_V use a NATIVE edge-growth direction just like the regular
+    -- modes below (never manual child positioning) -- see
+    -- ReanchorHeaderForCenterGrowth for how the "centered" look is faked by
+    -- moving the header's own anchor instead.
+    -- "vertical" + "DOWN"  = "TOP" (grow downward from top)
+    -- "vertical" + "UP"    = "BOTTOM" (grow upward from bottom)
+    -- "horizontal" + "RIGHT" = "LEFT" (grow rightward from left)
+    -- "horizontal" + "LEFT"  = "RIGHT" (grow leftward from right)
+    -- "CENTER_H" = "LEFT", grows rightward
+    -- "CENTER_V" = "TOP", grows downward
+    local point
+    if growthDir == "CENTER_H" then
+        point = "LEFT"
+    elseif growthDir == "CENTER_V" then
+        point = "TOP"
+    elseif orientation == "horizontal" then
+        point = (growthDir == "LEFT") and "RIGHT" or "LEFT"
+    else
+        point = (growthDir == "UP") and "BOTTOM" or "TOP"
+    end
+
+    header:SetAttribute("point", point)
+    -- xOffset/yOffset is just the GAP between adjacent buttons -- the header
+    -- already accounts for each child's own width/height internally when
+    -- stacking them. Confirmed against EllesmereUI's own working
+    -- implementation (EllesmereUIRaidFrames.lua's _LayoutPartyFrames): they
+    -- use xOffset=cs (spacing alone) for LEFT/RIGHT-anchored growth and
+    -- yOffset=cs for TOP/BOTTOM-anchored growth, never button-dimension +
+    -- spacing. Adding the button's own width/height on top (what this used
+    -- to do) double-counts it, producing a diagonal stagger instead of a
+    -- clean row/column.
+    if point == "LEFT" then
+        header:SetAttribute("xOffset", spacing)
+        header:SetAttribute("yOffset", 0)
+    elseif point == "RIGHT" then
+        header:SetAttribute("xOffset", -spacing)
+        header:SetAttribute("yOffset", 0)
+    elseif point == "TOP" then
+        header:SetAttribute("xOffset", 0)
+        header:SetAttribute("yOffset", -spacing)
+    else -- "BOTTOM"
+        header:SetAttribute("xOffset", 0)
+        header:SetAttribute("yOffset", spacing)
+    end
+    header:SetAttribute("maxColumns", 1)
+    header:SetAttribute("unitsPerColumn", 5)
+    header:SetAttribute("showPlayer", not layout.hideSelf)
+    header:SetAttribute("showSolo", not layout.hideSelf)
+    header:SetAttribute("showParty", true)
+    header:SetAttribute("showRaid", false)
+    ApplyRoleSortAttributes(header, layout)
+end
+
+-- The in-combat swap itself. NOT a [group:raid] visibility driver: that was
+-- the first version, and measured in game (2026-11-14, /sfrosterdiag's saved
+-- reports) the macro condition does not follow a party <-> raid conversion
+-- inside combat -- IsInRaid() had flipped while [group:raid] still answered
+-- the old state until combat ended, so the driver never switched the sets
+-- (party -> raid kept the party-sized frames; raid -> party showed nothing).
+--
+-- Instead every header child carries a secure OnAttributeChanged wrap. On a
+-- roster change the VISIBLE header re-assigns each child's "unit" attribute,
+-- combat included (it is Blizzard's secure code, and it does so even when
+-- the unit is unchanged), and the wrap compares PlayerInGroup() -- which is
+-- IsInRaid(), live in combat -- with which set is showing, and swaps. Showing
+-- a header runs its OnShow update from the attributes armed out of combat.
+-- Gated on PlayerInCombat(): out of combat ApplyLayout owns the swap, and the
+-- wrap firing in the middle of its attribute writes would only churn.
+-- Wraps are installed once, out of combat; every child already exists (the
+-- party header force-creates 40, each group header 5).
+local headerSwapFrame
+local function RegisterHeaderSwap()
+    if headerSwapFrame or not header or not groupHeaders[RAID_GROUP_COUNT] then return end
+    if InCombatLockdown() then return end
+    headerSwapFrame = CreateFrame("Frame", "SquizzFramesHeaderSwap", UIParent, "SecureHandlerBaseTemplate")
+    headerSwapFrame:SetFrameRef("party", header)
+    for i = 1, RAID_GROUP_COUNT do
+        headerSwapFrame:SetFrameRef("raid" .. i, groupHeaders[i])
+    end
+    SecureHandlerExecute(headerSwapFrame, ([[
+        SF_party = self:GetFrameRef("party")
+        SF_raid = newtable()
+        for i = 1, %d do SF_raid[i] = self:GetFrameRef("raid" .. i) end
+    ]]):format(RAID_GROUP_COUNT))
+    local snippet = ([[
+        if name ~= "unit" or not PlayerInCombat() then return end
+        if PlayerInGroup() == "raid" then
+            if SF_party:IsShown() then
+                SF_party:Hide()
+                for i = 1, %d do SF_raid[i]:Show() end
+            end
+        elseif not SF_party:IsShown() then
+            for i = 1, %d do SF_raid[i]:Hide() end
+            SF_party:Show()
+        end
+    ]]):format(RAID_GROUP_COUNT, RAID_GROUP_COUNT)
+    local function WrapChildren(h)
+        for _, button in ipairs(h) do
+            SecureHandlerWrapScript(button, "OnAttributeChanged", headerSwapFrame, snippet)
+        end
+    end
+    WrapChildren(header)
+    for i = 1, RAID_GROUP_COUNT do WrapChildren(groupHeaders[i]) end
 end
 
 -- The container's on-screen centre, converted into UIPARENT's coordinate
@@ -1739,86 +1914,47 @@ function ApplyLayout()
         -- while IsVisible() is true (SecureGroupHeader_OnAttributeChanged), so
         -- hiding first would leave its 40 children holding raid units and
         -- drawing the entire raid on top of the group headers.
-        header:SetAttribute("showRaid", false)
-        header:SetAttribute("showParty", false)
-        header:SetAttribute("showSolo", false)
+        --
+        -- Since 2026-11-13 it is stood down by arming it for a PARTY instead
+        -- of blanking every show flag: showRaid=false still drops every raid
+        -- unit, and it is hidden below. Armed
+        -- like this (attributes AND button sizes, from the party layout), the
+        -- driver can bring it straight back if the raid becomes a party in
+        -- combat. See ArmRaidGroupHeaders.
+        local mainLayout = prof.layout and prof.layout.main or layout
+        ConfigurePartyHeader(mainLayout)
         header:Hide()
+        PrepHiddenButtons(header, mainLayout, 4)
 
         LayoutRaidGroupHeaders(layout, spacing, orientation, growthDir,
             buttonWidth, buttonHeight, isCenterH, isCenterV)
     else
         -- Party: single strip of up to 5, unchanged from before raid support.
-        -- point: which direction children grow from the header anchor. CENTER_H/
-        -- CENTER_V use a NATIVE edge-growth direction just like the regular
-        -- modes below (never manual child positioning) -- see
-        -- ReanchorHeaderForCenterGrowth for how the "centered" look is faked by
-        -- moving the header's own anchor instead.
-        -- "vertical" + "DOWN"  = "TOP" (grow downward from top)
-        -- "vertical" + "UP"    = "BOTTOM" (grow upward from bottom)
-        -- "horizontal" + "RIGHT" = "LEFT" (grow rightward from left)
-        -- "horizontal" + "LEFT"  = "RIGHT" (grow leftward from right)
-        -- "CENTER_H" = "LEFT", grows rightward
-        -- "CENTER_V" = "TOP", grows downward
+        -- The attributes themselves are ConfigurePartyHeader's (shared with
+        -- raid mode, which keeps this header armed while hidden).
         isCenterH = (growthDir == "CENTER_H")
         isCenterV = (growthDir == "CENTER_V")
 
         -- Raid group headers go inert before the party header is re-armed, so
-        -- the two sets can never both claim units at once.
-        HideRaidGroupHeaders()
+        -- the two sets can never both claim units at once. Since 2026-11-13
+        -- "inert" means hidden but armed for the RAID layout, so the
+        -- in-combat swap can bring them up if a raid forms in combat.
+        ArmRaidGroupHeaders(prof.layout and prof.layout.raid)
 
-        local point
-        if isCenterH then
-            point = "LEFT"
-        elseif isCenterV then
-            point = "TOP"
-        elseif orientation == "horizontal" then
-            point = (growthDir == "LEFT") and "RIGHT" or "LEFT"
-        else
-            point = (growthDir == "UP") and "BOTTOM" or "TOP"
-        end
-
-        header:SetAttribute("point", point)
-        -- xOffset/yOffset is just the GAP between adjacent buttons -- the header
-        -- already accounts for each child's own width/height internally when
-        -- stacking them. Confirmed against EllesmereUI's own working
-        -- implementation (EllesmereUIRaidFrames.lua's _LayoutPartyFrames): they
-        -- use xOffset=cs (spacing alone) for LEFT/RIGHT-anchored growth and
-        -- yOffset=cs for TOP/BOTTOM-anchored growth, never button-dimension +
-        -- spacing. Adding the button's own width/height on top (what this used
-        -- to do) double-counts it, producing a diagonal stagger instead of a
-        -- clean row/column.
-        if point == "LEFT" then
-            header:SetAttribute("xOffset", spacing)
-            header:SetAttribute("yOffset", 0)
-        elseif point == "RIGHT" then
-            header:SetAttribute("xOffset", -spacing)
-            header:SetAttribute("yOffset", 0)
-        elseif point == "TOP" then
-            header:SetAttribute("xOffset", 0)
-            header:SetAttribute("yOffset", -spacing)
-        else -- "BOTTOM"
-            header:SetAttribute("xOffset", 0)
-            header:SetAttribute("yOffset", spacing)
-        end
-        header:SetAttribute("maxColumns", 1)
-        header:SetAttribute("unitsPerColumn", 5)
-        header:SetAttribute("showPlayer", not layout.hideSelf)
-        header:SetAttribute("showSolo", not layout.hideSelf)
-        header:SetAttribute("showParty", true)
-        header:SetAttribute("showRaid", false)
-        ApplyRoleSortAttributes(header, layout)
+        ConfigurePartyHeader(layout)
         -- Re-arm after raid mode hid it. Show LAST, for the same reason the
         -- group headers do: OnShow is what runs configureChildren, and writes
         -- made while hidden were stored but never acted on.
         header:Show()
     end
 
-    -- No state-visibility driver: let the header manage per-child visibility
-    -- via RegisterUnitWatch (built into SecureUnitButtonTemplate).
-    -- showSolo/showParty/showRaid/showPlayer attributes tell the header which
-    -- unit slots to populate; buttons for non-existent units auto-hide.
-    -- hideSelf just toggles showPlayer/showSolo off.
-    UnregisterAttributeDriver(header, "state-visibility")
+    -- Per-child visibility is still the header's own (RegisterUnitWatch,
+    -- built into SecureUnitButtonTemplate; hideSelf just toggles
+    -- showPlayer/showSolo off). Which HEADER SET shows is ours: here out of
+    -- combat, and RegisterHeaderSwap's secure wraps in combat (installed
+    -- once, here). This line used to unregister any visibility driver on the
+    -- party header.
+    RegisterHeaderSwap()
 
     -- Sizes go on whichever set is live -- in a raid that's the group headers'
     -- children, and the party header's 40 are hidden and unit-less.

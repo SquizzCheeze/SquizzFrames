@@ -1548,10 +1548,10 @@ function I:OnEnable()
     I:ReapplyToAll()
 end
 
--- Event bucket: schedule a lightweight per-button pass slightly after the
--- event so rapid bursts coalesce.
-local function ScheduleButtonUpdate(button, event)
-    if not button or not button:IsShown() then return end
+-- The per-button pass for one event. Runs from the flush below, never
+-- straight from the event.
+local function RunButtonUpdate(button, event)
+    if not button:IsShown() then return end
     if BuiltIn then
         BuiltIn.HandleEvent(button, event)
     end
@@ -1562,6 +1562,47 @@ local function ScheduleButtonUpdate(button, event)
             CustomDispatch.Scan(button)
         end
     end
+end
+
+-- Event bucket. Until 2026-11-13 this name promised batching while running
+-- every event synchronously, so three UNIT_HEALTH for one unit in one frame
+-- ran its four health checks three times. Now each (button, event) pair is
+-- queued once per frame and the queue is run on the next OnUpdate, in arrival
+-- order. The unit is read from the button at flush time, which is also
+-- correct after a header re-sort in between.
+--
+-- Two lists are swapped at flush, and each button's "seen" set is emptied
+-- BEFORE the queued work runs, so an event raised during the flush is queued
+-- for the next frame instead of being lost or dropped as a duplicate. The
+-- per-button sets are kept and reused: there are at most ~80 buttons plus the
+-- preview, so nothing grows.
+local pendingList, spareList = {}, {}
+local pendingSeen = {}
+local flushFrame = CreateFrame("Frame")
+flushFrame:Hide()
+flushFrame:SetScript("OnUpdate", function(self)
+    self:Hide()
+    local list = pendingList
+    pendingList, spareList = spareList, list
+    for _, seen in pairs(pendingSeen) do wipe(seen) end
+    for i = 1, #list, 2 do
+        RunButtonUpdate(list[i], list[i + 1])
+    end
+    wipe(list)
+end)
+
+local function ScheduleButtonUpdate(button, event)
+    if not button or not button:IsShown() then return end
+    local seen = pendingSeen[button]
+    if not seen then
+        seen = {}
+        pendingSeen[button] = seen
+    end
+    if seen[event] then return end
+    seen[event] = true
+    pendingList[#pendingList + 1] = button
+    pendingList[#pendingList + 1] = event
+    flushFrame:Show()
 end
 
 -- Events after which Blizzard's UnitCanAssist identity gate may read
