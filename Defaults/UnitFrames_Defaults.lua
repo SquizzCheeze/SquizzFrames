@@ -522,6 +522,14 @@ profile.unitFrames = {
     -- half-mirrored after a profile switch or a settings edit.
     mirrorPlayerTarget = false,
 
+    -- Hide Blizzard's player/target/focus frame outright, whatever our own
+    -- frames, the module switch or the Hide Blizzard Frames master say (user
+    -- request 2026-11-16: ours off, Blizzard's still unwanted). Read in
+    -- HideBlizzard.lua's ShouldHideBlizzardUnit. Module-wide, not on each
+    -- frame's table, because the per-frame tabs are unreachable while the
+    -- module is off -- exactly when this matters most.
+    alwaysHideBlizzard = {player = false, target = false, focus = false},
+
     -- NOTE: hideBlizzard and hideBlizzardCastBar used to live here. Both are
     -- now the single general.hideBlizzardFrames master (2026-09-05), which
     -- also covers party, raid and pet frames -- and which is gated per frame

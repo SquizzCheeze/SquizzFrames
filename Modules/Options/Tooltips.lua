@@ -129,6 +129,12 @@ local TIPS = {
     ["Enable Unit Frames"] = "SquizzFrames' own player, target, target of target, focus, boss and arena frames.",
     ["Mirror Player and Target"] = "Moving the player or target frame moves the other to the matching "
         .. "spot on the other side of the screen.",
+    ["Always Hide Blizzard's Player Frame"] = "Hides Blizzard's player frame even when SquizzFrames' own player "
+        .. "frame or unit frames are switched off.",
+    ["Always Hide Blizzard's Target Frame"] = "Hides Blizzard's target frame (and its target of target) even when "
+        .. "SquizzFrames' own target frame or unit frames are switched off.",
+    ["Always Hide Blizzard's Focus Frame"] = "Hides Blizzard's focus frame (and its target) even when "
+        .. "SquizzFrames' own focus frame or unit frames are switched off.",
     ["Use Nicknames"] = "Shows your nickname on your own player frame.",
     ["Show Portrait"] = "Shows a portrait of the unit on its frame.",
     ["Inside the Frame"] = "Puts the portrait inside the frame instead of beside it.",

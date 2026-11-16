@@ -2,6 +2,33 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.4
+-----
+
+New:
+
+- Unit Frames > General > Blizzard's Frames: "Always Hide Blizzard's" Player,
+  Target and Focus Frame. Hides Blizzard's frame even when SquizzFrames' own
+  frame (or all unit frames) is switched off.
+
+Fixed:
+
+- Converting a party to a raid (or back) in combat now swaps to the right
+  frames straight away. Before, a party kept its party-sized frames until
+  combat ended, and a raid turned into a party showed no frames at all.
+- A removed click-cast binding that used two or more modifiers kept working
+  until a /reload.
+- The right-click menu now follows combat correctly when you were already
+  hovering a frame as combat started or ended.
+- Mouse-wheel and keyboard click-cast bindings no longer stay stuck on a
+  frame that disappears under the cursor (a member leaving, a party/raid
+  swap), which could stop the wheel zooming the camera.
+- Less work after loading screens and in busy fights: click-cast bindings
+  are written once instead of three times after each loading screen, and the
+  Drinking check, Missing Buffs, indicator updates and Party Cooldowns all do
+  less per event.
+
+
 V2.3 (2026-11-11)
 -----
 

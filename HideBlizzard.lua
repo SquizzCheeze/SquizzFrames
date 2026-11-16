@@ -275,6 +275,21 @@ local function ShouldHideBlizzardUnitFrames()
     return (uf and uf.enabled == true) or false
 end
 
+-- One unit of BLIZZARD_UNIT_FRAMES. Normally hidden only while we draw that
+-- frame ourselves (master switch + module + our frame enabled). The
+-- unitFrames.alwaysHideBlizzard[unit] opt-in hides it regardless -- the one
+-- deliberate exception to "never leave a unit without a frame", because the
+-- player asked for exactly that.
+local function ShouldHideBlizzardUnit(unit)
+    local p = SquizzFrames.db and SquizzFrames.db.profile
+    local uf = p and p.unitFrames
+    local always = uf and uf.alwaysHideBlizzard
+    if always and always[unit] == true then return true end
+    if not ShouldHideBlizzardUnitFrames() then return false end
+    local ours = uf.frames and uf.frames[unit]
+    return (ours and ours.enabled ~= false) or false
+end
+
 -- Blizzard's PLAYER cast bar. Gated on the master switch AND on our own
 -- player cast bar being enabled -- hiding Blizzard's while we draw nothing in
 -- its place would leave you with no cast bar at all, which is exactly the
@@ -353,9 +368,9 @@ function SquizzFrames:HideBlizzardUnitFrames()
         local frame = _G[globalName]
         if frame then
             -- Per-frame: hiding Blizzard's target frame while OUR target frame
-            -- is switched off would leave that unit with no frame at all.
-            local ours = hide and uf and uf.frames and uf.frames[unit]
-            if ours and ours.enabled ~= false then
+            -- is switched off would leave that unit with no frame at all --
+            -- unless the player opted into that (ShouldHideBlizzardUnit).
+            if ShouldHideBlizzardUnit(unit) then
                 HideFrame(frame)
             else
                 ShowFrame(frame)
@@ -464,11 +479,7 @@ function SquizzFrames:HideBlizzardPetFrame()
 
     -- Keeping it. Does it need rescuing out from under a PlayerFrame we are
     -- about to hide (or have already hidden)?
-    local p = SquizzFrames.db and SquizzFrames.db.profile
-    local uf = p and p.unitFrames
-    local ourPlayer = uf and uf.frames and uf.frames.player
-    local playerHidden = ShouldHideBlizzardUnitFrames()
-        and ourPlayer and ourPlayer.enabled ~= false
+    local playerHidden = ShouldHideBlizzardUnit("player")
 
     -- Never Show() a frame we didn't hide. PetFrame is under a unit watch, so
     -- Blizzard alone decides whether it belongs on screen -- forcing it

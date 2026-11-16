@@ -335,6 +335,38 @@ local function SecGeneral(host, y, cfg, t)
         or "Drag either the player or target frame in Edit Mode and the other follows to the opposite side of the screen.")
     y = y - HintStep(mirrorNote, 40)
 
+    -- Always Hide Blizzard's ... (user request 2026-11-16). Here, not on each
+    -- frame's tab, because those tabs are unreachable with the module off --
+    -- the case this exists for. HideBlizzard.lua's ShouldHideBlizzardUnit
+    -- reads it; Changed() fires the message that makes it re-ask.
+    W.CreateTitledPane(host, L["Blizzard's Frames"] or "Blizzard's Frames", y)
+    y = y - 35
+    local ALWAYS_HIDE = {
+        {unit = "player", label = L["Always Hide Blizzard's Player Frame"] or "Always Hide Blizzard's Player Frame"},
+        {unit = "target", label = L["Always Hide Blizzard's Target Frame"] or "Always Hide Blizzard's Target Frame"},
+        {unit = "focus",  label = L["Always Hide Blizzard's Focus Frame"] or "Always Hide Blizzard's Focus Frame"},
+    }
+    for _, row in ipairs(ALWAYS_HIDE) do
+        local cb = W.CreateStyledCheckbox(host, row.label,
+            function() return (cfg.alwaysHideBlizzard or {})[row.unit] == true end,
+            function(v)
+                cfg.alwaysHideBlizzard = cfg.alwaysHideBlizzard or {}
+                cfg.alwaysHideBlizzard[row.unit] = v
+                Changed()
+            end)
+        cb:SetPoint("TOPLEFT", 15, y)
+        y = y - 28
+    end
+    local alwaysNote = host:CreateFontString(nil, "OVERLAY")
+    alwaysNote:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+    alwaysNote:SetPoint("TOPLEFT", 15, y)
+    alwaysNote:SetWidth(HintWidth(host))
+    alwaysNote:SetJustifyH("LEFT")
+    alwaysNote:SetTextColor(W.C4(W.palette.GREY_TEXT))
+    alwaysNote:SetText(L["Hides Blizzard's frame even when ours is switched off, so that unit has no frame at all. Changes made in combat apply when combat ends."]
+        or "Hides Blizzard's frame even when ours is switched off, so that unit has no frame at all. Changes made in combat apply when combat ends.")
+    y = y - HintStep(alwaysNote, 40)
+
     if not cfg.enabled then
         local note = host:CreateFontString(nil, "OVERLAY")
         note:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
