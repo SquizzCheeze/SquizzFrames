@@ -1028,6 +1028,32 @@ end
 ------------------------------------------------------------------------
 local elapsedSum, safetySum = 0, 0
 
+-- The two draws Pass makes per sensed icon, at file scope and handed their
+-- values as arguments, so pcall needs no closure. Written inline, every icon
+-- built one or two new functions every 0.1s: a few hundred a second of garbage
+-- with five rows up. Each runs under pcall because the stamps are secret.
+--
+-- The shade and countdown number from one stamp.
+local function DrawShade(bar, n, nv, span, nq, spanQ, stamp, shown)
+    bar:SetMinMaxValues(nv - span, nv)
+    bar:SetValue(stamp)
+    bar:SetAlpha(shown)
+    n.drive:SetMinMaxValues(nq - spanQ, nq)
+    n.drive:SetValue(stamp)
+    n.clip:SetAlpha(shown)
+end
+
+-- Two charges: until full, s1 + cd or s2 + 2cd, whichever is later -- two
+-- bars over each other.
+local function DrawRecharge(rbar, o, nv, span)
+    rbar[1]:SetMinMaxValues(nv - span, nv)
+    rbar[1]:SetValue(o.s1)
+    rbar[1]:SetAlpha(o.h1)
+    rbar[2]:SetMinMaxValues(nv - 2 * span, nv - span)
+    rbar[2]:SetValue(o.s2)
+    rbar[2]:SetAlpha(o.h2)
+end
+
 local function Pass()
     local now = GetTime()
     for _, token in ipairs(TOKENS) do
@@ -1093,28 +1119,11 @@ local function Pass()
                         -- and the thin bars show the recharge until full.
                         local stamp, shown = o.s1, o.h1
                         if t.n == 2 then stamp, shown = o.s2, o.h2 end
-                        local bar, n = f.bars[1], f.nums[1]
-                        pcall(function()
-                            bar:SetMinMaxValues(nv - span, nv)
-                            bar:SetValue(stamp)
-                            bar:SetAlpha(shown)
-                            n.drive:SetMinMaxValues(nq - spanQ, nq)
-                            n.drive:SetValue(stamp)
-                            n.clip:SetAlpha(shown)
-                        end)
+                        pcall(DrawShade, f.bars[1], f.nums[1], nv, span, nq, spanQ, stamp, shown)
                         f.bars[2]:SetAlpha(0)
                         f.nums[2].clip:SetAlpha(0)
                         if t.n == 2 then
-                            pcall(function()
-                                -- Until full: s1 + cd, or s2 + 2cd, whichever
-                                -- is later -- two bars over each other.
-                                f.rbar[1]:SetMinMaxValues(nv - span, nv)
-                                f.rbar[1]:SetValue(o.s1)
-                                f.rbar[1]:SetAlpha(o.h1)
-                                f.rbar[2]:SetMinMaxValues(nv - 2 * span, nv - span)
-                                f.rbar[2]:SetValue(o.s2)
-                                f.rbar[2]:SetAlpha(o.h2)
-                            end)
+                            pcall(DrawRecharge, f.rbar, o, nv, span)
                         end
                         pcall(f.glowFrame.SetAlpha, f.glowFrame, t.glow)
                     end

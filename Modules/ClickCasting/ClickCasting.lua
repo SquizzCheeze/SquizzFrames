@@ -829,6 +829,14 @@ function ClickCasting.SetBindingClicks(button)
     button:SetAttribute("_onleave", [[
         self:ClearBindings()
     ]])
+    -- A button hidden under the cursor (a member leaves, a re-sort, a party/
+    -- raid swap) may never get OnLeave. Its keyboard/wheel override bindings
+    -- would then outlive it, and the player's own binding for that key (wheel
+    -- zoom, say) stays dead until the button is shown and hovered again.
+    -- Clearing a button's own bindings on hide costs nothing if it did fire.
+    button:SetAttribute("_onhide", [[
+        self:ClearBindings()
+    ]])
     button:SetAttribute("_onmousedown", [[
         self:ClearBindings()
         self:Run(self:GetAttribute("snippet"))
@@ -1017,6 +1025,12 @@ local function WrapExternalHover(frame)
         if mouseoverbutton == self then mouseoverbutton = nil end
         self:ClearBindings()
     ]])
+    -- Same job as the _onhide attribute SetBindingClicks writes on our own
+    -- buttons: a frame hidden under the cursor must not keep the keys.
+    Wrap("OnHide", [[
+        if mouseoverbutton == self then mouseoverbutton = nil end
+        self:ClearBindings()
+    ]])
     -- NO OnMouseDown COUNTERPART. SetBindingClicks installs an "_onmousedown"
     -- attribute on our own buttons (a re-run of the snippet), but
     -- SecureHandlerWrapScript's supported script list is fixed and does not
@@ -1048,6 +1062,9 @@ local function WrapMenuCombatState(button)
         mouseoverbutton = self
     ]])
     pcall(SecureHandlerWrapScript, button, "OnLeave", header, [[
+        if mouseoverbutton == self then mouseoverbutton = nil end
+    ]])
+    pcall(SecureHandlerWrapScript, button, "OnHide", header, [[
         if mouseoverbutton == self then mouseoverbutton = nil end
     ]])
 end
@@ -1165,7 +1182,7 @@ end
 
 -- `onlyNew` restricts the pass to frames that do not already carry the current
 -- bindings. Used by the wiring and roster paths ONLY; every settings path
--- (the panel, a profile switch, the login retries, the post-combat flush)
+-- (the panel, a profile switch, the first login retry, the post-combat flush)
 -- calls this with no argument and rewrites everything unconditionally.
 --
 -- Why it exists: writing one frame's bindings is not cheap. ClearClickCastings
@@ -1398,9 +1415,14 @@ function ClickCasting:OnInitialize()
         -- already made once -- there it silently disabled the hooks for the
         -- whole session.
         InstallMenuClassifierFix()
+        -- Only the first pass is full. The later two only catch frames that
+        -- did not exist yet (the header's late children, a foreign addon's
+        -- frames): three full passes were three rewrites of every frame's
+        -- attributes, tens of thousands of secure writes after each loading
+        -- screen, two of them repeating the first exactly.
         C_Timer.After(0.5, function() self:ApplyToAll() end)
-        C_Timer.After(1.5, function() self:ApplyToAll() end)
-        C_Timer.After(3.0, function() self:ApplyToAll() end)
+        C_Timer.After(1.5, function() self:ApplyToAll(true) end)
+        C_Timer.After(3.0, function() self:ApplyToAll(true) end)
     end)
 
     -- Flush a deferred apply on leaving combat -- ONLY if one was actually

@@ -2566,7 +2566,15 @@ function PartyFrames:OnEnable()
         -- Auto-disable the layout preview on combat start -- it deals with
         -- the same button frames the secure header could touch, so it
         -- shouldn't be left active once real secure updates might occur.
-        SquizzFrames:RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        --
+        -- Every event in this function registers on `self` (the module), never
+        -- on the SquizzFrames root: the root keeps ONE handler per event, so a
+        -- module sharing it with Core.lua or another module silently replaces
+        -- or loses a handler (see CLAUDE.md, Event/Message Owner Collisions).
+        -- The same rule holds within the module, which is why this one handler
+        -- also does the range re-check on combat start instead of a second
+        -- registration below.
+        self:RegisterEvent("PLAYER_REGEN_DISABLED", function()
             -- self:IsPreviewActive() (method dispatch), not a bare
             -- `previewActive` reference -- that local is declared further
             -- down in this file, after OnEnable, so referencing it directly
@@ -2575,26 +2583,27 @@ function PartyFrames:OnEnable()
                 self:SetPreviewMode(false)
                 SquizzFrames:Fire("PreviewModeChanged", false)
             end
+            if RC then UpdateRangeAlpha() end
         end)
 
         -- Register events for health/power/aura updates
         local function onUnitEvent(_, unit)
             if unit then self:OnUnitEvent(unit) end
         end
-        SquizzFrames:RegisterEvent("UNIT_HEALTH", onUnitEvent)
-        SquizzFrames:RegisterEvent("UNIT_MAXHEALTH", onUnitEvent)
-        SquizzFrames:RegisterEvent("UNIT_POWER_UPDATE", onUnitEvent)
-        SquizzFrames:RegisterEvent("UNIT_MAXPOWER", onUnitEvent)
-        SquizzFrames:RegisterEvent("UNIT_DISPLAYPOWER", onUnitEvent)
-        SquizzFrames:RegisterEvent("UNIT_CONNECTION", onUnitEvent)
+        self:RegisterEvent("UNIT_HEALTH", onUnitEvent)
+        self:RegisterEvent("UNIT_MAXHEALTH", onUnitEvent)
+        self:RegisterEvent("UNIT_POWER_UPDATE", onUnitEvent)
+        self:RegisterEvent("UNIT_MAXPOWER", onUnitEvent)
+        self:RegisterEvent("UNIT_DISPLAYPOWER", onUnitEvent)
+        self:RegisterEvent("UNIT_CONNECTION", onUnitEvent)
         -- Drives the Drinking status text (IsUnitDrinking scans for the
         -- Food & Drink buff) -- fires on every aura change for the unit, same
         -- cost class as the health/power events already registered above.
-        SquizzFrames:RegisterEvent("UNIT_AURA", onUnitEvent)
+        self:RegisterEvent("UNIT_AURA", onUnitEvent)
         -- Drives the Pending/Accepted/Declined summon status text. Fires with
         -- no unit payload (confirmed against EllesmereUIRaidFrames), so every
         -- wired button's status needs re-checking rather than just one unit.
-        SquizzFrames:RegisterEvent("INCOMING_SUMMON_CHANGED", function()
+        self:RegisterEvent("INCOMING_SUMMON_CHANGED", function()
             for _, button in pairs(unitButtons) do
                 UpdateStatus(button)
             end
@@ -2803,13 +2812,10 @@ function PartyFrames:OnEnable()
         --      nothing at all in the overwhelmingly common case where a name
         --      resolved without changing the order.
         --
-        -- Owner note: this registers on the SquizzFrames root, matching every
-        -- other registration in this file. Checked that nothing else claims
-        -- UNIT_NAME_UPDATE on that same owner -- Indicators registers it on the
-        -- Indicators module (I:RegisterEvent) and PetFrames on its own module,
-        -- so there's no CallbackHandler (owner, event) collision here.
+        -- Owner: this module (`self`), like every registration here; nothing
+        -- else in PartyFrames claims UNIT_NAME_UPDATE.
         local nameUpdatePending = false
-        SquizzFrames:RegisterEvent("UNIT_NAME_UPDATE", function(_, unit)
+        self:RegisterEvent("UNIT_NAME_UPDATE", function(_, unit)
             if not unit then return end
             if not (unitButtons[unit] or unit == "player"
                 or unit:match("^party%d+$") or unit:match("^raid%d+$")) then
@@ -2832,7 +2838,7 @@ function PartyFrames:OnEnable()
         -- though the Status Icon (a separate system in Indicators.lua) did.
         -- UpdateStatus is a plain FontString Show/Hide/SetText, not a secure
         -- attribute change, so it's safe to call even in combat.
-        SquizzFrames:RegisterEvent("PLAYER_FLAGS_CHANGED", function(_, unit)
+        self:RegisterEvent("PLAYER_FLAGS_CHANGED", function(_, unit)
             if not InCombatLockdown() then
                 OnRosterOrFlagChanged()
             end
@@ -2878,14 +2884,10 @@ function PartyFrames:OnEnable()
             -- rest of the fight, but now it would just throw away a perfectly
             -- good reading and flash every frame to full alpha.
             --
-            -- Registered on `self` (PartyFrames), NOT SquizzFrames --
-            -- AceEvent/CallbackHandler keeps exactly ONE handler per (self,
-            -- event) pair, and SquizzFrames:RegisterEvent("PLAYER_REGEN_
-            -- DISABLED", ...) already has a handler above (auto-disabling the
-            -- layout preview on combat start) -- a second SquizzFrames-scoped
-            -- registration for the same event would have silently REPLACED
-            -- it instead of adding a second listener.
-            self:RegisterEvent("PLAYER_REGEN_DISABLED", UpdateRangeAlpha)
+            -- Combat START is not registered here: AceEvent keeps exactly ONE
+            -- handler per (owner, event), and this module's PLAYER_REGEN_DISABLED
+            -- handler above (auto-disabling the layout preview) already calls
+            -- UpdateRangeAlpha. A second registration would replace it.
             self:RegisterEvent("PLAYER_REGEN_ENABLED", UpdateRangeAlpha)
 
             -- UNIT_IN_RANGE_UPDATE fires the instant a group member crosses
