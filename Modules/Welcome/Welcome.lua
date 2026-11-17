@@ -33,6 +33,13 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.4"] = {
+        "Unit Frames > General: \"Always Hide Blizzard's\" Player, Target and Focus Frame, even with your own frame switched off.",
+        "A cast bar placed on its own, or attached elsewhere, keeps working with its unit frame switched off.",
+        "Turning a party into a raid (or back) in combat now swaps frames straight away.",
+        "Click-cast fixes: removed bindings stop working at once, and wheel/key bindings no longer stick after a frame disappears under the cursor.",
+        "Less work in busy fights: the frames only listen for the units they show, not every nameplate on screen.",
+    },
     ["2.3"] = {
         "WoW Forever: your hunter pet's happiness shows as an icon on your pet's frame, with mood, damage and loyalty in its tooltip.",
         "WoW Forever: Name Text can hide surnames (Indicators > Name Text > Hide Surname).",

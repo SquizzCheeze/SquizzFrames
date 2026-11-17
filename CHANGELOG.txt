@@ -2,7 +2,7 @@ SquizzFrames - Changelog
 ========================
 
 
-V2.4
+V2.4 (2026-11-17)
 -----
 
 New:
@@ -30,7 +30,9 @@ Fixed:
 - Less work after loading screens and in busy fights: click-cast bindings
   are written once instead of three times after each loading screen, and the
   Drinking check, Missing Buffs, indicator updates and Party Cooldowns all do
-  less per event.
+  less per event. Party, raid, pet and unit frames, the indicators and the
+  Tank Tracker now only hear health, power and aura updates for the units
+  they show, instead of for every nameplate on screen.
 
 
 V2.3 (2026-11-11)
