@@ -249,6 +249,23 @@ local function FrameEnabled(unit)
     return (t and t.enabled) ~= false
 end
 
+-- Whether a unit's CAST BAR runs. It used to ride FrameEnabled outright, so
+-- switching the player frame off (to have no player frame at all, Blizzard's
+-- hidden too) took the cast bar with it even when it was placed elsewhere
+-- (user report 2026-11-16). A bar with its own position ("free") or attached
+-- to another frame ("anchor") now keeps working with its unit frame off; one
+-- sitting ON the frame ("frame" mode) still goes with it, so a frame somebody
+-- switched off years ago does not grow an orphan bar under empty space.
+-- The module switch still gates everything.
+local function CastBarEnabled(unit)
+    if not ModuleEnabled() then return false end
+    local t = GetFrameConfig(unit)
+    local c = t and t.castBar
+    if not (c and c.enabled) then return false end
+    if t.enabled ~= false then return true end
+    return (c.positionMode or "frame") ~= "frame"
+end
+
 -- Player <-> target mirroring (opt-in, see UnitFrames_Defaults.lua). The map
 -- is symmetric so the same code serves a drag of either frame.
 --
@@ -1115,7 +1132,7 @@ function UnitFrames:SetEditMode(enabled)
         local bar = castBars[unit]
         if CB and bar then
             local t = GetFrameConfig(unit)
-            CB.SetEditMode(bar, enabled and FrameEnabled(unit), t and t.castBar)
+            CB.SetEditMode(bar, enabled and CastBarEnabled(unit), t and t.castBar)
         end
     end
 
@@ -1368,8 +1385,8 @@ local function ReplaceResourceAttachedCastBars()
     for unit, bar in pairs(castBars) do
         local t = GetFrameConfig(unit)
         local c = t and t.castBar
-        if c and c.enabled and c.positionMode == "anchor"
-           and CB.RESOURCE_FRAME[c.attachTo] and FrameEnabled(unit) then
+        if c and c.positionMode == "anchor"
+           and CB.RESOURCE_FRAME[c.attachTo] and CastBarEnabled(unit) then
             CB.ApplyPosition(bar, frames[unit], c)
         end
     end
@@ -1441,6 +1458,9 @@ function ApplyLayout()
             if not FrameEnabled(unit) then
                 UnregisterUnitWatch(frame)
                 frame:Hide()
+                -- Still scaled: a cast bar that outlives its frame (see
+                -- CastBarEnabled) takes its scale from it.
+                frame:SetScale(scale)
             else
                 local w = t.width or 180
                 local h = MatchedAttachHeight(unit, frame, t, scale) or t.height or 46
@@ -1564,20 +1584,19 @@ function ApplyLayout()
                 RegisterUnitWatch(frame)
             end
 
-            -- Cast bar settings are applied for DISABLED frames too, so its
-            -- own enabled=false path runs and hides a bar left over from
-            -- before the frame was switched off.
+            -- Cast bar settings are applied for DISABLED frames too: a bar
+            -- placed elsewhere keeps running (CastBarEnabled), and otherwise
+            -- its own enabled=false path hides a bar left over from before
+            -- the frame was switched off.
             local CB = SquizzFrames.UnitFrameCastBar
             local bar = castBars[unit]
             if CB and bar then
-                if FrameEnabled(unit) then
+                if CastBarEnabled(unit) then
                     CB.ApplySettings(bar, frame, t, GetBarTexture())
                     -- Re-derive immediately: enabling a bar mid-cast, or a
                     -- settings change during one, should show the cast in
                     -- progress rather than waiting for the next one.
-                    if t.castBar and t.castBar.enabled then
-                        CB.StartCast(bar, unit)
-                    end
+                    CB.StartCast(bar, unit)
                 else
                     CB.ApplySettings(bar, frame, {castBar = {enabled = false}})
                 end
@@ -1847,11 +1866,8 @@ function UnitFrames:OnEnable()
         local function RederiveCast(unit)
             local CB = SquizzFrames.UnitFrameCastBar
             local bar = castBars[unit]
-            if not (CB and bar and FrameEnabled(unit)) then return end
-            local t = GetFrameConfig(unit)
-            if t and t.castBar and t.castBar.enabled then
-                CB.StartCast(bar, unit)
-            end
+            if not (CB and bar and CastBarEnabled(unit)) then return end
+            CB.StartCast(bar, unit)
         end
 
         -- Aura rows need the same treatment as the cast bar when a token is
@@ -1982,9 +1998,7 @@ function UnitFrames:OnEnable()
             local function onCastEvent(event, unit)
                 local bar = unit and castBars[unit]
                 if not bar then return end
-                if not FrameEnabled(unit) then return end
-                local t = GetFrameConfig(unit)
-                if not (t and t.castBar and t.castBar.enabled) then return end
+                if not CastBarEnabled(unit) then return end
                 CB.HandleEvent(bar, unit, event)
             end
             for _, event in ipairs(CB.EVENTS) do

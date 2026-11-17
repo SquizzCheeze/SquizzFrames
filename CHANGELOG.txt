@@ -13,6 +13,10 @@ New:
 
 Fixed:
 
+- A cast bar with its own position, or attached to another frame, now keeps
+  working with its unit frame switched off. Before, turning the Player Frame
+  off took the player cast bar with it. A cast bar set to sit on its frame
+  still goes with the frame.
 - Converting a party to a raid (or back) in combat now swaps to the right
   frames straight away. Before, a party kept its party-sized frames until
   combat ended, and a raid turned into a party showed no frames at all.
