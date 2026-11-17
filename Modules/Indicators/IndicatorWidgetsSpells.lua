@@ -174,6 +174,8 @@ local function CreateSetting_DebuffBlacklist(parent)
                 nameStr:SetPoint("LEFT", iconTex, "RIGHT", 4, 0)
                 nameStr:SetPoint("RIGHT", isCurated and -4 or -24, 0)
                 nameStr:SetJustifyH("LEFT")
+                nameStr:SetWordWrap(false)
+                nameStr:SetMaxLines(1)
                 local spellName = F.GetSpellInfo(id)
                 nameStr:SetText(spellName and (spellName .. " (" .. id .. ")") or tostring(id))
 
@@ -425,8 +427,23 @@ local function CreateSetting_BuiltInsForKind(parent, token, filterToPlayerClass,
                         nameStr:SetPoint("LEFT", iconTex, "RIGHT", 4, 0)
                         nameStr:SetPoint("RIGHT", -4, 0)
                         nameStr:SetJustifyH("LEFT")
+                        -- One line, always: Forever lists every rank's ID
+                        -- (Rejuvenation has 12), which wrapped over the rows
+                        -- below. Past three IDs the label shows a count and
+                        -- the full list moves to the row's tooltip.
+                        nameStr:SetWordWrap(false)
+                        nameStr:SetMaxLines(1)
                         local idText = table.concat(entryIds, ", ")
-                        nameStr:SetText(entry.name and (entry.name .. " (" .. idText .. ")") or idText)
+                        local shown = (#entryIds > 3) and (#entryIds .. " ranks") or idText
+                        nameStr:SetText(entry.name and (entry.name .. " (" .. shown .. ")") or shown)
+                        row:EnableMouse(true)
+                        row:SetScript("OnEnter", function(self)
+                            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                            GameTooltip:SetText(entry.name or tostring(id), 1, 1, 1)
+                            GameTooltip:AddLine("Spell IDs: " .. idText, 0.8, 0.8, 0.8, true)
+                            GameTooltip:Show()
+                        end)
+                        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
                         rows[idx] = row
                     end

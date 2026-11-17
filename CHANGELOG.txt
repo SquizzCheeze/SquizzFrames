@@ -2,6 +2,16 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.4.1
+-----
+
+Fixed:
+
+- WoW Forever: the spell checklists on Healer HoTs and the other built-in
+  indicators no longer spill over each other. A spell with more than three
+  ranks shows the number of ranks, and hovering it lists every spell ID.
+
+
 V2.4 (2026-11-17)
 -----
 
