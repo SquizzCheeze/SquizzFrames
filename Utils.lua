@@ -1292,3 +1292,95 @@ function F.SlashHandler(msg)
         end
     end
 end
+
+-----------------------------------------------------------------------
+-- Unit-filtered events (audit #6, 2026-11-17)
+-----------------------------------------------------------------------
+-- AceEvent's RegisterEvent hears a unit event for EVERY unit the client
+-- tracks, nameplates included, and the modules then looked the token up and
+-- threw most of them away -- a Lua call per nameplate per health tick, per
+-- module. A frame's RegisterUnitEvent filters in C instead, so Lua runs only
+-- for tokens we actually draw. PartyCooldowns already worked this way.
+--
+-- One registration takes at most Constants.UnitEventConstants.
+-- MAX_UNIT_TOKENS_IN_EVENT tokens (4 on retail 12.1.5 and on Forever; Blizzard's
+-- CombatAudioAlertManager checks the same constant), so a token set is a row of
+-- small frames holding that many each. 2 if the constant is ever missing --
+-- the long-standing limit.
+--
+-- The sets are FIXED, every slot a unit can occupy. The secure header moves
+-- people between raid1..raid40 in combat; a fixed set needs no
+-- re-registration to follow it, and an unused token costs nothing.
+--
+-- Same contract as AceEvent: one handler per (owner, event) per set, a second
+-- registration replaces the first, and handlers get (event, unit, ...). The
+-- set is keyed by TABLE IDENTITY, so callers pass a set table they keep, not a
+-- fresh one per call.
+local UnitEvents = {}
+SquizzFrames.UnitEvents = UnitEvents
+
+-- What the party/raid buttons can be assigned (header unit attributes), and
+-- their pets' tokens (PetFrames' PET_SLOTS).
+local GROUP, GROUP_PETS = {"player"}, {"pet"}
+for i = 1, 4 do
+    GROUP[#GROUP + 1] = "party" .. i
+    GROUP_PETS[#GROUP_PETS + 1] = "partypet" .. i
+end
+for i = 1, 40 do
+    GROUP[#GROUP + 1] = "raid" .. i
+    GROUP_PETS[#GROUP_PETS + 1] = "raidpet" .. i
+end
+UnitEvents.GROUP = GROUP
+UnitEvents.GROUP_PETS = GROUP_PETS
+
+local PER_FRAME = (Constants and Constants.UnitEventConstants
+    and Constants.UnitEventConstants.MAX_UNIT_TOKENS_IN_EVENT) or 2
+
+local routers = {}   -- [units table] = {frames, handlers = {[event] = {[owner] = fn}}}
+
+local function GetRouter(units)
+    local r = routers[units]
+    if r then return r end
+    r = {frames = {}, handlers = {}}
+    local handlers = r.handlers
+    local function OnEvent(_, event, ...)
+        local list = handlers[event]
+        if not list then return end
+        for _, fn in pairs(list) do fn(event, ...) end
+    end
+    for i = 1, #units, PER_FRAME do
+        local f = CreateFrame("Frame")
+        f:SetScript("OnEvent", OnEvent)
+        local chunk = {}
+        for j = i, math.min(i + PER_FRAME - 1, #units) do
+            chunk[#chunk + 1] = units[j]
+        end
+        f._sfUnits = chunk
+        r.frames[#r.frames + 1] = f
+    end
+    routers[units] = r
+    return r
+end
+
+function UnitEvents.Register(owner, units, event, fn)
+    local r = GetRouter(units)
+    local list = r.handlers[event]
+    if not list then
+        list = {}
+        r.handlers[event] = list
+        for _, f in ipairs(r.frames) do
+            f:RegisterUnitEvent(event, unpack(f._sfUnits))
+        end
+    end
+    list[owner] = fn
+end
+
+function UnitEvents.Unregister(owner, units, event)
+    local r = routers[units]
+    local list = r and r.handlers[event]
+    if not list then return end
+    list[owner] = nil
+    if next(list) then return end
+    r.handlers[event] = nil
+    for _, f in ipairs(r.frames) do f:UnregisterEvent(event) end
+end

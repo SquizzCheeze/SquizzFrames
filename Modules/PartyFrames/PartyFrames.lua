@@ -2587,19 +2587,23 @@ function PartyFrames:OnEnable()
         end)
 
         -- Register events for health/power/aura updates
+        -- Filtered to the group tokens (Utils.lua's UnitEvents), not heard
+        -- for every nameplate: unitButtons is keyed by exactly those tokens,
+        -- so nothing else could ever match.
         local function onUnitEvent(_, unit)
             if unit then self:OnUnitEvent(unit) end
         end
-        self:RegisterEvent("UNIT_HEALTH", onUnitEvent)
-        self:RegisterEvent("UNIT_MAXHEALTH", onUnitEvent)
-        self:RegisterEvent("UNIT_POWER_UPDATE", onUnitEvent)
-        self:RegisterEvent("UNIT_MAXPOWER", onUnitEvent)
-        self:RegisterEvent("UNIT_DISPLAYPOWER", onUnitEvent)
-        self:RegisterEvent("UNIT_CONNECTION", onUnitEvent)
+        local UE = SquizzFrames.UnitEvents
+        UE.Register(self, UE.GROUP, "UNIT_HEALTH", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_MAXHEALTH", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_POWER_UPDATE", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_MAXPOWER", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_DISPLAYPOWER", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_CONNECTION", onUnitEvent)
         -- Drives the Drinking status text (IsUnitDrinking scans for the
         -- Food & Drink buff) -- fires on every aura change for the unit, same
         -- cost class as the health/power events already registered above.
-        self:RegisterEvent("UNIT_AURA", onUnitEvent)
+        UE.Register(self, UE.GROUP, "UNIT_AURA", onUnitEvent)
         -- Drives the Pending/Accepted/Declined summon status text. Fires with
         -- no unit payload (confirmed against EllesmereUIRaidFrames), so every
         -- wired button's status needs re-checking rather than just one unit.

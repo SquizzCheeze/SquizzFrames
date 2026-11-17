@@ -963,10 +963,16 @@ function TankTracker:OnEnable()
             if frame._sfUnit == unit and frame:IsShown() then UpdateHealth(frame) end
         end
     end
-    self:RegisterEvent("UNIT_HEALTH", OnUnitEvent)
-    self:RegisterEvent("UNIT_MAXHEALTH", OnUnitEvent)
-    self:RegisterEvent("UNIT_NAME_UPDATE", OnUnitEvent)
-    self:RegisterEvent("UNIT_CONNECTION", Relayout)
+    -- Group tokens only (Utils.lua's UnitEvents): a tank is always one, and
+    -- this handler walks every tank frame, so a nameplate's health tick used
+    -- to cost a loop for nothing.
+    local UE = SquizzFrames.UnitEvents
+    UE.Register(self, UE.GROUP, "UNIT_HEALTH", OnUnitEvent)
+    UE.Register(self, UE.GROUP, "UNIT_MAXHEALTH", OnUnitEvent)
+    UE.Register(self, UE.GROUP, "UNIT_NAME_UPDATE", OnUnitEvent)
+    -- Was a full relayout for ANY unit's connection change, nameplates
+    -- included; only a group member's can change which tanks are shown.
+    UE.Register(self, UE.GROUP, "UNIT_CONNECTION", Relayout)
 
     self:RegisterMessage("TankTrackerChanged", Relayout)
     self:RegisterMessage("ProfileChanged", Relayout)

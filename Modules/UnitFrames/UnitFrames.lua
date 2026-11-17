@@ -204,6 +204,9 @@ local absorbSets = {}      -- [unitToken] = absorb overlay holder (Absorbs.lua)
 -- comment about exactly this gap and falls back to an OnUpdate), so these get
 -- a cheap backstop poll on top -- see EnsureTotPoller.
 local DERIVED_UNITS = {targettarget = "target", focustarget = "focus"}
+-- The owners above as a token list, for UnitEvents (kept, not rebuilt: the
+-- router keys a token set by table identity).
+local DERIVED_OWNER_UNITS = {"target", "focus"}
 
 local function GetProfile()
     return SquizzFrames.db and SquizzFrames.db.profile
@@ -1803,27 +1806,34 @@ function UnitFrames:OnEnable()
         local cc = SquizzFrames.modules and SquizzFrames.modules["ClickCasting"]
         if cc and cc.ApplyToAll then cc:ApplyToAll() end
 
+        -- Filtered to this module's own tokens (Utils.lua's UnitEvents) --
+        -- ALL_UNITS is the very list `frames` is keyed by, so nothing else
+        -- could match. Before, every nameplate's health tick reached here.
         local function onUnitEvent(_, unit)
             local frame = unit and frames[unit]
             if frame then UpdateFrame(frame) end
         end
-        self:RegisterEvent("UNIT_HEALTH", onUnitEvent)
-        self:RegisterEvent("UNIT_MAXHEALTH", onUnitEvent)
-        self:RegisterEvent("UNIT_POWER_UPDATE", onUnitEvent)
-        self:RegisterEvent("UNIT_MAXPOWER", onUnitEvent)
-        self:RegisterEvent("UNIT_DISPLAYPOWER", onUnitEvent)
-        self:RegisterEvent("UNIT_CONNECTION", onUnitEvent)
-        self:RegisterEvent("UNIT_NAME_UPDATE", onUnitEvent)
-        self:RegisterEvent("UNIT_LEVEL", onUnitEvent)
-        self:RegisterEvent("UNIT_FACTION", onUnitEvent)
+        local UE = SquizzFrames.UnitEvents
+        local function RegisterOwn(event, fn)
+            UE.Register(self, ALL_UNITS, event, fn)
+        end
+        RegisterOwn("UNIT_HEALTH", onUnitEvent)
+        RegisterOwn("UNIT_MAXHEALTH", onUnitEvent)
+        RegisterOwn("UNIT_POWER_UPDATE", onUnitEvent)
+        RegisterOwn("UNIT_MAXPOWER", onUnitEvent)
+        RegisterOwn("UNIT_DISPLAYPOWER", onUnitEvent)
+        RegisterOwn("UNIT_CONNECTION", onUnitEvent)
+        RegisterOwn("UNIT_NAME_UPDATE", onUnitEvent)
+        RegisterOwn("UNIT_LEVEL", onUnitEvent)
+        RegisterOwn("UNIT_FACTION", onUnitEvent)
 
         -- Absorb overlays (Absorbs.lua). UNIT_HEALTH above already refreshes
         -- the shield bar whenever health moves, but an absorb can be applied
         -- or consumed with no health change at all -- a shield landing before
         -- the first hit is the common case -- so both absorb events are needed
         -- in their own right.
-        self:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED", onUnitEvent)
-        self:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", onUnitEvent)
+        RegisterOwn("UNIT_ABSORB_AMOUNT_CHANGED", onUnitEvent)
+        RegisterOwn("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", onUnitEvent)
 
         -- State icons (Icons.lua). No unit argument on either of these, so
         -- they refresh everything -- both are rare and the pass is cheap.
@@ -1912,7 +1922,9 @@ function UnitFrames:OnEnable()
         -- Fires on the OWNER token when that unit's target changes, which is
         -- the derived frames' primary (if imperfect) signal -- see
         -- EnsureTotPoller for why a poll backs it up.
-        self:RegisterEvent("UNIT_TARGET", function(_, unit)
+        -- Only the owners' tokens: UNIT_TARGET fires every time ANY unit
+        -- changes target, nameplates included, and only these two matter.
+        UE.Register(self, DERIVED_OWNER_UNITS, "UNIT_TARGET", function(_, unit)
             for derived, owner in pairs(DERIVED_UNITS) do
                 if unit == owner then
                     local f = frames[derived]
@@ -1925,14 +1937,14 @@ function UnitFrames:OnEnable()
         -- Vehicle transitions rewrite which unit the frame's secure attribute
         -- resolves to (toggleForVehicle), so the visible contents change
         -- without any unit event firing for them.
-        self:RegisterEvent("UNIT_ENTERED_VEHICLE", onUnitEvent)
-        self:RegisterEvent("UNIT_EXITED_VEHICLE", onUnitEvent)
+        RegisterOwn("UNIT_ENTERED_VEHICLE", onUnitEvent)
+        RegisterOwn("UNIT_EXITED_VEHICLE", onUnitEvent)
 
         -- Portraits. UNIT_PORTRAIT_UPDATE covers the 2D texture going stale;
         -- UNIT_MODEL_CHANGED is what a 3D portrait needs when the unit's model
         -- is swapped (shapeshift, transformation) under an unchanged token.
-        self:RegisterEvent("UNIT_PORTRAIT_UPDATE", onUnitEvent)
-        self:RegisterEvent("UNIT_MODEL_CHANGED", onUnitEvent)
+        RegisterOwn("UNIT_PORTRAIT_UPDATE", onUnitEvent)
+        RegisterOwn("UNIT_MODEL_CHANGED", onUnitEvent)
         -- No unit argument: it means "portrait art that was not resolvable
         -- before now is". Without it, a portrait that failed the availability
         -- gate (unit not yet streamed) keeps its question-mark fallback until

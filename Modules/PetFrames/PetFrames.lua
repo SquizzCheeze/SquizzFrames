@@ -1142,13 +1142,16 @@ function PetFrames:OnEnable()
                 UpdatePetButton(petButtons[unit])
             end
         end
-        self:RegisterEvent("UNIT_HEALTH", onPetUnitEvent)
-        self:RegisterEvent("UNIT_MAXHEALTH", onPetUnitEvent)
-        self:RegisterEvent("UNIT_POWER_UPDATE", onPetUnitEvent)
-        self:RegisterEvent("UNIT_MAXPOWER", onPetUnitEvent)
-        self:RegisterEvent("UNIT_DISPLAYPOWER", onPetUnitEvent)
-        self:RegisterEvent("UNIT_CONNECTION", onPetUnitEvent)
-        self:RegisterEvent("UNIT_NAME_UPDATE", onPetUnitEvent)
+        -- Pet tokens only (Utils.lua's UnitEvents): petButtons is keyed by
+        -- PET_SLOTS, which is the same list as UE.GROUP_PETS.
+        local UE = SquizzFrames.UnitEvents
+        UE.Register(self, UE.GROUP_PETS, "UNIT_HEALTH", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_MAXHEALTH", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_POWER_UPDATE", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_MAXPOWER", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_DISPLAYPOWER", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_CONNECTION", onPetUnitEvent)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_NAME_UPDATE", onPetUnitEvent)
         -- Forever only: the event does not exist on retail.
         if SquizzFrames.IS_FOREVER then
             self:RegisterEvent("UNIT_HAPPINESS", RefreshOwnPetHappiness)
@@ -1192,7 +1195,7 @@ function PetFrames:OnEnable()
         -- (BuiltIn_Update's eventMap), which pet buttons are not part of. It
         -- carries the unit whose threat changed, so only that pet's button is
         -- touched -- a pet's threat is its own, not its owner's.
-        self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", function(_, unit)
+        UE.Register(self, UE.GROUP_PETS, "UNIT_THREAT_SITUATION_UPDATE", function(_, unit)
             local button = unit and petButtons[unit]
             if button then RefreshPetAggro(button) end
         end)

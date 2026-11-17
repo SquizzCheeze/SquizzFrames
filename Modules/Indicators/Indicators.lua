@@ -1730,17 +1730,36 @@ function I:OnEvent(event, unit)
 end
 
 -- Register an event with the module's AceEvent handler (idempotent).
+--
+-- UNIT_* events go through Utils.lua's UnitEvents instead, filtered to the
+-- group tokens: OnEvent's per-unit branch only ever finds a button through
+-- FindButtonByUnit, which is keyed by exactly those, so every nameplate,
+-- target and boss event was a wasted call. The identity-gate refresh
+-- (UNIT_FACTION) only re-measures our buttons' units, so it loses nothing.
 local hookedEvents = {}
+local function OnGroupUnitEvent(event, ...)
+    I:OnEvent(event, ...)
+end
 function HookEventSafe(event)
     if hookedEvents[event] then return end
     hookedEvents[event] = true
-    I:RegisterEvent(event, "OnEvent")
+    if event:find("^UNIT_") then
+        local UE = SquizzFrames.UnitEvents
+        UE.Register(I, UE.GROUP, event, OnGroupUnitEvent)
+    else
+        I:RegisterEvent(event, "OnEvent")
+    end
 end
 function UnhookEventSafe(event)
     if not hookedEvents[event] then return end
     hookedEvents[event] = nil
     -- It used to clear only the flag and leave the event registered.
-    I:UnregisterEvent(event)
+    if event:find("^UNIT_") then
+        local UE = SquizzFrames.UnitEvents
+        UE.Unregister(I, UE.GROUP, event)
+    else
+        I:UnregisterEvent(event)
+    end
 end
 
 function I:ReapplyToAll()
