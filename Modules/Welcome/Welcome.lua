@@ -33,6 +33,9 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.4.1"] = {
+        "WoW Forever: the spell lists on Healer HoTs and the other indicators no longer overlap. A spell with many ranks shows how many, and hovering it lists every ID.",
+    },
     ["2.4"] = {
         "Unit Frames > General: \"Always Hide Blizzard's\" Player, Target and Focus Frame, even with your own frame switched off.",
         "A cast bar placed on its own, or attached elsewhere, keeps working with its unit frame switched off.",
