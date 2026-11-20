@@ -2,6 +2,18 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.5
+-----
+
+New:
+
+- Party and raid frames: a Level Text indicator (Indicators > Vitals), off by
+  default. Shows the level, or level and class, in any colour or the class
+  colour, and by default hides itself for anyone at max level, so while
+  levelling it only shows who is behind. Works on retail and WoW Forever.
+  The unit frames already had this: turn on the Level text on any frame.
+
+
 V2.4.1 (2026-11-18)
 -----
 

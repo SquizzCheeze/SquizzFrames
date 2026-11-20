@@ -930,7 +930,7 @@ local function ApplySettingToOne(button, name, setting, value, value2)
     if setting == "position" then
         ApplyPosition(button, name, t or indicator.configs)
         -- Re-run text updater for text indicators since justification depends on anchor point
-        if (name == "nameText" or name == "healthText" or name == "powerText") and indicator and indicator._sfNameUpdater then
+        if (name == "nameText" or name == "healthText" or name == "powerText" or name == "levelText") and indicator and indicator._sfNameUpdater then
             indicator._sfNameUpdater()
         end
         -- Dragging statusText in the preview only moves the text (the block
@@ -1083,7 +1083,7 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         -- function which knows how to read the color table and apply it.
         if name == "nameText" and indicator and indicator._sfNameUpdater then
             indicator._sfNameUpdater()
-        elseif (name == "healthText" or name == "powerText") and indicator then
+        elseif (name == "healthText" or name == "powerText" or name == "levelText") and indicator then
             -- CheckHealthText/CheckPowerText read their settings from the
             -- indicator's OWN table (indicator._sfTable/.configs), which is
             -- not always the same object the options panel just wrote to:
@@ -1155,7 +1155,8 @@ local function ApplySettingToOne(button, name, setting, value, value2)
     elseif setting == "textFormat" or setting == "maxLength"
         or setting == "textWidth" or setting == "showGroupNumber" or setting == "hideRealmName"
         or setting == "vehicleNamePosition"
-        or setting == "showPercentage" or setting == "showCurrent" or setting == "showMax" then
+        or setting == "showPercentage" or setting == "showCurrent" or setting == "showMax"
+        or setting == "hideAtMaxLevel" then
         -- nameText/healthText/powerText-specific settings — re-run the text updater so the
         -- FontString reflects the new width/group-number/vehicle position/display-mode.
         -- showPercentage/showCurrent/showMax previously weren't in this list at all: the
@@ -1163,7 +1164,7 @@ local function ApplySettingToOne(button, name, setting, value, value2)
         -- branch nothing ever re-ran CheckHealthText/CheckPowerText to actually reflect it —
         -- toggling the checkbox silently updated the DB and visibly did nothing until some
         -- unrelated event (e.g. a health change) happened to refresh the text next.
-        if (name == "nameText" or name == "healthText" or name == "powerText") and indicator and indicator._sfNameUpdater then
+        if (name == "nameText" or name == "healthText" or name == "powerText" or name == "levelText") and indicator and indicator._sfNameUpdater then
             indicator._sfNameUpdater()
         end
     elseif setting == "roleTexture" then
@@ -1531,6 +1532,7 @@ function I:OnEnable()
     HookEventSafe("UNIT_NAME_UPDATE")
     HookEventSafe("UNIT_POWER_UPDATE")
     HookEventSafe("UNIT_MAXPOWER")
+    HookEventSafe("UNIT_LEVEL")
     -- Phased Icon (BuiltIn_Update.lua). Both carry a unit, so they take the
     -- generic per-unit dispatch below rather than broadcasting.
     HookEventSafe("UNIT_PHASE")
@@ -1948,6 +1950,8 @@ function I.InitPreviewData(pb)
     pb._sfFakeHealthMax = 100000
     pb._sfFakePower = 65000
     pb._sfFakePowerMax = 100000
+    -- Level Text: a plain number, never the player's real level.
+    pb._sfFakeLevel = 70
     -- Fake name for nameText indicator
     pb._sfFakeName = UnitName("player") or "PlayerName"
     -- Fake status (connected, not AFK, not dead)

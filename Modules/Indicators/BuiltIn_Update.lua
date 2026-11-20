@@ -1285,6 +1285,11 @@ function BU.CreateBuiltInIndicator(button, t)
         -- shape, so it had the same dead Frame Level slider.
         GiveRegionRealFrameLevel(indicator, button)
         indicator._sfType = "builtin"
+    elseif name == "levelText" then
+        indicator = button.levelText or button:CreateFontString(nil, "ARTWORK")
+        button.levelText = indicator
+        GiveRegionRealFrameLevel(indicator, button)
+        indicator._sfType = "builtin"
     else
         return nil
     end
@@ -1952,6 +1957,86 @@ local function CheckPowerText(button)
 
     -- Store updater for options panel
     indicator._sfNameUpdater = function() CheckPowerText(button) end
+end
+
+-- Level Text (V2.5). The text itself comes from the unit frames' formatter
+-- (UnitFrames.FormatToken), which already gates every comparison on a level or
+-- classification against secrets -- one copy of those rules, not two.
+--
+-- AUTHORITATIVE, like every Check: it decides show AND hide on each pass (see
+-- CLAUDE.md, section 4), so a rebuild's generic Show() cannot resurrect a
+-- level that should be hidden.
+--
+-- Same API on retail and Forever: UnitLevel, UNIT_LEVEL and
+-- GetMaxLevelForPlayerExpansion all exist on both clients.
+local function IsAtMaxLevel(level)
+    if not F.IsValueNonSecret(level) or type(level) ~= "number" then return false end
+    local maxLevel = GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion()
+    if type(maxLevel) ~= "number" or maxLevel <= 0 then return false end
+    return level >= maxLevel
+end
+
+local function CheckLevelText(button)
+    local unit = button.unit or button:GetAttribute("unit")
+    if not unit then return end
+    local indicator = button.indicators and button.indicators.levelText
+    if not indicator then return end
+    local t = indicator._sfTable or indicator.configs
+    if not t or not t.enabled then indicator:Hide() return end
+
+    local fmt = t.textFormat or "level"
+    local text, classFile
+    if button._sfFakeClass then
+        -- Preview: static data, never the player's real unit (see
+        -- InitPreviewData). Never hidden at max level either -- the Designer
+        -- has to show the text for it to be placed.
+        classFile = button._sfFakeClass
+        text = tostring(button._sfFakeLevel or 70)
+        if fmt == "levelClass" then
+            local className = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classFile]
+            if className then text = text .. " " .. className end
+        end
+    else
+        if not UnitExists(unit) then indicator:Hide() return end
+        if t.hideAtMaxLevel and IsAtMaxLevel(UnitLevel(unit)) then
+            indicator:Hide()
+            return
+        end
+        local UF = SquizzFrames.modules and SquizzFrames.modules["UnitFrames"]
+        text = UF and UF.FormatToken and UF.FormatToken(unit, fmt)
+        _, classFile = UnitClass(unit)
+    end
+
+    if not text then indicator:Hide() return end
+    indicator:SetText(text)
+
+    if t.color and t.color[1] == "class_color" then
+        local color = F.IsValueNonSecret(classFile) and RAID_CLASS_COLORS[classFile]
+        if color then indicator:SetTextColor(color.r, color.g, color.b) end
+    elseif t.color and t.color[1] == "custom_color" and #t.color >= 4 then
+        indicator:SetTextColor(t.color[2], t.color[3], t.color[4], t.color[5] or 1)
+    elseif t.color and type(t.color[1]) == "number" then
+        indicator:SetTextColor(t.color[1], t.color[2] or 1, t.color[3] or 1, t.color[4] or 1)
+    else
+        indicator:SetTextColor(1, 0.82, 0)
+    end
+
+    -- Same geometry rules as Health/Power Text: an explicit width and height
+    -- so the Designer can drag it, single line, justified from its anchor.
+    ApplyTextGeometry(button, indicator, t)
+    indicator:SetWordWrap(false)
+    indicator:SetHeight((t.font and t.font[2] or 10) + 4)
+    local anchorPoint = t.position and t.position[1] or "CENTER"
+    if anchorPoint:find("LEFT") then
+        indicator:SetJustifyH("LEFT")
+    elseif anchorPoint:find("RIGHT") then
+        indicator:SetJustifyH("RIGHT")
+    else
+        indicator:SetJustifyH("CENTER")
+    end
+
+    indicator:Show()
+    indicator._sfNameUpdater = function() CheckLevelText(button) end
 end
 
 -- Ready Check: GetReadyCheckStatus(unit) is the live source of truth, but it
@@ -2885,6 +2970,7 @@ function BU.CheckAll(button)
     CheckMissingBuffs(button)
     CheckHealthText(button)
     CheckPowerText(button)
+    CheckLevelText(button)
 end
 
 -- ------------------------------------------------------------------
@@ -2900,7 +2986,7 @@ local eventMap = {
     -- CheckPingMarker is here because a roster change re-sorts the header and
     -- hands unit tokens to different buttons, which is exactly when a marker
     -- can end up sitting on the wrong person.
-    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight, ResetPhasedIcons, CheckPingMarker },
+    GROUP_ROSTER_UPDATE      = { CheckLeaderIcon, CheckLeaderIcon, BU.CheckRoleIcon, CheckAggroBlink, CheckAggroBorder, CheckNameText, CheckTargetHighlight, ResetPhasedIcons, CheckPingMarker, CheckLevelText },
     -- The actual "a unit's assigned role changed" event -- GROUP_ROSTER_UPDATE
     -- only fires on membership changes (someone joining/leaving), not on an
     -- in-place role reassignment (role-check UI, LFG role swap, manually
@@ -2929,7 +3015,8 @@ local eventMap = {
     UNIT_MAXPOWER            = { CheckPowerText },
     UNIT_AURA                = { CheckMissingBuffs },
     RAID_TARGET_UPDATE       = { CheckPlayerRaidIcon },
-    UNIT_NAME_UPDATE         = { CheckNameText },
+    UNIT_NAME_UPDATE         = { CheckNameText, CheckLevelText },
+    UNIT_LEVEL               = { CheckLevelText },
     -- Both carry a real unit, so these reach only the button that changed.
     -- They are the fast path only: UnitPhaseReason is blind past ~250yd, so
     -- the poller in the Phased Icon block above is what actually keeps this

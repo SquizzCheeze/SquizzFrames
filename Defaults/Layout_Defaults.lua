@@ -124,6 +124,7 @@ profile.indicatorIndices = {
     dispelIcons = 24,
     phasedIcon = 25,
     pingMarker = 26,
+    levelText = 27,
     customIndicators = {},
 }
 
@@ -540,6 +541,23 @@ profile.layout.indicators = {
         enabled = true,
         position = {"CENTER", "button", "CENTER", 0, 0}, frameLevel = LAYER.STATUS_ICON,
         size = {30, 30}, alpha = 1,
+    },
+    -- 27: Level Text (V2.5)
+    --
+    -- The unit's level, drawn through the unit frames' own formatter
+    -- (UnitFrames.FormatToken), so "level" / "levelClass" read exactly as the
+    -- Level readout on the unit frames does. Off by default: in endgame
+    -- content everyone is max level and it is noise -- which is also why
+    -- hideAtMaxLevel defaults on, so turning it on while levelling shows only
+    -- the people who are behind.
+    {
+        name = "Level Text", indicatorName = "levelText", type = "built-in",
+        enabled = false,
+        position = {"BOTTOMRIGHT", "healthBar", "BOTTOMRIGHT", 0, 0}, frameLevel = LAYER.TEXT,
+        font = {"Friz QT__", 10, "NONE", true},
+        color = {"custom_color", 1, 0.82, 0, 1},
+        textFormat = "level",
+        hideAtMaxLevel = true,
     },
 }
 

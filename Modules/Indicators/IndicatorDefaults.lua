@@ -38,7 +38,7 @@ end
 
 --- Built-in count constant. Indicators 1..BUILT_IN_COUNT are built-ins;
 --- everything after is custom.
-IndicatorDefaults.BUILT_IN_COUNT = 26
+IndicatorDefaults.BUILT_IN_COUNT = 27
 
 --- Display names for the built-ins, keyed by indicatorName.
 IndicatorDefaults.BUILT_IN_NAMES = {
@@ -68,6 +68,7 @@ IndicatorDefaults.BUILT_IN_NAMES = {
     dispelIcons = "Dispel Icons",
     phasedIcon = "Phased Icon",
     pingMarker = "Ping Marker",
+    levelText = "Level Text",
 }
 
 --- Every custom indicator type the runtime knows how to dispatch, whether or
@@ -126,6 +127,9 @@ IndicatorDefaults.BUILT_IN_SETTINGS = {
     -- recolour. Size is square because both ping atlases are authored square
     -- at 30px and are scaled in proportion, not stretched.
     pingMarker  = {"enabled", "size-square", "alpha", "position-single", "frameLevel"},
+    -- Same text shape as healthText/powerText, minus maxLength (a level is
+    -- never long) and plus the max-level hide.
+    levelText   = {"enabled", "checkbutton:hideAtMaxLevel", "color-class", "textColor", "textFormat:level", "position-single", "frameLevel", "font-noOffset"},
     -- A movable/resizable pulsing block, so it takes the full position+size
     -- treatment (see BuiltIn_Update.lua's aggroBlink creation). aggroBorder
     -- stays a full-button border and has no geometry of its own.

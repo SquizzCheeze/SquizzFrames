@@ -93,6 +93,7 @@ local function GetIndicatorList()
             "aggroBorder", "phasedIcon", "shieldBar", "externalCooldowns", "defensiveCooldowns",
             "debuffs", "ccIndicator", "dispels", "missingBuffs", "targetHighlight",
             "hoverHighlight", "frameBorder",
+            "levelText",
         }
         local built = {}
         for _, indicatorName in ipairs(order) do
@@ -145,6 +146,7 @@ local TOKEN_HEIGHTS = {
     -- relied on).
     ["textFormat:health"] = 75,
     ["textFormat:power"] = 75,
+    ["textFormat:level"] = 75,
     ["font"] = 259,
     -- estimateTokenHeight looks up the RAW token string (tokens[i]), not the
     -- normalized "font1"/"font2" name used elsewhere for binding -- real
@@ -288,7 +290,7 @@ local LIST_HEADER_GAP = 5 -- extra breathing room before every header but the fi
 local CATEGORY_ORDER = { "Vitals", "My HoTs & Heals", "Debuffs to Dispel", "Defensives Available", "Alerts", "Other" }
 local CUSTOM_INDICATORS_HOME_CATEGORY = "My HoTs & Heals"
 local INDICATOR_CATEGORY = {
-    nameText = "Vitals", healthText = "Vitals", powerText = "Vitals",
+    nameText = "Vitals", healthText = "Vitals", powerText = "Vitals", levelText = "Vitals",
     healerHots = "My HoTs & Heals",
     debuffs = "Debuffs to Dispel", dispels = "Debuffs to Dispel", dispelIcons = "Debuffs to Dispel",
     -- "CC Indicator" (big centered icon, was "Raid Debuffs") reads more as
@@ -1565,6 +1567,11 @@ local function CreateMockUnitButton(parent, name, w, h, powerH)
     powerText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     powerText:Hide()
     button.powerText = powerText
+
+    local levelText = textHost:CreateFontString(nil, "OVERLAY")
+    levelText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+    levelText:Hide()
+    button.levelText = levelText
 
     local powerBar = CreateFrame("StatusBar", nil, button)
     powerBar:SetPoint("BOTTOMLEFT", healthBackdrop, "BOTTOMLEFT", 0, 0)

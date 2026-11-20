@@ -1415,6 +1415,7 @@ local function MakeCheckButton(key, defaultLabel)
                         showSwipe = "Show Cooldown Swipe",
                         useSpellIcons = "Use Spell Icons",
                         showLFGEye = "LFG Eye for Other Group",
+                        hideAtMaxLevel = "Hide at Max Level",
                         showPandemic = "Highlight When Refreshable",
                         dispelPulse = "Pulse Overlay",
                         dispelAnts = "Animated Border",
@@ -2101,6 +2102,8 @@ local TEXT_FORMAT_LABELS = {
     power         = "Power",
     powerPercent  = "Power %",
     powerMax      = "Power / Max",
+    level         = "Level",
+    levelClass    = "Level + Class",
 }
 
 local function CreateSetting_TextFormat(parent)
