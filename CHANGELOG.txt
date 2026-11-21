@@ -2,7 +2,7 @@ SquizzFrames - Changelog
 ========================
 
 
-V2.5
+V2.5 (2026-11-21)
 -----
 
 New:
@@ -12,6 +12,13 @@ New:
   colour, and by default hides itself for anyone at max level, so while
   levelling it only shows who is behind. Works on retail and WoW Forever.
   The unit frames already had this: turn on the Level text on any frame.
+
+Fixed:
+
+- Resource bar: Druids get Combo Points in Cat Form whatever their
+  specialization, the same rule Blizzard's own bar uses. Only Feral and
+  Guardian got them before, so Balance and Restoration in Cat Form had none,
+  and on WoW Forever no Druid did.
 
 
 V2.4.1 (2026-11-18)

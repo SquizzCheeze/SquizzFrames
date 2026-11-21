@@ -33,6 +33,10 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.5"] = {
+        "New Level Text indicator for party and raid frames (Indicators > Vitals). Off by default, and hides anyone at max level unless you untick it.",
+        "Resource bar: Druids get Combo Points in Cat Form whatever their specialization, on retail and WoW Forever.",
+    },
     ["2.4.1"] = {
         "WoW Forever: the spell lists on Healer HoTs and the other indicators no longer overlap. A spell with many ranks shows how many, and hovering it lists every ID.",
     },
