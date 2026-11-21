@@ -545,7 +545,13 @@ do
         -- obvious when a class simply has none rather than looking like a
         -- broken setting.
         local resName = RB and RB.ResolveSecondary and select(1, RB.ResolveSecondary())
-        if resName then
+        local _, classFile = UnitClass("player")
+        if classFile == "DRUID" then
+            -- Any druid spec, only while in cat form (ResourceBar.lua's
+            -- DruidInCatForm), so the "none" line would be wrong in caster form.
+            y = Note(host, y, L["ResourcePointsDruid"]
+                or "Druids get Combo Points in Cat Form, whatever the specialization.")
+        elseif resName then
             y = Note(host, y, (L["ResourcePointsFound"] or "This specialization uses: %s"):format(resName))
         else
             y = Note(host, y, L["ResourcePointsNone"]

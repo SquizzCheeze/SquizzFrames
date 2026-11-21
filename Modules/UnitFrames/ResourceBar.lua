@@ -119,8 +119,8 @@ local DEFAULT_POINTS_Y = -236
 --
 -- Both gates have to pass to draw anything: the class/spec has to be listed
 -- here AND UnitPowerMax has to currently be above zero. The second gate is
--- what makes a Feral druid's combo points appear in cat form and vanish out
--- of it without this file knowing anything about shapeshifting.
+-- what drops a resource a talent has taken away. Druids are the exception,
+-- decided by form rather than either table (DruidInCatForm below).
 local CLASS_RESOURCE = {
     PALADIN     = "HolyPower",
     ROGUE       = "ComboPoints",
@@ -133,9 +133,21 @@ local CLASS_RESOURCE = {
 local SPEC_RESOURCE = {
     [62]  = "ArcaneCharges",  -- Arcane Mage
     [269] = "Chi",            -- Windwalker Monk
-    [103] = "ComboPoints",    -- Feral Druid
-    [104] = "ComboPoints",    -- Guardian Druid
 }
+
+-- Druids are not in either table: ANY druid in cat form has combo points,
+-- whatever the spec, on retail and on Forever alike. Blizzard's own
+-- DruidComboPointBarMixin (both clients) shows the bar exactly when the
+-- druid's current power type is Energy, and that is copied here. It used to
+-- be spec-gated to Feral/Guardian (103/104), which missed Balance and
+-- Restoration in cat form on retail and every druid on Forever, where there
+-- is one spec per class and the IDs never match (user report 2026-11-21).
+-- UNIT_DISPLAYPOWER and UPDATE_SHAPESHIFT_FORM already relayout the bar.
+local function DruidInCatForm()
+    local pType = UnitPowerType("player")
+    if not (F and F.IsValueNonSecret and F.IsValueNonSecret(pType)) then return false end
+    return Enum and Enum.PowerType and pType == Enum.PowerType.Energy
+end
 
 -- Fallback maximums, used only when UnitPowerMax comes back unreadable.
 local RESOURCE_FALLBACK_MAX = {
@@ -175,7 +187,11 @@ function ResourceBar.ResolveSecondary()
     local name = SPEC_RESOURCE[specID]
     if not name then
         local classFile = PlayerClass()
-        name = classFile and CLASS_RESOURCE[classFile] or nil
+        if classFile == "DRUID" then
+            name = DruidInCatForm() and "ComboPoints" or nil
+        else
+            name = classFile and CLASS_RESOURCE[classFile] or nil
+        end
     end
     if not name then return nil end
 
