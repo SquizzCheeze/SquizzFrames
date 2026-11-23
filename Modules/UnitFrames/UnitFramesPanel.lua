@@ -259,6 +259,8 @@ local function ElemGetters(element)
         setX = function(v) Set(function(t) Elem(t).x = v end) end,
         y = function() return Read("y", 0) end,
         setY = function(v) Set(function(t) Elem(t).y = v end) end,
+        difficultyColor = function() return Read("difficultyColor", false) == true end,
+        setDifficultyColor = function(v) Set(function(t) Elem(t).difficultyColor = v end) end,
         classColor = function() return Read("classColor", false) == true end,
         setClassColor = function(v)
             Set(function(t) Elem(t).classColor = v end)
@@ -811,6 +813,13 @@ local function SecText(host, y, cfg, t)
                 acc.size, acc.setSize)
             sSize:SetPoint("TOPLEFT", 15, y - 20)
             y = y - 65
+
+            if element == "level" then
+                local cbDiff = W.CreateStyledCheckbox(host, L["Difficulty Color"] or "Difficulty Color",
+                    acc.difficultyColor, acc.setDifficultyColor)
+                cbDiff:SetPoint("TOPLEFT", 15, y)
+                y = y - 28
+            end
 
             local cbCC = W.CreateStyledCheckbox(host, L["Use Class Color"] or "Use Class Color",
                 acc.classColor, acc.setClassColor)

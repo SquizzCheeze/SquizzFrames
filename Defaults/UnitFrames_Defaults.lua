@@ -84,6 +84,9 @@ local function DefaultText(opts)
         y = opts.y or 0,
         size = opts.size or 12,
         classColor = false,
+        -- Level only: Blizzard's grey/green/yellow/orange/red against your
+        -- own level, for units you can attack. nil on the other elements.
+        difficultyColor = opts.difficultyColor,
         color = opts.color or {1, 1, 1, 1},
     }
 end
@@ -167,7 +170,7 @@ local function DefaultFrame(opts)
                                  format = opts.healthFormat or "healthBoth",
                                  anchor = "RIGHT"},
             power  = DefaultText{format = "powerPercent", anchor = "CENTER"},
-            level  = DefaultText{format = "level", anchor = "TOPLEFT"},
+            level  = DefaultText{format = "level", anchor = "TOPLEFT", difficultyColor = true},
         },
 
         font = {"Friz QT__", 12, "OUTLINE", true},

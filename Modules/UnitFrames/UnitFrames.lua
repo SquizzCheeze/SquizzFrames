@@ -633,7 +633,28 @@ end
 -- Resolved colour for one element. classColor borrows the health bar's own
 -- resolution (class for players, reaction for NPCs) and defaults OFF -- see
 -- DefaultText in UnitFrames_Defaults.lua for why.
+-- Blizzard's TargetFrameMixin:CheckLevel rule: a unit you can attack gets its
+-- level coloured by C_PlayerInfo.GetContentDifficultyCreatureForPlayer ->
+-- GetDifficultyColor (grey trivial, green easy, yellow fair, orange
+-- difficult, red impossible). Anything else returns nil and the element's own
+-- colour applies. Same API on retail and Forever.
+local function DifficultyColor(unit)
+    if not (C_PlayerInfo and C_PlayerInfo.GetContentDifficultyCreatureForPlayer
+        and GetDifficultyColor) then return nil end
+    local canAttack = UnitCanAttack("player", unit)
+    if not (F.IsValueNonSecret(canAttack) and canAttack) then return nil end
+    local ok, difficulty = pcall(C_PlayerInfo.GetContentDifficultyCreatureForPlayer, unit)
+    if not ok or not F.IsValueNonSecret(difficulty) then return nil end
+    local color = GetDifficultyColor(difficulty)
+    if not color then return nil end
+    return color.r, color.g, color.b
+end
+
 local function TextColor(unit, t, elem)
+    if elem.difficultyColor and unit and UnitExists(unit) then
+        local r, g, b = DifficultyColor(unit)
+        if r then return r, g, b, 1 end
+    end
     if elem.classColor and unit and UnitExists(unit) then
         local r, g, b = ResolveHealthColor(unit, t)
         return r, g, b, 1

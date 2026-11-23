@@ -2,6 +2,17 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.6
+-----
+
+New:
+
+- Unit frames: the Level text can colour itself by difficulty, the way
+  Blizzard's target frame does: grey, green, yellow, orange or red against
+  your own level, for units you can attack. On by default (Difficulty Color,
+  under Level); friendly units keep the text colour you picked.
+
+
 V2.5 (2026-11-21)
 -----
 

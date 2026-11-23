@@ -208,6 +208,7 @@ local TIPS = {
     ["Border Colour"] = "The colour of the border.",
     ["Custom Border Colour"] = "Uses a colour of your own for the border instead of the default.",
     ["Use Class Color"] = "Uses the class colour instead of a fixed colour.",
+    ["Difficulty Color"] = "Colours the level by how tough the unit is against your level, the way Blizzard's target frame does: grey, green, yellow, orange or red. Only for units you can attack; anything else keeps the colour below.",
     ["Class Color"] = "Uses the class colour instead of a fixed colour.",
     ["Font"] = "The typeface of the text.",
     ["Outline"] = "An outline around the letters, so the text stays readable on any background.",
