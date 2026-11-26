@@ -674,7 +674,7 @@ not the combat hide) ends combined mode, so `/sf` and `/sq` open standalone.
 
 The window is a library SHARED with Squizzumables since 2026-10-17, and with
 RoleRoulette since 2026-10-18: a byte-identical copy in each addon -- ⚠ change
-all three and bump `MINOR` (it is MINOR 5 in all three as of 2026-11-12; Theme
+all three and bump `MINOR` (it is MINOR 6 in all three as of 2026-11-27 (scrolling sidebar); Theme
 is MINOR 1, Grid MINOR 2). Squizzumables registers its pages as "fill" pages
 with its own search (`spec.search`), own preview headings (`previewTitle =
 false`) and a build order (`BuildAllPages(order)`). Addons and windows are separate:
