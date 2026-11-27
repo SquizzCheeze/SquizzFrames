@@ -312,6 +312,22 @@ end
 -- code path. This mirrors that fix. (The 12.0.7 clickbutton transport was
 -- deleted in 2.0; no client can run it.)
 
+-- Every binding attribute written onto a unit button goes through here, so
+-- ClearClickCastings can clear exactly those instead of sweeping ~400
+-- possible keys per frame (see its comment). Clearing writes (nil) are not
+-- recorded: there is nothing left to undo.
+local function CCSet(frame, key, value)
+    frame:SetAttribute(key, value)
+    if value ~= nil then
+        local t = frame._sfCCWritten
+        if not t then
+            t = {}
+            frame._sfCCWritten = t
+        end
+        t[key] = true
+    end
+end
+
 local actionProxies = setmetatable({}, { __mode = "k" })
 local actionProxyCounter = 0
 local function GetActionProxy(button)
@@ -404,8 +420,8 @@ local function RouteProxyAction(button, attrKey, realAction, modifierAgnostic)
     if clickButton then
         macro = macro .. " " .. clickButton
     end
-    button:SetAttribute(attrKey, "macro")
-    button:SetAttribute(macrotextKey, macro)
+    CCSet(button, attrKey, "macro")
+    CCSet(button, macrotextKey, macro)
     -- Still cleared: a profile saved under 12.0.7 may have left one set.
     button:SetAttribute(clickbuttonKey, nil)
 end
@@ -422,20 +438,46 @@ end
 -- Remove all click-cast attributes from a button so we start clean.
 -- Also clears tracked keyboard/wheel attributes (type-E, macrotext-E, etc.)
 -- that were set by the previous ApplyClickCastings call.
+--
+-- Cost (raid "script ran too long", user report 2026-11-27): the sweep below
+-- is ~400 secure writes per frame, and a full raid pass (the post-combat
+-- flush included) ran it on all 40 buttons in ONE handler. So our own
+-- buttons now clear exactly what CCSet recorded on them, and before any
+-- record exists only the unmodified typeN set a template can carry. The
+-- full sweep is kept for other addons' frames (Blizzard's, EllesmereUI's...),
+-- whose attributes we did not write and cannot know.
+local CC_KINDS = {"type", "macrotext", "spell", "item", "clickbutton"}
+local function IsOwnButton(button)
+    local name = button.GetName and button:GetName()
+    return type(name) == "string" and name:find("^SquizzFrames") ~= nil
+end
+
 local function ClearClickCastings(button)
     if not button then return end
     local mods = ALL_MODIFIER_PREFIXES
+    local written = button._sfCCWritten
+    if written then
+        for key in pairs(written) do
+            button:SetAttribute(key, nil)
+        end
+        button._sfCCWritten = nil
+    end
+    if IsOwnButton(button) then
+        if not written then
+            for _, k in ipairs(CC_KINDS) do
+                for i = 1, 5 do
+                    button:SetAttribute(k .. i, nil)
+                end
+            end
+        end
+    else
     -- Mouse buttons: typeN / macrotextN / spellN / itemN / clickbuttonN
-    for _, k in ipairs({"type", "macrotext", "spell", "item", "clickbutton"}) do
+    for _, k in ipairs(CC_KINDS) do
         for _, mod in ipairs(mods) do
             for i = 1, 5 do
                 button:SetAttribute(mod .. k .. i, nil)
             end
         end
-    end
-    -- Also clear plain clickbuttonN (no modifier)
-    for i = 1, 5 do
-        button:SetAttribute("clickbutton" .. i, nil)
     end
     -- WILDCARD ("*type1") forms. We never write these ourselves, so this is a
     -- no-op on our own buttons -- it exists for frames we take over from
@@ -458,6 +500,7 @@ local function ClearClickCastings(button)
         button:SetAttribute(mod .. "macrotext-SCROLLUP", nil)
         button:SetAttribute(mod .. "macrotext-SCROLLDOWN", nil)
     end
+    end -- foreign frame: full sweep
     -- Keyboard keys: clear tracked attributes from the previous apply, along
     -- with the value attribute that went with each one.
     --
@@ -509,7 +552,7 @@ local function SetByGatedAction(button, attrKey, action, modifierAgnostic)
     if IsGatedAction(attrKey, realAction) then
         RouteProxyAction(button, attrKey, realAction, modifierAgnostic)
     else
-        button:SetAttribute(attrKey, realAction)
+        CCSet(button, attrKey, realAction)
     end
 end
 
@@ -522,9 +565,9 @@ end
 -- engine uses the button's unit automatically.
 local function WriteBinding(target, attrKey, bindType, action, globalChild)
     local function SetMacrotext(...)
-        target:SetAttribute(attrKey, "macro")
+        CCSet(target, attrKey, "macro")
         local macrotextKey = attrKey:gsub("type", "macrotext", 1)
-        target:SetAttribute(macrotextKey, ...)
+        CCSet(target, macrotextKey, ...)
     end
 
     if bindType == "spell" then
@@ -573,9 +616,9 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
                 end
 
                 if isRes then
-                    target:SetAttribute(attrKey, "spell")
+                    CCSet(target, attrKey, "spell")
                     local spellKey = attrKey:gsub("type", "spell", 1)
-                    target:SetAttribute(spellKey, spellName)
+                    CCSet(target, spellKey, spellName)
                 elseif smartSegments and #smartSegments > 0 then
                     SetMacrotext("/cast [@mouseover,nodead] " .. spellName .. ";" .. table.concat(smartSegments, ";"))
                 else
@@ -588,9 +631,9 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
             SetMacrotext(action or "")
         else
             -- Unit button: native macro type
-            target:SetAttribute(attrKey, "macro")
+            CCSet(target, attrKey, "macro")
             local macrotextKey = attrKey:gsub("type", "macrotext", 1)
-            target:SetAttribute(macrotextKey, action or "")
+            CCSet(target, macrotextKey, action or "")
         end
     elseif bindType == "item" then
         -- A plain item ID, or an item group ("group:<key>", e.g. every quality
@@ -603,7 +646,7 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
                 -- /use with [@mouseover] so items target the hovered unit.
                 SetMacrotext("/use [@mouseover,exists] item:" .. itemId)
             else
-                target:SetAttribute(attrKey, "item")
+                CCSet(target, attrKey, "item")
                 local itemKey = attrKey:gsub("type", "item", 1)
                 -- MUST be the "item:<id>" string, never the bare number.
                 -- SECURE_ACTIONS.item hands the attribute to SecureCmdItemParse,
@@ -612,7 +655,7 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
                 -- "bad argument #1" on every click. Every numeric item binding
                 -- on our own frames was broken this way; the global mouseover
                 -- path was not, because it builds "/use item:<id>".
-                target:SetAttribute(itemKey, "item:" .. itemId)
+                CCSet(target, itemKey, "item:" .. itemId)
             end
         end
     elseif bindType == "general" or bindType == "target" or bindType == "focus"
@@ -635,12 +678,12 @@ local function WriteBinding(target, attrKey, bindType, action, globalChild)
                 -- clicks aren't gated. They are; see IsGatedAction. Anything
                 -- reviving this path must route menu through the proxy rather
                 -- than setting the attribute directly.
-                target:SetAttribute(attrKey, "togglemenu")
+                CCSet(target, attrKey, "togglemenu")
             end
         else
             -- On a unit button with a real unit token, set the attribute
             -- directly so the secure engine uses the button's unit.
-            target:SetAttribute(attrKey, actionName)
+            CCSet(target, attrKey, actionName)
         end
     end
 end
@@ -680,13 +723,13 @@ local function ApplyClickCastings(button)
                     -- Only set menu attribute for NON-gated menu actions.
                     -- Gated actions use macrotext which works in combat too.
                     if action == "menu" and not isGated then
-                        button:SetAttribute("menu", attrKey)
+                        CCSet(button, "menu", attrKey)
                     end
                 elseif bindType == "target" or bindType == "menu" then
                     local isGated = IsGatedAction(attrKey, bindType)
                     SetByGatedAction(button, attrKey, bindType)
                     if bindType == "menu" and not isGated then
-                        button:SetAttribute("menu", attrKey)
+                        CCSet(button, "menu", attrKey)
                     end
                 else
                     WriteBinding(button, attrKey, bindType, action)

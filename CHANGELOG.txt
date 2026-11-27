@@ -12,6 +12,13 @@ New:
   your own level, for units you can attack. On by default (Difficulty Color,
   under Level); friendly units keep the text colour you picked.
 
+Fixed:
+
+- Click-casting: "script ran too long" in a full raid, most often on
+  leaving combat. Re-applying bindings cleared every possible click-cast
+  setting on every frame (about 400 each, 16,000 across a raid) in one go;
+  our own frames now clear only the bindings actually written to them.
+
 
 V2.5 (2026-11-21)
 -----
