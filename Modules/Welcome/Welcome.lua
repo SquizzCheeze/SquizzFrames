@@ -33,6 +33,11 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.6"] = {
+        "Unit frames: the Level text can colour itself by difficulty (grey to red) for units you can attack. On by default, under Level.",
+        "Click-casting no longer causes \"script ran too long\" in a full raid.",
+        "WoW Forever: out-of-range fading works again.",
+    },
     ["2.5"] = {
         "New Level Text indicator for party and raid frames (Indicators > Vitals). Off by default, and hides anyone at max level unless you untick it.",
         "Resource bar: Druids get Combo Points in Cat Form whatever their specialization, on retail and WoW Forever.",

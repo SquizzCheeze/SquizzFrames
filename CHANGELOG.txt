@@ -2,7 +2,7 @@ SquizzFrames - Changelog
 ========================
 
 
-V2.6
+V2.6 (2026-11-28)
 -----
 
 New:
@@ -11,6 +11,8 @@ New:
   Blizzard's target frame does: grey, green, yellow, orange or red against
   your own level, for units you can attack. On by default (Difficulty Color,
   under Level); friendly units keep the text colour you picked.
+- Options window: the sidebar scrolls when it has more rows than fit, and
+  pages are built a few at a time instead of all at once on the first open.
 
 Fixed:
 
@@ -18,6 +20,9 @@ Fixed:
   leaving combat. Re-applying bindings cleared every possible click-cast
   setting on every frame (about 400 each, 16,000 across a raid) in one go;
   our own frames now clear only the bindings actually written to them.
+- WoW Forever: out-of-range fading could fail to start, because the range
+  library tried to listen for an event Forever does not have and stopped
+  there. It now only listens for events the game knows.
 
 
 V2.5 (2026-11-21)
