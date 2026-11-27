@@ -4594,18 +4594,25 @@ function lib:activate()
     local frame = CreateFrame("Frame")
     self.frame = frame
 
-    if not (isMidnight or isTBC) then
-      frame:RegisterEvent("LEARNED_SPELL_IN_TAB")
+    -- SquizzFrames local edit: WoW Forever matches none of the project
+    -- flags and lacks some of these events, and an unknown event raises.
+    local function Register(event)
+      if C_EventUtils and C_EventUtils.IsEventValid and not C_EventUtils.IsEventValid(event) then return end
+      frame:RegisterEvent(event)
     end
-    frame:RegisterEvent("CHARACTER_POINTS_CHANGED")
-    frame:RegisterEvent("SPELLS_CHANGED")
+
+    if not (isMidnight or isTBC) then
+      Register("LEARNED_SPELL_IN_TAB")
+    end
+    Register("CHARACTER_POINTS_CHANGED")
+    Register("SPELLS_CHANGED")
 
     if isEra or isCata then
-      frame:RegisterEvent("CVAR_UPDATE")
+      Register("CVAR_UPDATE")
     end
 
     if isRetail or isCata then
-      frame:RegisterEvent("PLAYER_TALENT_UPDATE")
+      Register("PLAYER_TALENT_UPDATE")
     end
 
     local _, playerClass = UnitClass("player")
