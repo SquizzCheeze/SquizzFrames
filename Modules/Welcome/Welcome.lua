@@ -33,6 +33,9 @@ SquizzFrames.Welcome = Welcome
 -- ADD A NEW ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update frame, just without bullets.
 local RELEASE_NOTES = {
+    ["2.7"] = {
+        "Unit frames: text moved over the portrait (the Level text, for example) now shows on top of it instead of behind it.",
+    },
     ["2.6"] = {
         "Unit frames: the Level text can colour itself by difficulty (grey to red) for units you can attack. On by default, under Level.",
         "Click-casting no longer causes \"script ran too long\" in a full raid.",

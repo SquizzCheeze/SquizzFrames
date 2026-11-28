@@ -2,7 +2,7 @@ SquizzFrames - Changelog
 ========================
 
 
-V2.7
+V2.7 (2026-11-28)
 -----
 
 Fixed:
