@@ -129,8 +129,11 @@ function Preview.Create(parent)
     p.icons.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
 
     -- Portrait
+    -- BELOW the text host (+5), as on the real frame (portrait +3, text +6):
+    -- a readout moved over the portrait must stay readable. It sat at +6
+    -- until 2026-11-28, which hid a Level text offset onto the portrait.
     local portrait = CreateFrame("Frame", nil, p)
-    portrait:SetFrameLevel(p:GetFrameLevel() + 6)
+    portrait:SetFrameLevel(p:GetFrameLevel() + 4)
     local ptex = portrait:CreateTexture(nil, "ARTWORK")
     ptex:SetAllPoints(portrait)
     portrait.texture = ptex

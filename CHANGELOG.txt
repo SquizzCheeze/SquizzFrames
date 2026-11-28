@@ -2,6 +2,16 @@ SquizzFrames - Changelog
 ========================
 
 
+V2.7
+-----
+
+Fixed:
+
+- Unit frames: text moved over the portrait with its offsets (the Level
+  text, for example) now draws on top of the portrait instead of behind it,
+  on the frames and in the options preview.
+
+
 V2.6 (2026-11-28)
 -----
 

@@ -1572,6 +1572,15 @@ function ApplyLayout()
                 local inset = 0
                 if P and portraits[unit] then
                     inset = P.ApplySettings(portraits[unit], frame, t) or 0
+                    -- Text always draws OVER the portrait (and its 3D model,
+                    -- one level above the holder), so a readout offset onto
+                    -- the portrait stays visible. OnLoad sets the text host
+                    -- high already; this only ever raises it.
+                    local host = frame.textHost
+                    local want = (portraits[unit]:GetFrameLevel() or 0) + 3
+                    if host and host:GetFrameLevel() < want then
+                        host:SetFrameLevel(want)
+                    end
                 end
 
                 local pside = (t.portrait and t.portrait.side) or "LEFT"
